@@ -1,6 +1,6 @@
-import { Context, Effect, Either, Layer } from "effect";
-import { ulid, ULID } from "ulid";
-import { BlockLimit, BlockLimitExceededError, CharacterLimit } from "./limit.ts";
+import { Context, Effect, Layer } from "effect";
+import { ulid, type ULID } from "ulid";
+import { BlockLimit, type BlockLimitExceededError,} from "./limit.ts";
 
 const MemBlockTag = Context.Tag("Memblock")<MemBlock, MemBlock.MemBlock>();
 export class MemBlock extends MemBlockTag { };
@@ -28,7 +28,7 @@ export const CharMemBlock: Layer.Layer<MemBlock, never, BlockLimit> = Layer.effe
     const checker = yield* BlockLimit;
     const proto = {
         load: (id: string) => Effect.sync (() => {
-
+            id;
         }),
         make: (label: string, limit: number, decription?: string) => Effect.sync(() => {
             const block: MemBlock.Block = {

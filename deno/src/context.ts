@@ -1,5 +1,5 @@
 import { Context } from "effect";
-import { type MemBlock,  } from "./memblock.ts";
+import type { MemBlock,  } from "./memblock.ts";
 
 const ContextWindowTag = Context.Tag("ContextWindow")<ContextWindow,ContextWindow.Window>();
 export class ContextWindow extends ContextWindowTag {};
