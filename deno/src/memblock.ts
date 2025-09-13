@@ -1,26 +1,38 @@
 import { Context, Effect, Either, Layer } from "effect";
+import { ulid, ULID } from "ulid";
 import { BlockLimit, BlockLimitExceededError, CharacterLimit } from "./limit.ts";
 
-export class MemBlock extends Context.Tag("Memblock")<MemBlock, MemBlock.MemBlock>() { }
+const MemBlockTag = Context.Tag("Memblock")<MemBlock, MemBlock.MemBlock>();
+export class MemBlock extends MemBlockTag { };
 
 export declare namespace MemBlock {
     export interface Block {
+        readonly id: ULID;
         readonly label: string;
         value: string;
         readonly limit: number;
         readonly description?: string;
+        readonly relationships?: Relationship[];
+    }
+    export interface Relationship {
+        [type: string]: ULID;
     }
     export interface MemBlock {
+        load: (id: string) => Effect.Effect<void, never, never>;
         make: (label: string, limit: number, decription?: string) => Effect.Effect<Block, never, never>;
         update: (block: MemBlock.Block, value: string) => Effect.Effect<void, BlockLimitExceededError, never>
     }
 }
 
-export const CharMemBlock = Layer.effect(MemBlock, Effect.gen(function* () {
+export const CharMemBlock: Layer.Layer<MemBlock, never, BlockLimit> = Layer.effect(MemBlock, Effect.gen(function* () {
     const checker = yield* BlockLimit;
     const proto = {
+        load: (id: string) => Effect.sync (() => {
+
+        }),
         make: (label: string, limit: number, decription?: string) => Effect.sync(() => {
             const block: MemBlock.Block = {
+                id: ulid(),
                 label: label,
                 value: " ",
                 limit: limit,
@@ -35,24 +47,3 @@ export const CharMemBlock = Layer.effect(MemBlock, Effect.gen(function* () {
     }
     return proto;
 }))
-
-const program = Effect.gen(function* () {
-    const memBlock = yield* MemBlock;
-    const block = yield* memBlock.make("start", 4, "now");
-    yield* memBlock.update(block, "Luiz you are lazy today");
-    console.log(block);
-})
-
-const programLive = Effect.provide(program, CharMemBlock);
-const runMain = Effect.provide(programLive, CharacterLimit);
-
-const final = Effect.gen(function* () {
-    const failureOrSuccess = yield* Effect.either(runMain);
-    if (Either.isLeft(failureOrSuccess)) {
-        const error = failureOrSuccess.left;
-        console.log(`Error occured due to ${error._tag}`);
-    } else {
-        return failureOrSuccess.right;
-    }
-})
-Effect.runSync(final);
