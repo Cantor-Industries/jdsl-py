@@ -3,7 +3,8 @@
     "dev": "deno run --watch main.ts"
   },
   "imports": {
-    "effect": "npm:effect@^3.17.9"
+    "effect": "npm:effect@^3.17.9",
+    "ulid": "npm:ulid@^3.0.1"
   },
   "nodeModulesDir": "auto"
 }
