@@ -1,12 +1,15 @@
 import { Context } from "effect";
 import { type MemBlock,  } from "./memblock.ts";
-export class ContextWindow extends Context.Tag("ContextWindow")<ContextWindow,ContextWindow.Window>() {}
 
-export class SystemInstructions extends Context.Tag("SystemInstructions")<SystemInstructions, SystemInstructions.SystemInstructions> () {}
+const ContextWindowTag = Context.Tag("ContextWindow")<ContextWindow,ContextWindow.Window>();
+export class ContextWindow extends ContextWindowTag {};
+
+const SystemInstructionsTag = Context.Tag("SystemInstructions")<SystemInstructions, SystemInstructions.SystemInstructions> ();
+export class SystemInstructions extends SystemInstructionsTag {};
 
 export declare namespace SystemInstructions {
     export interface Instructions {
-        pry: MemBlock.Block
+        instructions: MemBlock.Block[];
     }
 
     export interface SystemInstructions {
@@ -20,7 +23,7 @@ export declare namespace ContextWindow {
     export interface Window {
         capacity: number;
         used: number;
-        systemInstructions: string;
+        systemInstructions: SystemInstructions.Instructions['instructions'];
         coreMemory: string;
         messages: string;
     }
