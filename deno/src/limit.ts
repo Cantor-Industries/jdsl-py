@@ -1,9 +1,11 @@
 import { Context, Data, Effect, Layer } from "effect";
 
-export class BlockLimit extends Context.Tag("BlockLimit")<BlockLimit, BlockLimit.Limiter>() { }
+const BlockLimitTag: Context.TagClass<BlockLimit, "BlockLimit", BlockLimit.Limiter> = Context.Tag("BlockLimit")<BlockLimit, BlockLimit.Limiter>(); 
+export class BlockLimit extends BlockLimitTag{ };
 
 // deno-lint-ignore ban-types
-export class BlockLimitExceededError extends Data.TaggedError("BlockLimitExceededError")<{}> { }
+const BlockLimitExceededErrorTag = Data.TaggedError("BlockLimitExceededError")<{}> ;
+export class BlockLimitExceededError extends BlockLimitExceededErrorTag{ }
 
 export declare namespace BlockLimit {
     export interface Limiter {
@@ -11,7 +13,7 @@ export declare namespace BlockLimit {
     }
 }
 
-export const CharacterLimit = Layer.effect(BlockLimit, Effect.sync(() => {
+export const CharacterLimit: Layer.Layer<BlockLimit, never, never> = Layer.effect(BlockLimit, Effect.sync(() => {
     const proto = {
         check: (value: string, limit: number) => Effect.try({
             try: () => {
@@ -23,7 +25,7 @@ export const CharacterLimit = Layer.effect(BlockLimit, Effect.sync(() => {
     return proto;
 }))
 
-export const TokenLimit = Layer.effect(BlockLimit, Effect.sync(() => {
+export const TokenLimit: Layer.Layer<BlockLimit, never, never> = Layer.effect(BlockLimit, Effect.sync(() => {
     const proto = {
         check: (value: string, limit: number) => Effect.try({
             try: () => {
@@ -36,7 +38,7 @@ export const TokenLimit = Layer.effect(BlockLimit, Effect.sync(() => {
     return proto;
 }))
 
-export const WordLimit = Layer.effect(BlockLimit, Effect.sync(() => {
+export const WordLimit: Layer.Layer<BlockLimit, never, never> = Layer.effect(BlockLimit, Effect.sync(() => {
     const proto = {
         check: (value: string, limit: number) => Effect.try({
             try: () => {
