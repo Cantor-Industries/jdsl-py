@@ -10,7 +10,7 @@
     "ulid": "npm:ulid@^3.0.1"
   },
   "exports": {
-    "./": "./src/context.ts",
+    ".": "./src/context.ts",
     "./block": "./src/memblock.ts",
     "./limit": "./src/limit.ts"
   },
