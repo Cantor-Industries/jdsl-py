@@ -6,7 +6,9 @@
     "dev": "deno run --watch main.ts"
   },
   "imports": {
+    "@floq/kv": "jsr:@floq/kv@^0.0.8",
     "effect": "npm:effect@^3.17.9",
+    "ollama": "npm:ollama@^0.5.18",
     "ulid": "npm:ulid@^3.0.1"
   },
   "exports": {

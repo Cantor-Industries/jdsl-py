@@ -1,6 +1,12 @@
 import { Context, Effect, Layer } from "effect";
 import { ulid, type ULID } from "ulid";
-import { BlockLimit, type BlockLimitExceededError,} from "./limit.ts";
+import { 
+    BlockLimit, 
+    CharacterLimit, 
+    TokenLimit, 
+    WordLimit, 
+    type BlockLimitExceededError
+} from "recon/limit";
 
 const MemBlockTag = Context.Tag("Memblock")<MemBlock, MemBlock.MemBlock>();
 export class MemBlock extends MemBlockTag { };
@@ -12,6 +18,7 @@ export declare namespace MemBlock {
         value: string;
         readonly limit: number;
         readonly description?: string;
+        tags?: string[];
         readonly relationships?: Relationship[];
     }
     export interface Relationship {
@@ -19,18 +26,19 @@ export declare namespace MemBlock {
     }
     export interface MemBlock {
         load: (id: string) => Effect.Effect<void, never, never>;
-        make: (label: string, limit: number, decription?: string) => Effect.Effect<Block, never, never>;
+        make: (label: string, limit: number, decription?: string) => Effect.Effect<Block, BlockLimitExceededError, never>;
         update: (block: MemBlock.Block, value: string) => Effect.Effect<void, BlockLimitExceededError, never>
     }
 }
 
-export const CharMemBlock: Layer.Layer<MemBlock, never, BlockLimit> = Layer.effect(MemBlock, Effect.gen(function* () {
+const MemBlockLive: Layer.Layer<MemBlock, never, BlockLimit> = Layer.effect(MemBlock, Effect.gen(function* () {
     const checker = yield* BlockLimit;
     const proto = {
         load: (id: string) => Effect.sync (() => {
             id;
         }),
-        make: (label: string, limit: number, decription?: string) => Effect.sync(() => {
+        make: (label: string, limit: number, decription?: string) => Effect.gen(function*() {
+            yield* checker.check(label, limit);
             const block: MemBlock.Block = {
                 id: ulid(),
                 label: label,
@@ -47,3 +55,7 @@ export const CharMemBlock: Layer.Layer<MemBlock, never, BlockLimit> = Layer.effe
     }
     return proto;
 }))
+
+export const CharMemBlock = Layer.provide(MemBlockLive, CharacterLimit);
+export const WordMemBlock = Layer.provide(MemBlockLive, WordLimit);
+export const TokenMemBlock = Layer.provide(MemBlockLive, TokenLimit);
