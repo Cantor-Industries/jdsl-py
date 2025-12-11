@@ -1,7 +1,7 @@
 import { NodeCreator } from "./utils.ts";
 import ts, {Node, factory } from "typescript";
 
-class Action extends NodeCreator {
+export class Action extends NodeCreator {
     // deno-lint-ignore no-explicit-any
     private args: any[];
     // deno-lint-ignore no-explicit-any

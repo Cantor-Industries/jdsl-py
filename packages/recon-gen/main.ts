@@ -1,8 +1,8 @@
 import { getEscapedText } from "./src/utils.ts";
-import ts, { factory, Node, SourceFile } from "typescript";
+import ts, { Node, SourceFile } from "typescript";
 
 import root, { Root } from "./src/root.ts";
-import actionMap, { ActionMap } from "./src/action.ts";
+import actionMap from "./src/action.ts";
 
 export const definition = `const definition = {
     "type": "root",
@@ -36,91 +36,99 @@ const agentAST = ts.createSourceFile(
     ts.ScriptKind.TS
 )
 
-
 let parentObject: Root;
-const agentObject = new Map<string, Node>();
+let agentTree = new Map<string, Node>();
 
-const transformAgent = (sourceFile: SourceFile) => {
-    ts.visitNode(sourceFile, agentVisitor, undefined);
-}
-
-
-const parseArgs = (args: Node, actionMap: ActionMap) => {
-    args;
-}
-const agentVisitor = (node: Node): Node | undefined => {
-    let key: Node | undefined;
-    let value: Node | undefined;
-    let args: Node | undefined;
-    let block: Node | undefined;
-    if (ts.isPropertyAssignment(node)) {
-        key = node.getChildAt(0);
-        value = node.getChildAt(2);
-        const text = key.getText();
-        agentObject.set(text, value)
-        // console.log(key.getText(),":",value.getText(),"\n");
-    }
-    if (ts.isArrowFunction(node)) {
-        block = node.getChildAt(4);
-        args = node.getChildAt(1);
-        // console.log(block.getText(), "\n");
-        console.log(args.getText());
-    }
-    return node.forEachChild(agentVisitor);
-}
-const parseType = (value: string) => {
-    switch (value) {
-        case "root":
-            root.addImport("effect", "Effect", "Context", "Layer");
-            root.addContext();
-            root.addLayer();
-            parentObject = root;
-            break;
-        case "action":
-
-            break;
-        default:
-            break;
-    }
-}
-
-const definitionVisitor = (node: Node): Node | undefined => {
-    if (ts.isPropertyAssignment(node)) {
-        const key = node.getChildAt(0);
-        const value = node.getChildAt(2);
-        switch (getEscapedText(key)) {
-            case "type":
-                parseType(getEscapedText(value))
-                break;
-            case "child":
-                break;
-            case "children":
-                break;
-            case "call":
-                actionMap.addAction(getEscapedText(value) + "Action");
-                actionMap.addImport("effect", "Context", "Data", "Effect", "Layer");
-                actionMap.addContext();
-                actionMap.addLayer();
-                parentObject.addChild(getEscapedText(value) + "Action");
-                break;
-            case "args":
-                parseArgs(node, actionMap);
-                console.log("Args:", node.getChildAt(2).getFullText())
-                actionMap.addArgs(node.getChildAt(2))
-                break;
+const agentVisitor = (node: Node): Map<string, Node> => {
+    const agentTree: Map<string, Node> = new Map();
+    for (const child of node.getChildAt(1).getChildren()) {
+        if (ts.isPropertyAssignment(child)) {
+            const key = child.getChildAt(0);
+            const value = child.getChildAt(2);
+            agentTree.set(key.getText(), value);
         }
     }
-    return node.forEachChild(definitionVisitor);
+    return agentTree;
 }
 
-const transformer = (sourceFile: SourceFile) => {
-    ts.visitNode(sourceFile, definitionVisitor, undefined);
+const buildRoot = () => {
+    parentObject = root;
+    root.addImport("effect", "Effect", "Context", "Layer");
+    root.addContext();
+    root.addLayer();
 }
 
-transformAgent(agentAST);
-// console.log(agentObject)
-transformer(definitionAST);
+const buildAction = (tree: Map<string, Node>, parent: Root) => {
+    const actionName = tree.get("call");
+    if (!actionName) {
+        console.error("Action must have a call attribute");
+        return
+    }
+    actionMap.addAction(getEscapedText(actionName) + "Action");
+    actionMap.addImport("effect", "Context", "Data", "Effect", "Layer");
+    actionMap.addContext();
+    actionMap.addLayer();
+    parent.addChild(getEscapedText(actionName) + "Action");
 
-// root.print();
-// console.log("");
+    
+}
+
+const visitTree = (node: Node, parent: Root): Node | undefined => {
+    const tree: Map<string, Node> = new Map();
+    for (const child of node.getChildAt(1).getChildren()) {
+        if (ts.isPropertyAssignment(child)) {
+            const key = child.getChildAt(0);
+            const value = child.getChildAt(2);
+            tree.set(getEscapedText(key), value);
+        }
+    }
+    for (const [key, value] of tree) {
+        if (key == "type") {
+            const valueName = getEscapedText(value);
+            if (valueName == "root") {
+                const child = tree.get("child");
+                if (child == undefined) {
+                    console.error("Root Node Must Have child property");
+                    break;
+                }
+                buildRoot();
+                return visitTree(child, root);
+            } else if (valueName === "action") {
+                buildAction(tree, parent);
+            }
+        }
+    }
+    return node;
+}
+
+const agentWalker = (node: Node): Node | undefined => {
+    if (ts.isObjectLiteralExpression(node)) {
+        agentTree = agentVisitor(node);
+        return node;
+    } else {
+        return node.forEachChild(agentWalker);
+    }
+}
+
+const definitionWalker = (node: Node): Node | undefined => {
+    if (ts.isObjectLiteralExpression(node)) {
+        return visitTree(node, root);
+    } else {
+        return node.forEachChild(definitionWalker)
+    }
+}
+
+const transformer = (sourceFile: SourceFile, visitor: (node: Node)=> Node | undefined) => {
+    ts.visitNode(sourceFile, visitor, undefined);
+}
+
+transformer(agentAST, agentWalker);
+transformer(definitionAST, definitionWalker);
+
+root.print();
+console.log("");
 actionMap.print();
+console.log("");
+for (const [key, value] of agentTree) {
+    console.log(key, "->", value.getText());
+}
