@@ -2,7 +2,7 @@ import { getEscapedText } from "./src/utils.ts";
 import ts, { Node, SourceFile } from "typescript";
 
 import root, { Root } from "./src/root.ts";
-import actionMap from "./src/action.ts";
+import {ActionMap} from "./src/action.ts";
 
 export const definition = `const definition = {
     "type": "root",
@@ -17,6 +17,7 @@ export const definition = `const definition = {
 export const agent = `const agent = {
     TryThis: (action: string, arg: string, age: number, save: boolean) => {
         console.log("Agent Trying This");
+        return action;
     }
 }`
 
@@ -36,29 +37,27 @@ const agentAST = ts.createSourceFile(
     ts.ScriptKind.TS
 )
 
-let parentObject: Root;
-let agentTree = new Map<string, Node>();
+let agentTree = new Map<string, ts.ArrowFunction>();
 
-const agentVisitor = (node: Node): Map<string, Node> => {
-    const agentTree: Map<string, Node> = new Map();
+const agentVisitor = (node: Node) => {
+    const agentTree: Map<string, ts.ArrowFunction> = new Map();
     for (const child of node.getChildAt(1).getChildren()) {
         if (ts.isPropertyAssignment(child)) {
             const key = child.getChildAt(0);
             const value = child.getChildAt(2);
-            agentTree.set(key.getText(), value);
+            agentTree.set(key.getText(), value as ts.ArrowFunction);
         }
     }
     return agentTree;
 }
 
 const buildRoot = () => {
-    parentObject = root;
     root.addImport("effect", "Effect", "Context", "Layer");
     root.addContext();
     root.addLayer();
 }
 
-const buildAction = (tree: Map<string, Node>, parent: Root) => {
+const buildAction = (tree: Map<string, ts.ArrowFunction>, parent: Root) => {
     const actionName = tree.get("call");
     if (!actionName) {
         console.error("Action must have a call attribute");
@@ -70,16 +69,16 @@ const buildAction = (tree: Map<string, Node>, parent: Root) => {
     actionMap.addLayer();
     parent.addChild(getEscapedText(actionName) + "Action");
 
-    
+
 }
 
 const visitTree = (node: Node, parent: Root): Node | undefined => {
-    const tree: Map<string, Node> = new Map();
+    const tree: Map<string, ts.ArrowFunction> = new Map();
     for (const child of node.getChildAt(1).getChildren()) {
         if (ts.isPropertyAssignment(child)) {
             const key = child.getChildAt(0);
             const value = child.getChildAt(2);
-            tree.set(getEscapedText(key), value);
+            tree.set(getEscapedText(key), value as ts.ArrowFunction);
         }
     }
     for (const [key, value] of tree) {
@@ -123,12 +122,14 @@ const transformer = (sourceFile: SourceFile, visitor: (node: Node)=> Node | unde
 }
 
 transformer(agentAST, agentWalker);
+const actionMap = new ActionMap(agentTree);
 transformer(definitionAST, definitionWalker);
 
+console.log("");
 root.print();
 console.log("");
 actionMap.print();
-console.log("");
-for (const [key, value] of agentTree) {
-    console.log(key, "->", value.getText());
-}
+// console.log("");
+// for (const [key, value] of agentTree) {
+//     console.log(key, "->", value.getText());
+// }
