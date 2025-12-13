@@ -52,7 +52,8 @@ const agentVisitor = (node: Node) => {
 }
 
 const buildRoot = () => {
-    root.addImport("effect", "Effect", "Context", "Layer");
+    root.addImport("effect", "Context", "Data", "Effect", "Layer");
+    root.addError();
     root.addContext();
     root.addLayer();
 }
