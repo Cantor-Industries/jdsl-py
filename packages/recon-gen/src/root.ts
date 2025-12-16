@@ -1,11 +1,14 @@
 import ts, { factory } from "typescript";
-import { lowercaseFirstLetter, NodeCreator } from "./utils.ts";
+import { createLayer, lowercaseFirstLetter, NodeCreator } from "./utils.ts";
 
 export class Root extends NodeCreator {
     private childName: string;
+    private services: ts.CallExpression[];
     constructor() {
         super("Root");
         this.childName = "";
+        this.services = [];
+        this.addService(this.name)
     }
 
     override addChild(childName: string): void {
@@ -13,16 +16,99 @@ export class Root extends NodeCreator {
             this.childName = childName;
             this.addImport(childName + ".ts", childName, childName + "Live")
             this.addLayerDependency(childName);
+            this.addService(childName);
             this.addLayerBody();
-            this.updateSourceFile();
         } else {
             console.log("Root node can only have one child");
         }
     }
 
+    addService(serviceName: string) {
+        this.services.push(createService(serviceName));
+    }
+
     override addLayerBody(): void {
         this.layerBody = createRootLayerBody(this.name, this.childName);
     }
+
+    override addLayer(): void {
+        const program = createProgram(this.services);
+        this.layer = createLayer(this.name, this.layerDependencies, this.layerBody, program);
+    }
+}
+
+const createProgram = (services: ts.CallExpression[]) => {
+    const program = factory.createVariableStatement(
+        [factory.createToken(ts.SyntaxKind.ExportKeyword)],
+        factory.createVariableDeclarationList(
+            [factory.createVariableDeclaration(
+                factory.createIdentifier("program"),
+                undefined,
+                undefined,
+                factory.createCallExpression(
+                    factory.createPropertyAccessExpression(
+                        factory.createCallExpression(
+                            factory.createPropertyAccessExpression(
+                                factory.createIdentifier("Effect"),
+                                factory.createIdentifier("gen")
+                            ),
+                            undefined,
+                            [factory.createFunctionExpression(
+                                undefined,
+                                factory.createToken(ts.SyntaxKind.AsteriskToken),
+                                undefined,
+                                undefined,
+                                [],
+                                undefined,
+                                factory.createBlock(
+                                    [
+                                        factory.createVariableStatement(
+                                            undefined,
+                                            factory.createVariableDeclarationList(
+                                                [factory.createVariableDeclaration(
+                                                    factory.createIdentifier("root"),
+                                                    undefined,
+                                                    undefined,
+                                                    factory.createYieldExpression(
+                                                        factory.createToken(ts.SyntaxKind.AsteriskToken),
+                                                        factory.createIdentifier("Root")
+                                                    )
+                                                )],
+                                                ts.NodeFlags.Const
+                                            )
+                                        ),
+                                        factory.createExpressionStatement(factory.createYieldExpression(
+                                            factory.createToken(ts.SyntaxKind.AsteriskToken),
+                                            factory.createCallExpression(
+                                                factory.createPropertyAccessExpression(
+                                                    factory.createIdentifier("root"),
+                                                    factory.createIdentifier("update")
+                                                ),
+                                                undefined,
+                                                []
+                                            )
+                                        ))
+                                    ],
+                                    true
+                                )
+                            )]
+                        ),
+                        factory.createIdentifier("pipe")
+                    ),
+                    undefined,
+                    [
+                        ...services,
+                        factory.createPropertyAccessExpression(
+                            factory.createIdentifier("Effect"),
+                            factory.createIdentifier("runPromise")
+                        )
+                    ]
+                )
+            )],
+            ts.NodeFlags.Const
+        )
+    )
+    return program;
 }
 
 const createRootLayerBody = (layerName: string, childName: string) => {
@@ -179,10 +265,24 @@ const createRootLayerBody = (layerName: string, childName: string) => {
                 ts.NodeFlags.Const
             )
         ),
-        factory.createReturnStatement(factory.createIdentifier("proto"))
+        factory.createReturnStatement(factory.createIdentifier("proto")),
     ];
     return rootBody;
 }
+
+const createService = (serviceName: string) => {
+    const service = factory.createCallExpression(
+        factory.createPropertyAccessExpression(
+            factory.createIdentifier("Effect"),
+            factory.createIdentifier("provide")
+        ),
+        undefined,
+        [factory.createIdentifier(serviceName + "Live")]
+    )
+    return service;
+}
+
+
 const root = new Root();
 
 export default root;
