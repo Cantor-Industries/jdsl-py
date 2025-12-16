@@ -4,56 +4,53 @@ export class NodeCreator {
   protected name: string;
   private sourceFile: ts.SourceFile;
   private importList: ts.ImportDeclaration[];
-  private contextDeclaration: (ts.VariableStatement | ts.ClassDeclaration)[];
-  protected layerDeclaration: ts.VariableStatement[];
+  private context: (ts.VariableStatement | ts.ClassDeclaration)[];
+  protected layer: ts.VariableStatement[];
   protected layerDependencies: ts.VariableStatement[];
   protected layerBody: (ts.VariableStatement | ts.ReturnStatement)[];
-  private namespaceDeclaration: ts.ModuleDeclaration[];
-  private taggedErrorDeclaration: (ts.VariableStatement | ts.ClassDeclaration)[];
+  private namespace: ts.ModuleDeclaration[];
+  private taggedError: (ts.VariableStatement | ts.ClassDeclaration)[];
 
   constructor(name: string) {
     this.name = name;
     this.sourceFile = ts.createSourceFile(name + ".ts", "", ts.ScriptTarget.ESNext, true);
     this.importList = [];
-    this.contextDeclaration = [];
-    this.layerDeclaration = [];
+    this.context = [];
+    this.layer = [];
     this.layerDependencies = [];
     this.layerBody = [];
-    this.namespaceDeclaration = [];
-    this.taggedErrorDeclaration = [];
+    this.namespace = [];
+    this.taggedError = [];
   }
 
   addImport(packageName: string, ...values: string[]) {
     const imports = createImport(packageName, ...values);
     this.importList.push(imports);
-    this.updateSourceFile();
   }
 
   addChild(childName: string) {
+    // method must be overriden
     childName;
   }
 
   addContext() {
-    this.contextDeclaration = [
-      ...this.contextDeclaration,
-      ...createContextTag(this.name)
+    this.context = [
+      ...this.context,
+      ...createContext(this.name)
     ];
     this.addNamespace();
-    this.updateSourceFile();
   }
 
   addError() {
-    this.taggedErrorDeclaration = [
-      ...this.taggedErrorDeclaration,
+    this.taggedError = [
+      ...this.taggedError,
       ...createTaggedError(this.name)
     ];
-    this.updateSourceFile();
   }
 
   addLayer() {
     this.addLayerBody();
-    this.layerDeclaration = createLayer(this.name, this.layerDependencies, this.layerBody);
-    this.updateSourceFile();
+    this.layer = createLayer(this.name, this.layerDependencies, this.layerBody);
   }
 
   addLayerDependency(dependencyName: string) {
@@ -66,29 +63,30 @@ export class NodeCreator {
   }
 
   private addNamespace() {
-    this.namespaceDeclaration.push(createNamespace(this.name));
+    this.namespace.push(createNamespace(this.name));
   }
 
-  private getSourceText() {
+  private compile() {
+    this.addLayer();
     const nodes = factory.createNodeArray([
       ...this.importList,
-      ...this.contextDeclaration,
-      ...this.taggedErrorDeclaration,
-      ...this.namespaceDeclaration,
-      ...this.layerDeclaration
-    ])
+      ...this.context,
+      ...this.taggedError,
+      ...this.namespace,
+      ...this.layer
+    ]);
     const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
     return printer.printList(ts.ListFormat.MultiLine, nodes, this.sourceFile);
   }
 
   protected updateSourceFile() {
-    this.layerDeclaration = createLayer(this.name, this.layerDependencies, this.layerBody);
-    this.sourceFile = ts.createSourceFile(this.name + ".ts", this.getSourceText(), ts.ScriptTarget.Latest, true);
+    this.layer = createLayer(this.name, this.layerDependencies, this.layerBody);
+    this.sourceFile = ts.createSourceFile(this.name + ".ts", this.compile(), ts.ScriptTarget.Latest, true);
   }
 
   print() {
     this.updateSourceFile();
-    console.log(this.getSourceText());
+    console.log(this.sourceFile.getText());
   }
 }
 
@@ -157,7 +155,7 @@ const createLayerBody = () => {
   return layerBobyBlock;
 }
 
-const createContextTag = (name: string): (ts.VariableStatement | ts.ClassDeclaration)[] => {
+const createContext = (name: string): (ts.VariableStatement | ts.ClassDeclaration)[] => {
   const identifier = factory.createIdentifier(name);
   const tag = factory.createIdentifier(name + "Tag");
   const def = [
@@ -256,7 +254,7 @@ const createImport = (packageName: string, ...values: string[]): ts.ImportDeclar
   return imports;
 }
 
-export const createLayer = (layerName: string, dependencies: ts.VariableStatement[], body: (ts.VariableStatement | ts.ReturnStatement)[]) => {
+export const createLayer = (layerName: string, dependencies: ts.VariableStatement[], body: (ts.VariableStatement | ts.ReturnStatement)[], ...other: ts.VariableStatement[]) => {
   const layer = [
     factory.createVariableStatement(
       [factory.createToken(ts.SyntaxKind.ExportKeyword)],
@@ -297,7 +295,8 @@ export const createLayer = (layerName: string, dependencies: ts.VariableStatemen
         )],
         ts.NodeFlags.Const
       )
-    )
+    ),
+    ...other,
   ];
   return layer;
 }
