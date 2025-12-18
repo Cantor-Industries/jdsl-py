@@ -1,7 +1,8 @@
 import ts, { Node, factory } from "typescript";
 
 export class NodeCreator {
-  protected name: string;
+  public name: string;
+  protected basePath: string
   private sourceFile: ts.SourceFile;
   private importList: ts.ImportDeclaration[];
   private context: (ts.VariableStatement | ts.ClassDeclaration)[];
@@ -11,9 +12,11 @@ export class NodeCreator {
   private namespace: ts.ModuleDeclaration[];
   private taggedError: (ts.VariableStatement | ts.ClassDeclaration)[];
 
-  constructor(name: string) {
+  constructor(name: string, basePath?: string) {
     this.name = name;
-    this.sourceFile = ts.createSourceFile(name + ".ts", "", ts.ScriptTarget.ESNext, true);
+    this.basePath = basePath ?? "";
+    this.sourceFile = ts.createSourceFile(this.path(), "", ts.ScriptTarget.ESNext, true);
+    console.log(this.sourceFile.fileName);
     this.importList = [];
     this.context = [];
     this.layer = [];
@@ -28,9 +31,9 @@ export class NodeCreator {
     this.importList.push(imports);
   }
 
-  addChild(childName: string) {
+  addChild(child: any) {
     // method must be overriden
-    childName;
+    child;
   }
 
   addContext() {
@@ -82,6 +85,10 @@ export class NodeCreator {
   protected updateSourceFile() {
     this.layer = createLayer(this.name, this.layerDependencies, this.layerBody);
     this.sourceFile = ts.createSourceFile(this.name + ".ts", this.compile(), ts.ScriptTarget.Latest, true);
+  }
+
+  path() {
+    return this.basePath + this.name + ".ts";
   }
 
   print() {

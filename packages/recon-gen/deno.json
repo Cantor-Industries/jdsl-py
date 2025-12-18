@@ -1,5 +1,6 @@
 {
   "tasks": {
+    "run": "deno run --allow-env --allow-read --allow-write vfs.ts",
     "main": "deno run --allow-env --allow-read main.ts",
     "root": "deno run --allow-env --allow-read src/root.ts",
     "action": "deno run --allow-env --allow-read src/action.ts"

@@ -6,8 +6,8 @@ export class Action extends NodeCreator {
     private args: any[];
     private runFunction: ts.PropertyAssignment[];
 
-    constructor(name: string) {
-        super(name);
+    constructor(name: string, basePath ?: string) {
+        super(name, basePath);
         this.args = [];
         this.runFunction = [];
     }
@@ -31,9 +31,9 @@ export class ActionMap {
         this.agentTree = agentTree;
     }
 
-    addAction(name: string) {
+    addAction(name: string, basePath ?: string) {
         this.lastAction = name;
-        this.actions.set(name, new Action(name));
+        this.actions.set(name, new Action(name, basePath));
     }
 
     addImport(packageName: string, ...values: string[]) {
@@ -48,11 +48,18 @@ export class ActionMap {
     addLayer() {
         const run = this.agentTree.get(this.lastAction.replace("Action", ""));
         if (!run) {
-            console.error(this.lastAction, "missing matching agent function");
-            return;
+            throw new Error(this.lastAction + "missing matching agent function)")
         }
         this.actions.get(this.lastAction)?.addRunFunction(run);
         this.actions.get(this.lastAction)?.addLayerBody();
+    }
+
+    action() {
+        const result = this.actions.get(this.lastAction);
+        if (result) {
+            return result;
+        }
+        throw new Error("Action Map Empty");
     }
 
     print() {

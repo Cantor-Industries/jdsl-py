@@ -1,22 +1,23 @@
 import ts, { factory } from "typescript";
 import { createLayer, lowercaseFirstLetter, NodeCreator } from "./utils.ts";
+import { Action } from "./action.ts";
 
 export class Root extends NodeCreator {
     private childName: string;
     private services: ts.CallExpression[];
-    constructor() {
-        super("Root");
+    constructor(basePath ?: string) {
+        super("Root", basePath);
         this.childName = "";
         this.services = [];
         this.addService(this.name)
     }
 
-    override addChild(childName: string): void {
+    override addChild(child: Action): void {
         if (this.layerDependencies.length != 1) {
-            this.childName = childName;
-            this.addImport(childName + ".ts", childName, childName + "Live")
-            this.addLayerDependency(childName);
-            this.addService(childName);
+            this.childName = child.name;
+            this.addImport(child.path(), this.childName, this.childName + "Live")
+            this.addLayerDependency(this.childName);
+            this.addService(this.childName);
             this.addLayerBody();
         } else {
             console.log("Root node can only have one child");
@@ -283,6 +284,6 @@ const createService = (serviceName: string) => {
 }
 
 
-const root = new Root();
+const root = new Root("/virtual/src/");
 
 export default root;

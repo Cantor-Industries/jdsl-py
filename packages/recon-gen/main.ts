@@ -9,7 +9,7 @@ export const definition = `const definition = {
     "child": {    
         "type": "action",
         "call": "TryThis"
-        "args": ["Play", "Hard", 12, true],     
+        "args": ["Play", "Hard", 12, true], 
     }
 }
 `
@@ -18,7 +18,11 @@ export const agent = `const agent = {
     TryThis: (action: string, arg: string, age: number, save: boolean) => {
         console.log("Agent Trying This");
         return action;
-    }
+    },
+    ThenTryThis: (action: string, arg: string, age: number, save: boolean) => {
+        console.log("Agent Trying This");
+        return action;
+    },
 }`
 
 const definitionAST = ts.createSourceFile(
@@ -64,11 +68,11 @@ const buildAction = (tree: Map<string, ts.ArrowFunction>, parent: Root) => {
         console.error("Action must have a call attribute");
         return
     }
-    actionMap.addAction(getEscapedText(actionName) + "Action");
+    actionMap.addAction(getEscapedText(actionName) + "Action", "/virtual/src/actions/");
     actionMap.addImport("effect", "Context", "Data", "Effect", "Layer");
     actionMap.addContext();
     actionMap.addLayer();
-    parent.addChild(getEscapedText(actionName) + "Action");
+    parent.addChild(actionMap.action());
 
 
 }
