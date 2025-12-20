@@ -1,0 +1,19 @@
+{
+  "name": "recon-gen",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "vfs": "tsx vfs.ts",
+    "main": "tsx main.ts",
+    "root": "tsx src/root.ts",
+    "action": "tsx src/action.ts",
+    "sig": "tsx signature.ts",
+    "dist": "tsx dist/src/root.ts"
+  },
+  "dependencies": {
+    "effect": "^3.17.13",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
