@@ -1,4 +1,4 @@
-import ts, { ArrayLiteralExpression, Expression, factory, Node } from "typescript";
+import ts, { ArrayLiteralExpression, factory } from "typescript";
 import { generateFactoryCode } from "../factoryCodeGenerator.ts"
 import { NodeCreator } from "./utils.ts";
 
@@ -91,7 +91,7 @@ const createActonLayerBody = (layerName: string, actionFunction: ts.PropertyAssi
     if (args) {
         const sourceText = args.getText();
         const sourcefile = ts.createSourceFile("code.ts", sourceText, ts.ScriptTarget.ESNext, true);
-        const targetText = generateFactoryCode(ts, sourcefile).slice(38, -5);
+        const targetText = generateFactoryCode(ts, sourcefile).slice(38, -5); // remove the parent expression
         const arrayLiteral = eval(targetText) as ArrayLiteralExpression;
         values = [...arrayLiteral.elements]
     }
@@ -107,15 +107,9 @@ const createActonLayerBody = (layerName: string, actionFunction: ts.PropertyAssi
                         [
                             factory.createPropertyAssignment(
                                 factory.createIdentifier("status"),
-                                factory.createAsExpression(
-                                    factory.createStringLiteral("ready"),
-                                    factory.createTypeReferenceNode(
-                                        factory.createQualifiedName(
-                                            factory.createIdentifier(layerName),
-                                            factory.createIdentifier("Status")
-                                        ),
-                                        undefined
-                                    )
+                                factory.createPropertyAccessExpression(
+                                    factory.createIdentifier("Status"),
+                                    factory.createIdentifier("FAILED")
                                 )
                             ),
                             actionFunction,
@@ -212,15 +206,9 @@ const createActonLayerBody = (layerName: string, actionFunction: ts.PropertyAssi
                                                                         factory.createIdentifier("status")
                                                                     ),
                                                                     factory.createToken(ts.SyntaxKind.EqualsToken),
-                                                                    factory.createAsExpression(
-                                                                        factory.createStringLiteral("failed"),
-                                                                        factory.createTypeReferenceNode(
-                                                                            factory.createQualifiedName(
-                                                                                factory.createIdentifier(layerName),
-                                                                                factory.createIdentifier("Status")
-                                                                            ),
-                                                                            undefined
-                                                                        )
+                                                                    factory.createPropertyAccessExpression(
+                                                                        factory.createIdentifier("Status"),
+                                                                        factory.createIdentifier("FAILED")
                                                                     )
                                                                 )),
                                                                 factory.createReturnStatement(factory.createYieldExpression(

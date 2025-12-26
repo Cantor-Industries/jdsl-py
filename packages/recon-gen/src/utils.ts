@@ -315,28 +315,6 @@ const createNamespace = (layerName: string): ts.ModuleDeclaration => {
     ],
     factory.createIdentifier(layerName),
     factory.createModuleBlock([
-      factory.createEnumDeclaration(
-        [factory.createToken(ts.SyntaxKind.ExportKeyword)],
-        factory.createIdentifier("Status"),
-        [
-          factory.createEnumMember(
-            factory.createIdentifier("READY"),
-            factory.createStringLiteral("ready")
-          ),
-          factory.createEnumMember(
-            factory.createIdentifier("RUNNING"),
-            factory.createStringLiteral("running")
-          ),
-          factory.createEnumMember(
-            factory.createIdentifier("SUCCESS"),
-            factory.createStringLiteral("success")
-          ),
-          factory.createEnumMember(
-            factory.createIdentifier("FAILED"),
-            factory.createStringLiteral("failed")
-          )
-        ]
-      ),
       factory.createInterfaceDeclaration(
         [factory.createToken(ts.SyntaxKind.ExportKeyword)],
         factory.createIdentifier("Behavior"),

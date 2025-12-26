@@ -5,7 +5,7 @@ import { Action } from "./action.ts";
 export class Root extends NodeCreator {
     private childName: string;
     private services: ts.CallExpression[];
-    constructor(basePath ?: string) {
+    constructor(basePath?: string) {
         super("Root", basePath);
         this.childName = "";
         this.services = [];
@@ -125,15 +125,9 @@ const createRootLayerBody = (layerName: string, childName: string) => {
                         [
                             factory.createPropertyAssignment(
                                 factory.createIdentifier("status"),
-                                factory.createAsExpression(
-                                    factory.createStringLiteral("ready"),
-                                    factory.createTypeReferenceNode(
-                                        factory.createQualifiedName(
-                                            factory.createIdentifier(layerName),
-                                            factory.createIdentifier("Status")
-                                        ),
-                                        undefined
-                                    )
+                                factory.createPropertyAccessExpression(
+                                    factory.createIdentifier("Status"),
+                                    factory.createIdentifier("READY")
                                 )
                             ),
                             factory.createPropertyAssignment(
@@ -222,7 +216,10 @@ const createRootLayerBody = (layerName: string, childName: string) => {
                                                                         factory.createIdentifier("status")
                                                                     ),
                                                                     factory.createToken(ts.SyntaxKind.EqualsToken),
-                                                                    factory.createStringLiteral("failed")
+                                                                    factory.createPropertyAccessExpression(
+                                                                        factory.createIdentifier("Status"),
+                                                                        factory.createIdentifier("FAILED")
+                                                                    )
                                                                 )),
                                                                 factory.createReturnStatement(factory.createPropertyAccessExpression(
                                                                     factory.createIdentifier("proto"),
@@ -284,6 +281,6 @@ const createService = (serviceName: string) => {
 }
 
 
-const root = new Root("/virtual/src/");
+const root = new Root("./dist/src/");
 
 export default root;
