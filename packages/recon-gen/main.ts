@@ -2,20 +2,20 @@ import { getEscapedText } from "./src/utils.ts";
 import ts, { Node, SourceFile } from "typescript";
 
 import root, { Root } from "./src/root.ts";
-import {ActionMap} from "./src/action.ts";
+import { ActionMap } from "./src/action.ts";
 
 export const definition = `const definition = {
     "type": "root",
     "child": {    
         "type": "action",
         "call": "TryThis"
-        "args": ["Play", "Hard", 12, true], 
+        "args": ["Play", "Hard", 12, {buffer: true, length: 2048}, console.log("Hello")] 
     }
 }
 `
 
 export const agent = `const agent = {
-    TryThis: (action: string, arg: string, age: number, save: boolean) => {
+    TryThis: (action: string, arg: string, age: number, obj: {hello: string}, save: boolean) => {
         console.log("Agent Trying This");
         return action;
     },
@@ -56,13 +56,13 @@ const agentVisitor = (node: Node) => {
 }
 
 const buildRoot = () => {
-    root.addImport("effect", "Context", "Data", "Effect", "Layer");
+    root.addImport("effect", "Context", "Data", "Effect", "Either", "Layer");
     root.addError();
     root.addContext();
     root.addLayer();
 }
 
-const buildAction = (tree: Map<string, ts.ArrowFunction>, parent: Root) => {
+const buildAction = (tree: Map<string, Node>, parent: Root) => {
     const actionName = tree.get("call");
     if (!actionName) {
         console.error("Action must have a call attribute");
@@ -71,6 +71,11 @@ const buildAction = (tree: Map<string, ts.ArrowFunction>, parent: Root) => {
     actionMap.addAction(getEscapedText(actionName) + "Action", "/virtual/src/actions/");
     actionMap.addImport("effect", "Context", "Data", "Effect", "Layer");
     actionMap.addContext();
+
+    const args = tree.get("args");
+    if (args && ts.isArrayLiteralExpression(args)) {
+        actionMap.addArgs(args)
+    }
     actionMap.addLayer();
     parent.addChild(actionMap.action());
 
@@ -78,12 +83,12 @@ const buildAction = (tree: Map<string, ts.ArrowFunction>, parent: Root) => {
 }
 
 const visitTree = (node: Node, parent: Root): Node | undefined => {
-    const tree: Map<string, ts.ArrowFunction> = new Map();
+    const tree: Map<string, Node> = new Map();
     for (const child of node.getChildAt(1).getChildren()) {
         if (ts.isPropertyAssignment(child)) {
             const key = child.getChildAt(0);
             const value = child.getChildAt(2);
-            tree.set(getEscapedText(key), value as ts.ArrowFunction);
+            tree.set(getEscapedText(key), value);
         }
     }
     for (const [key, value] of tree) {
@@ -97,7 +102,8 @@ const visitTree = (node: Node, parent: Root): Node | undefined => {
                 }
                 buildRoot();
                 return visitTree(child, root);
-            } else if (valueName === "action") {
+            }
+            else if (valueName === "action") {
                 buildAction(tree, parent);
             }
         }
@@ -105,24 +111,24 @@ const visitTree = (node: Node, parent: Root): Node | undefined => {
     return node;
 }
 
-const agentWalker = (node: Node): Node | undefined => {
+const agentWalker = (node: Node): Node => {
     if (ts.isObjectLiteralExpression(node)) {
         agentTree = agentVisitor(node);
         return node;
     } else {
-        return node.forEachChild(agentWalker);
+        return node.forEachChild(agentWalker)!;
     }
 }
 
-const definitionWalker = (node: Node): Node | undefined => {
+const definitionWalker = (node: Node): Node=> {
     if (ts.isObjectLiteralExpression(node)) {
-        return visitTree(node, root);
+        return visitTree(node, root)!;
     } else {
-        return node.forEachChild(definitionWalker)
+        return node.forEachChild(definitionWalker)!
     }
 }
 
-const transformer = (sourceFile: SourceFile, visitor: (node: Node)=> Node | undefined) => {
+const transformer = (sourceFile: SourceFile, visitor: (node: Node) => Node) => {
     ts.visitNode(sourceFile, visitor, undefined);
 }
 
@@ -130,9 +136,9 @@ transformer(agentAST, agentWalker);
 const actionMap = new ActionMap(agentTree);
 transformer(definitionAST, definitionWalker);
 
-console.log("");
-root.print();
-console.log("");
+// console.log("");
+// root.print();
+// console.log("");
 actionMap.print();
 // console.log("");
 // for (const [key, value] of agentTree) {

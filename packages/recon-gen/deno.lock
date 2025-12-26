@@ -1,6 +1,7 @@
 {
   "version": "5",
   "specifiers": {
+    "npm:code-block-writer@^13.0.3": "13.0.3",
     "npm:effect@^3.17.13": "3.18.4",
     "npm:tsx@^4.21.0": "4.21.0",
     "npm:typescript@^5.9.3": "5.9.3"
@@ -139,6 +140,9 @@
     "@standard-schema/spec@1.0.0": {
       "integrity": "sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA=="
     },
+    "code-block-writer@13.0.3": {
+      "integrity": "sha512-Oofo0pq3IKnsFtuHqSF7TqBfr71aeyZDVJ0HpmqB7FBM2qEigL0iPONSCZSO9pE9dZTAxANe5XHG9Uy0YMv8cg=="
+    },
     "effect@3.18.4": {
       "integrity": "sha512-b1LXQJLe9D11wfnOKAk3PKxuqYshQ0Heez+y5pnkd3jLj1yx9QhM72zZ9uUrOQyNvrs2GZZd/3maL0ZV18YuDA==",
       "dependencies": [
@@ -225,6 +229,7 @@
     ],
     "packageJson": {
       "dependencies": [
+        "npm:code-block-writer@^13.0.3",
         "npm:effect@^3.17.13",
         "npm:tsx@^4.21.0",
         "npm:typescript@^5.9.3"

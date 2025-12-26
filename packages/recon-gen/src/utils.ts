@@ -16,7 +16,6 @@ export class NodeCreator {
     this.name = name;
     this.basePath = basePath ?? "";
     this.sourceFile = ts.createSourceFile(this.path(), "", ts.ScriptTarget.ESNext, true);
-    console.log(this.sourceFile.fileName);
     this.importList = [];
     this.context = [];
     this.layer = [];

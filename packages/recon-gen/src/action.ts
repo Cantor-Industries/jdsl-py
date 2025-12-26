@@ -1,15 +1,19 @@
+import ts, { ArrayLiteralExpression, Expression, factory, Node } from "typescript";
+import { generateFactoryCode } from "../factoryCodeGenerator.ts"
 import { NodeCreator } from "./utils.ts";
-import ts, { factory } from "typescript";
 
 export class Action extends NodeCreator {
-    // deno-lint-ignore no-explicit-any
-    private args: any[];
+    private args: ts.ArrayLiteralExpression;
     private runFunction: ts.PropertyAssignment[];
 
-    constructor(name: string, basePath ?: string) {
+    constructor(name: string, basePath?: string) {
         super(name, basePath);
-        this.args = [];
+        this.args = factory.createArrayLiteralExpression();
         this.runFunction = [];
+    }
+
+    addArgs(args: ts.ArrayLiteralExpression) {
+        this.args = args;
     }
 
     addRunFunction(run: ts.ArrowFunction) {
@@ -17,7 +21,8 @@ export class Action extends NodeCreator {
     }
 
     override addLayerBody(): void {
-        this.layerBody = createActonLayerBody(this.name, this.runFunction[0]);
+        // console.log(this.args.getText())
+        this.layerBody = createActonLayerBody(this.name, this.runFunction[0], this.args);
     }
 };
 export class ActionMap {
@@ -31,7 +36,7 @@ export class ActionMap {
         this.agentTree = agentTree;
     }
 
-    addAction(name: string, basePath ?: string) {
+    addAction(name: string, basePath?: string) {
         this.lastAction = name;
         this.actions.set(name, new Action(name, basePath));
     }
@@ -52,6 +57,10 @@ export class ActionMap {
         }
         this.actions.get(this.lastAction)?.addRunFunction(run);
         this.actions.get(this.lastAction)?.addLayerBody();
+    }
+
+    addArgs(args: ts.ArrayLiteralExpression) {
+        this.actions.get(this.lastAction)?.addArgs(args);
     }
 
     action() {
@@ -76,7 +85,16 @@ const createRunFunction = (agentFunction: ts.ArrowFunction) => {
     );
     return runFunction;
 }
-const createActonLayerBody = (layerName: string, actionFunction: ts.PropertyAssignment) => {
+const createActonLayerBody = (layerName: string, actionFunction: ts.PropertyAssignment, args?: ts.ArrayLiteralExpression) => {
+    let values: ts.Expression[] = [];
+
+    if (args) {
+        const sourceText = args.getText();
+        const sourcefile = ts.createSourceFile("code.ts", sourceText, ts.ScriptTarget.ESNext, true);
+        const targetText = generateFactoryCode(ts, sourcefile).slice(38, -5);
+        const arrayLiteral = eval(targetText) as ArrayLiteralExpression;
+        values = [...arrayLiteral.elements]
+    }
     const actionLayerBody = [
         factory.createVariableStatement(
             undefined,
@@ -132,7 +150,7 @@ const createActonLayerBody = (layerName: string, actionFunction: ts.PropertyAssi
                                                                     factory.createIdentifier("run")
                                                                 ),
                                                                 undefined,
-                                                                []
+                                                                [...values]
                                                             )),
                                                             factory.createReturnStatement(factory.createYieldExpression(
                                                                 factory.createToken(ts.SyntaxKind.AsteriskToken),

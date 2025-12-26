@@ -9,9 +9,11 @@
     "root": "tsx src/root.ts",
     "action": "tsx src/action.ts",
     "sig": "tsx signature.ts",
+    "call": "tsx call.ts",
     "dist": "tsx dist/src/root.ts"
   },
   "dependencies": {
+    "code-block-writer": "^13.0.3",
     "effect": "^3.17.13",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
