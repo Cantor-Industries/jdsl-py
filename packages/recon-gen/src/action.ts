@@ -1,4 +1,4 @@
-import ts, { ArrayLiteralExpression, factory } from "typescript";
+import ts, { ArrayLiteralExpression, ArrowFunction, factory } from "typescript";
 import { generateFactoryCode } from "../factoryCodeGenerator.ts"
 import { NodeCreator } from "./utils.ts";
 
@@ -55,8 +55,8 @@ export class ActionMap {
         if (!run) {
             throw new Error(this.lastAction + "missing matching agent function)")
         }
-        this.actions.get(this.lastAction)?.addRunFunction(run);
-        this.actions.get(this.lastAction)?.addLayerBody();
+        this.actions.get(this.lastAction)!.addRunFunction(run);
+        this.actions.get(this.lastAction)!.addLayerBody();
     }
 
     addArgs(args: ts.ArrayLiteralExpression) {
@@ -79,9 +79,13 @@ export class ActionMap {
 }
 
 const createRunFunction = (agentFunction: ts.ArrowFunction) => {
+    const sourceText = agentFunction.getText();
+    const sourcefile = ts.createSourceFile("code.ts", sourceText, ts.ScriptTarget.ESNext, true);
+    const targetText = generateFactoryCode(ts, sourcefile).slice(38, -5); // remove the parent expression
+    const arrowFunction = eval(targetText) as ArrowFunction;
     const runFunction = factory.createPropertyAssignment(
         factory.createIdentifier("run"),
-        agentFunction
+        arrowFunction
     );
     return runFunction;
 }
