@@ -1,5 +1,5 @@
 import ts, { ArrayLiteralExpression, ArrowFunction, factory } from "typescript";
-import { generateFactoryCode } from "../factoryCodeGenerator.ts"
+import { generateFactoryCode } from "./factorycodegen.ts"
 import { NodeCreator } from "./utils.ts";
 
 export class Action extends NodeCreator {
