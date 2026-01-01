@@ -13,6 +13,8 @@
     "dist": "tsx dist/src/root.ts"
   },
   "dependencies": {
+    "@effect/platform": "^0.94.0",
+    "@effect/platform-node": "^0.104.0",
     "code-block-writer": "^13.0.3",
     "effect": "^3.17.13",
     "tsx": "^4.21.0",
