@@ -262,7 +262,6 @@ const createImport = (packageName: string, ...values: string[]): ts.ImportDeclar
 }
 
 export function createRelativeImportPath(from: string, to: string): string {
-    console.log(`From: ${from}\nTo: ${to}`);
   // Get directories
   const fromDir = posix.dirname(from);
 
