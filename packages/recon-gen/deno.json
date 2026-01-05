@@ -1,7 +1,7 @@
 {
   "tasks": {
     "vfs": "deno run --allow-env --allow-read --allow-write vfs.ts",
-    "main": "deno run --allow-env --allow-read --allow-ffi main.ts",
+    "main": "deno run --allow-env --allow-read --allow-ffi --allow-write main.ts",
     "root": "deno run --allow-env --allow-read src/root.ts",
     "action": "deno run --allow-env --allow-read src/action.ts",
     "dist": "deno run dist/src/root.ts",
@@ -14,6 +14,7 @@
     "typescript": "npm:typescript@^5.9.3"
   },
   "nodeModulesDir": "auto",
+  "exports": "./main.ts",
   "allowScripts": {
     "allow": ["npm:@parcel/watcher@2.5.1", "npm:esbuild@0.27.2", "npm:msgpackr-extract@3.0.3"],
     "deny": []
