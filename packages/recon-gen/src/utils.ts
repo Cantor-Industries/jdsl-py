@@ -413,7 +413,10 @@ const createTaggedError = (layername: string) => {
 
 export const getEscapedText = (node: Node) => {
   const text = node.getText();
-  return text.slice(1, text.length - 1)
+  if (text.startsWith("\"")) {
+    return text.slice(1, text.length - 1)
+  } 
+  return text;
 }
 
 export const print = (nodes: ts.NodeArray<ts.Node>) => {
