@@ -31,6 +31,7 @@ export class NodeCreator {
     this.importList.push(imports);
   }
 
+  // deno-lint-ignore no-explicit-any
   addChild(child: any) {
     // method must be overriden
     child;
