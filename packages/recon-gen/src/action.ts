@@ -71,6 +71,14 @@ export class ActionMap {
         throw new Error("Action Map Empty");
     }
 
+    getActions() {
+        return this.actions;
+    }
+
+    path() {
+        return this.actions.get(this.lastAction)!.path();
+    }
+
     print() {
         for (const action of this.actions) {
             action[1].print()

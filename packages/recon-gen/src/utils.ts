@@ -1,3 +1,4 @@
+import { posix} from "node:path"
 import ts, { Node, factory } from "typescript";
 
 export class NodeCreator {
@@ -92,7 +93,7 @@ export class NodeCreator {
 
   print() {
     this.updateSourceFile();
-    console.log(this.sourceFile.getText());
+    return this.sourceFile.getText();
   }
 }
 
@@ -258,6 +259,25 @@ const createImport = (packageName: string, ...values: string[]): ts.ImportDeclar
     undefined
   );
   return imports;
+}
+
+export function createRelativeImportPath(from: string, to: string): string {
+    console.log(`From: ${from}\nTo: ${to}`);
+  // Get directories
+  const fromDir = posix.dirname(from);
+
+  // Compute relative path
+  let relativePath = posix.relative(fromDir, to);
+
+  // Remove .ts / .tsx extension
+//   relativePath = relativePath.replace(/\.(ts|tsx)$/, "");
+
+  // Ensure relative import prefix
+  if (!relativePath.startsWith(".")) {
+    relativePath = "./" + relativePath;
+  }
+
+  return relativePath;
 }
 
 export const createLayer = (layerName: string, dependencies: ts.VariableStatement[], body: (ts.VariableStatement | ts.ReturnStatement)[], ...other: ts.VariableStatement[]) => {

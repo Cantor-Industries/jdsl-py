@@ -1,5 +1,5 @@
 import ts, { factory } from "typescript";
-import { createLayer, lowercaseFirstLetter, NodeCreator } from "./utils.ts";
+import { createLayer, createRelativeImportPath, lowercaseFirstLetter, NodeCreator } from "./utils.ts";
 import { Action } from "./action.ts";
 
 export class Root extends NodeCreator {
@@ -15,7 +15,8 @@ export class Root extends NodeCreator {
     override addChild(child: Action): void {
         if (this.layerDependencies.length != 1) {
             this.childName = child.name;
-            this.addImport(child.path(), this.childName, this.childName + "Live")
+            const relativePath = createRelativeImportPath(this.path(), child.path())
+            this.addImport(relativePath, this.childName, this.childName + "Live")
             this.addLayerDependency(this.childName);
             this.addService(this.childName);
             this.addLayerBody();
