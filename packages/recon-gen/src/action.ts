@@ -42,25 +42,25 @@ export class ActionMap {
     }
 
     addImport(packageName: string, ...values: string[]) {
-        this.actions.get(this.lastAction)?.addImport(packageName, ...values)
+        this.action().addImport(packageName, ...values)
     }
 
     addContext() {
-        this.actions.get(this.lastAction)?.addContext();
-        this.actions.get(this.lastAction)?.addError();
+        this.action().addContext();
+        this.action().addError();
     }
 
     addLayer() {
         const run = this.agentTree.get(this.lastAction.replace("Action", ""));
         if (!run) {
-            throw new Error(this.lastAction + "missing matching agent function)")
+            throw new Error(this.lastAction + " missing matching agent function)")
         }
-        this.actions.get(this.lastAction)!.addRunFunction(run);
-        this.actions.get(this.lastAction)!.addLayerBody();
+        this.action().addRunFunction(run);
+        this.action().addLayerBody();
     }
 
     addArgs(args: ts.ArrayLiteralExpression) {
-        this.actions.get(this.lastAction)?.addArgs(args);
+        this.action().addArgs(args);
     }
 
     action() {
@@ -73,10 +73,6 @@ export class ActionMap {
 
     getActions() {
         return this.actions;
-    }
-
-    path() {
-        return this.actions.get(this.lastAction)!.path();
     }
 
     print() {
@@ -97,10 +93,10 @@ const createRunFunction = (agentFunction: ts.ArrowFunction) => {
     );
     return runFunction;
 }
-const createActonLayerBody = (layerName: string, actionFunction: ts.PropertyAssignment, args?: ts.ArrayLiteralExpression) => {
+const createActonLayerBody = (layerName: string, actionFunction: ts.PropertyAssignment, args: ts.ArrayLiteralExpression) => {
     let values: ts.Expression[] = [];
-
-    if (args) {
+    
+    if (args.elements.length != 0) {
         const sourceText = args.getText();
         const sourcefile = ts.createSourceFile("code.ts", sourceText, ts.ScriptTarget.ESNext, true);
         const targetText = generateFactoryCode(ts, sourcefile).slice(38, -5); // remove the parent expression
