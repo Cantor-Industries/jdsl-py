@@ -2,15 +2,12 @@
   "name": "recon-gen",
   "version": "0.1.0",
   "type": "module",
-  "private": true,
+  "private": false,
+  "license": "Apache-2.0",
   "scripts": {
-    "vfs": "tsx vfs.ts",
-    "main": "tsx main.ts",
-    "root": "tsx src/root.ts",
-    "action": "tsx src/action.ts",
-    "sig": "tsx signature.ts",
-    "call": "tsx call.ts",
-    "dist": "tsx dist/src/root.ts"
+    "clean": "rm -rf ./dist",
+    "dev": "tsx dist/src/Root.ts",
+    "main": "tsx main.ts"
   },
   "dependencies": {
     "@effect/platform": "^0.94.0",
@@ -20,5 +17,8 @@
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
-  "exports": "./main.ts"
+  "exports": "./main.ts",
+  "bin": {
+    "recon": "./main.ts"
+  }
 }

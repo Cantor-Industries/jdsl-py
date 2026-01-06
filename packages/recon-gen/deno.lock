@@ -528,12 +528,6 @@
     }
   },
   "workspace": {
-    "dependencies": [
-      "npm:@effect/platform-node@0.104",
-      "npm:@effect/platform@0.94",
-      "npm:effect@^3.17.13",
-      "npm:typescript@^5.9.3"
-    ],
     "packageJson": {
       "dependencies": [
         "npm:@effect/platform-node@0.104",

@@ -1,3 +1,4 @@
+#!/usr/bin/env tsx
 import ts from "typescript";
 import process from "node:process";
 import path, { basename } from "node:path";
@@ -5,26 +6,11 @@ import fs from "node:fs";
 
 import { Effect } from "effect";
 import { NodeContext, NodeRuntime } from "@effect/platform-node"
-import { transform } from "./src/parser.ts";
+import { transform } from "./src/transform.ts";
 import { EntryFileMissingError, PackageJsonError } from "./src/errors.ts";
-import { DenoJson, PackageJson, Tool, Skill } from "./src/types.ts";
-
-const agent = {
-    TryThis: (action: string, arg: string, age: number ) => {
-        //this might be forgotten
-        console.log("Running This from Skill Tree");
-    }
-} satisfies Tool
-
-const tree = {
-    type: "root",
-    child: {    
-        type: "action",
-        call: "TryThis",
-        args: ["Play", "Hard", 12] 
-    }
-} satisfies Skill<typeof agent>
-
+import { DenoJson, PackageJson } from "./src/types.ts";
+export { run } from "./src/types.ts";
+export type { Action, Selector, Sequence, Skill, Tool } from "./src/types.ts";
 
 function resolveExports(exportsField: unknown): string | undefined {
     if (typeof exportsField === "string") {
@@ -107,7 +93,6 @@ const getEntryFile = (jsonFilePath: string) => Effect.gen(function* () {
         return yield* new EntryFileMissingError({msg: "Deno project detected but no exports entry point found"})
     }
     return yield* new EntryFileMissingError({msg: `Unsupported config file: ${jsonFilePath}`})
-    // console.log(jsonFile);
 })
 
 const getAST = (entryFile: string) => Effect.gen(function* () {
@@ -123,7 +108,6 @@ const main = Effect.gen(function* () {
     const jsonFilePath = yield* checkTsProject;
     const entryFile = yield* getEntryFile(jsonFilePath);
     const ast = yield* getAST(entryFile);
-    console.log(ast.fileName);
     const vfs = yield* transform(ast);
     vfs.writeFiles();
 })
