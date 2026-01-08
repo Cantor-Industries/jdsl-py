@@ -1,5 +1,5 @@
 import ts, { factory } from "typescript";
-import { createLayer, createRelativeImportPath, lowercaseFirstLetter, NodeCreator } from "./utils.ts";
+import { createLayer, createRelativeImportPath, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./utils.ts";
 import { Action } from "./action.ts";
 
 export class Root extends NodeCreator {
@@ -15,9 +15,11 @@ export class Root extends NodeCreator {
     override addChild(child: Action): void {
         if (this.layerDependencies.length != 1) {
             this.childName = child.name;
-            const relativePath = createRelativeImportPath(this.path(), child.path())
-            this.addImport(relativePath, this.childName, this.childName + "Live")
-            this.addLayerDependency(this.childName);
+            const relativePath = createRelativeImportPath(this.path(), child.path());
+            // class names must start with an uppercase letter
+            const value = isFirstLetterLoweCase(this.childName) ? {value: this.childName, as: uppercaseFirstLetter(this.childName)} : this.childName
+            this.addImport(relativePath, value, this.childName + "Live")
+            this.addLayerDependency(uppercaseFirstLetter(this.childName));
             this.addService(this.childName);
             this.addLayerBody();
         } else {

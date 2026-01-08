@@ -1,4 +1,4 @@
-import { posix} from "node:path"
+import { posix } from "node:path"
 import ts, { Node, factory } from "typescript";
 
 export class NodeCreator {
@@ -26,7 +26,7 @@ export class NodeCreator {
     this.taggedError = [];
   }
 
-  addImport(packageName: string, ...values: string[]) {
+  addImport(packageName: string, ...values: (string | { value: string, as: string })[]) {
     const imports = createImport(packageName, ...values);
     this.importList.push(imports);
   }
@@ -239,14 +239,22 @@ const createLayerDependency = (dependencyName: string) => {
   return dep;
 }
 
-const createImport = (packageName: string, ...values: string[]): ts.ImportDeclaration => {
+const createImport = (packageName: string, ...values: (string | { value: string, as: string })[]): ts.ImportDeclaration => {
   const namedImports = [];
   for (const namedImport of values) {
-    namedImports.push(factory.createImportSpecifier(
-      false,
-      undefined,
-      factory.createIdentifier(namedImport)
-    ))
+    if (typeof namedImport == "string") {
+      namedImports.push(factory.createImportSpecifier(
+        false,
+        undefined,
+        factory.createIdentifier(namedImport)
+      ))
+    } else {
+      namedImports.push(factory.createImportSpecifier(
+        false,
+        factory.createIdentifier(namedImport.value),
+        factory.createIdentifier(namedImport.as)
+      ))
+    }
   }
 
   const imports = factory.createImportDeclaration(
@@ -270,7 +278,7 @@ export function createRelativeImportPath(from: string, to: string): string {
   let relativePath = posix.relative(fromDir, to);
 
   // Remove .ts / .tsx extension
-//   relativePath = relativePath.replace(/\.(ts|tsx)$/, "");
+  //   relativePath = relativePath.replace(/\.(ts|tsx)$/, "");
 
   // Ensure relative import prefix
   if (!relativePath.startsWith(".")) {
@@ -435,7 +443,7 @@ export const getEscapedText = (node: Node) => {
   const text = node.getText();
   if (text.startsWith("\"")) {
     return text.slice(1, text.length - 1)
-  } 
+  }
   return text;
 }
 
@@ -457,4 +465,23 @@ export const lowercaseFirstLetter = (text: string): string => {
     return "";
   }
   return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
+export const isFirstLetterLoweCase = (text: string): boolean => {
+  if (!text) {
+    return false;
+  }
+  const firstLetter = text.charAt(0);
+  const lowerCaseFirstLetter = lowercaseFirstLetter(text).charAt(0);
+  if (firstLetter === lowerCaseFirstLetter) {
+    return true;
+  }
+  return false;
+}
+
+export const uppercaseFirstLetter = (text: string): string => {
+  if (!text) {
+    return "";
+  }
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
