@@ -4,8 +4,7 @@ import { Root, RootBuilder } from "./root.ts";
 import { ActionBuilder } from "./action.ts";
 import { Effect } from "effect";
 import { ReconLanguageServer } from "./lsp.ts";
-import { VFS } from "./vfs.ts";
-// import { normalize, VFS } from "./vfs.ts";
+import { normalize, VFS } from "./vfs.ts";
 
 export class Tools extends Effect.Service<Tools>()(
     "Tools",
@@ -136,7 +135,22 @@ export class Transform extends Effect.Service<Transform>()(
                 tools.init(toolsNodes);
                 console.log("Initializing skills");
                 skills.init(skillsNodes);
-                vfs.writeFiles();                
+                
+                const diagnostics = languageService
+                    .getSemanticDiagnostics(normalize("./dist/src/actions/lastAction.ts"))
+                    .filter(diagnostic => {
+                        if (diagnostic.code != 5097) return diagnostic
+                    });
+                if (diagnostics.length) {
+                    throw new Error(
+                        ts.formatDiagnosticsWithColorAndContext(diagnostics, {
+                            getCanonicalFileName: f => f,
+                            getCurrentDirectory: () => "/",
+                            getNewLine: () => "\n"
+                        })
+                    );
+                }
+                vfs.writeFiles();
             });
             return transform
         }),
