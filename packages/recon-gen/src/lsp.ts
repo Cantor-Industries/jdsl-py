@@ -8,7 +8,7 @@ export class ReconCompilerOptions extends Effect.Service<ReconCompilerOptions>()
 		effect: Effect.sync(() => {
 			console.log("RECON COMPILEROPTIONS INIT");
 			const options: ts.CompilerOptions = {
-				target: ts.ScriptTarget.Latest,
+				target: ts.ScriptTarget.ESNext,
 				module: ts.ModuleKind.NodeNext,
 				moduleResolution: ts.ModuleResolutionKind.NodeNext,
 				strict: true,
@@ -31,37 +31,42 @@ export class ReconLanguageServiceHost extends Effect.Service<ReconLanguageServic
 
 			const serviceHost: LanguageServiceHost = {
 				getScriptFileNames: () => {
-					return files.fileNames();
+					const libFile = ts.getDefaultLibFilePath(options);
+					return [...files.fileNames(), libFile];
 				},
+
 				getScriptVersion: (fileName: string) => {
 					const file = files.get(fileName);
 					return file ? file.version.toString() : "0";
 				},
-				getScriptSnapshot: (fileName: string) => {
+				getScriptSnapshot: (fileName) => {
 					const file = files.get(fileName);
-					if (!file) return undefined;
-					return ts.ScriptSnapshot.fromString(file.content);
+					if (file) {
+						return ts.ScriptSnapshot.fromString(file.content);
+					}
+					const text = ts.sys.readFile(fileName);
+					return text ? ts.ScriptSnapshot.fromString(text) : undefined;
 				},
 				getCompilationSettings: () => {
 					return options
 				},
 				getCurrentDirectory: () => {
-					return normalize("./");
+					return ts.sys.getCurrentDirectory();
 				},
 				getDefaultLibFileName: (options: ts.CompilerOptions) => {
 					return ts.getDefaultLibFilePath(options);
 				},
 				fileExists: (fileName) => {
-					return files.has(normalize(fileName));
+					return files.has(normalize(fileName)) || ts.sys.fileExists(fileName);
 				},
 				readFile: (fileName) => {
-					return files.get(normalize(fileName))?.content;
+					return files.get(normalize(fileName))?.content ?? ts.sys.readFile(fileName);
 				},
 				directoryExists: (dirName) => {
-					return files.directoryExists(dirName);
+					return files.directoryExists(dirName) || ts.sys.directoryExists?.(dirName) || false;
 				},
 				getDirectories: (path) => {
-					return files.getDirectories(path);
+					return [...files.getDirectories(path), ...ts.sys.getDirectories?.(path) ?? []];
 				}
 			};
 			return serviceHost
