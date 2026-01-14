@@ -1,6 +1,10 @@
-import ts, { ArrayLiteralExpression, ArrowFunction, factory } from "typescript";
+import ts, { ArrayLiteralExpression, ArrowFunction, factory, Node } from "typescript";
 import { generateFactoryCode } from "./factorycodegen.ts"
-import { NodeCreator } from "./utils.ts";
+import { createRelativeImportPath, getEscapedText, NodeCreator } from "./node.ts";
+import { Effect } from "effect/index";
+import { Tools } from "./transform.ts";
+import { ReconLanguageServer } from "./lsp.ts";
+import { VFS } from "./vfs.ts";
 
 export class Action extends NodeCreator {
     private args: ts.ArrayLiteralExpression;
@@ -25,6 +29,87 @@ export class Action extends NodeCreator {
         this.layerBody = createActonLayerBody(this.name, this.runFunction[0], this.args);
     }
 };
+
+export class ActionBuilder extends Effect.Service<ActionBuilder>()(
+    "ActionBuilder",
+    {
+        effect: Effect.gen(function* () {
+            console.log("ACTIONBUILDER INIT");
+            const toolService = yield* Tools;
+            const vfs = yield* VFS;
+            const languageService =  yield* ReconLanguageServer;
+
+            let lastAction: Action | undefined;
+            const actions: Map<string, Action> = new Map()
+
+            const buildAction = (skill: Map<string, Node>, parent: any) => {
+                const actionName = skill.get("call");
+                if (!actionName) {
+                    console.error("Action must have a call attribute");
+                    return
+                }
+                proto.addAction(getEscapedText(actionName) + "Action", "./dist/src/actions/");
+                proto.addImport("effect", "Context", "Data", "Effect", "Layer");
+                proto.addImport(createRelativeImportPath(proto.action().path(), "./dist/src/types.ts"), "Status");
+                proto.addContext();
+
+                const args = skill.get("args");
+                if (args && ts.isArrayLiteralExpression(args)) {
+                    proto.addArgs(args)
+                }
+                proto.addLayer();
+                parent.addChild(proto.action());
+                vfs.set(proto.action().path(), proto.action().print());
+                vfs.set(parent.path(), parent.print());
+            }
+
+            const proto = {
+                addAction: (name: string, basePath?: string) => {
+                    const action = new Action(name, basePath);
+                    lastAction = action;
+                    actions.set(name, action);
+                },
+                action: () => {
+                    if (lastAction) {
+                        return lastAction;
+                    }
+                    throw new Error("Action Map Empty");
+                },
+                addImport: (packageName: string, ...values: string[]) => {
+
+                    proto.action().addImport(packageName, ...values)
+                },
+                addContext: () => {
+                    proto.action().addContext();
+                    proto.action().addError();
+                },
+                addLayer: () => {
+                    const run = toolService.tools.get(proto.action().name.replace("Action", ""));
+                    if (!run) {
+                        throw new Error(` ${lastAction?.name } missing matching agent function)`)
+                    }
+                    proto.action().addRunFunction(run);
+                    proto.action().addLayerBody();
+                },
+                addArgs: (args: ts.ArrayLiteralExpression) => {
+                    proto.action().addArgs(args);
+                },
+                buildAction: buildAction,
+                getActions: () => {
+                    return actions;
+                },
+                print: () => {
+                    for (const action of actions) {
+                        action[1].print()
+                    }
+                }
+            }
+            return proto;
+        }),
+        // dependencies: [Tools.Default]
+    }
+) { }
+
 export class ActionMap {
     private lastAction: string;
     private actions: Map<string, Action>;
@@ -95,7 +180,7 @@ const createRunFunction = (agentFunction: ts.ArrowFunction) => {
 }
 const createActonLayerBody = (layerName: string, actionFunction: ts.PropertyAssignment, args: ts.ArrayLiteralExpression) => {
     let values: ts.Expression[] = [];
-    
+
     if (args.elements.length != 0) {
         const sourceText = args.getText();
         const sourcefile = ts.createSourceFile("code.ts", sourceText, ts.ScriptTarget.ESNext, true);

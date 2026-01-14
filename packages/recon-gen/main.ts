@@ -4,11 +4,13 @@ import process from "node:process";
 import path, { basename } from "node:path";
 import fs from "node:fs";
 
-import { Effect } from "effect";
+import { Effect, } from "effect";
 import { NodeContext, NodeRuntime } from "@effect/platform-node"
-import { transform } from "./src/transform.ts";
+import { Tools, Transform } from "./src/transform.ts";
 import { EntryFileMissingError, PackageJsonError } from "./src/errors.ts";
-import { DenoJson, PackageJson } from "./src/types.ts";
+import { DenoJson, PackageJson, Skill, Tool } from "./src/types.ts";
+import { VFS } from "./src/vfs.ts";
+import { ReconLanguageServer } from "./src/lsp.ts";
 export { run } from "./src/types.ts";
 export type { Action, Selector, Sequence, Skill, Tool } from "./src/types.ts";
 
@@ -90,42 +92,48 @@ const getEntryFile = (jsonFilePath: string) => Effect.gen(function* () {
         if (fromExports) {
             return fromExports;
         }
-        return yield* new EntryFileMissingError({msg: "Deno project detected but no exports entry point found"})
+        return yield* new EntryFileMissingError({ msg: "Deno project detected but no exports entry point found" })
     }
-    return yield* new EntryFileMissingError({msg: `Unsupported config file: ${jsonFilePath}`})
+    return yield* new EntryFileMissingError({ msg: `Unsupported config file: ${jsonFilePath}` })
 })
 
 const getAST = (entryFile: string) => Effect.gen(function* () {
     const fullPath = path.resolve(process.cwd(), entryFile);
     if (!fs.existsSync(fullPath)) {
-        return yield* new EntryFileMissingError({msg: `Entry file ${basename(fullPath)} could not be found`});
+        return yield* new EntryFileMissingError({ msg: `Entry file ${basename(fullPath)} could not be found` });
     }
     const rawFile = fs.readFileSync(fullPath, 'utf-8');
     return ts.createSourceFile(basename(fullPath), rawFile, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
 })
 
+export const definition = {
+    "type": "root",
+    "child": {
+        "type": "action",
+        "call": "last",
+        "args": ["hello maties!"]
+    }
+} satisfies Skill
+
+export const tools = {
+    last: (w: string) => console.log(w)
+} satisfies Tool
+
 const main = Effect.gen(function* () {
     const jsonFilePath = yield* checkTsProject;
     const entryFile = yield* getEntryFile(jsonFilePath);
     const ast = yield* getAST(entryFile);
-    const vfs = yield* transform(ast);
-    vfs.writeFiles();
-})
+    const transform = yield* Transform;
+    yield* transform(ast);
+}).pipe(
+    Effect.provide(Transform.Default),
+    Effect.provide(ReconLanguageServer.Default),
+    Effect.provide(VFS.Default),
+    Effect.provide(Tools.Default),
+)
 
-/**
- * Algorithm for Recon Codegen
- * 1. Check if package.json or deno.json exists in the project
- *  - If neither exists -> throw Not Node Project Error
- * 2. Read the main entry file in package.json
- *  - If missing, read alternative entry files or throw Missing Entry File
- * 3. Extract the path to the main entry file and check if file exists
- *  - If missing, throw file missing error
- * 4. Read the entry file as a string and create a sourcefile
- * 5. Parse the sourcefile looking for satisfies keyword
- *  - for each export keyword:
- *      - Extract its type declaration,
- *      - Check if it's assignable to either tree or agent interfaces
- *  - if no tree is found, throw a no behavior tree found
- */
-
-NodeRuntime.runMain(main.pipe(Effect.provide(NodeContext.layer)));
+NodeRuntime.runMain(
+    main.pipe(
+        Effect.provide(NodeContext.layer)
+    )
+);

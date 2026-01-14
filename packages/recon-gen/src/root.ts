@@ -1,6 +1,8 @@
 import ts, { factory } from "typescript";
-import { createLayer, createRelativeImportPath, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./utils.ts";
+import { Effect } from "effect";
+import { createLayer, createRelativeImportPath, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
 import { Action } from "./action.ts";
+import { VFS } from "./vfs.ts";
 
 export class Root extends NodeCreator {
     private childName: string;
@@ -17,7 +19,7 @@ export class Root extends NodeCreator {
             this.childName = child.name;
             const relativePath = createRelativeImportPath(this.path(), child.path());
             // class names must start with an uppercase letter
-            const value = isFirstLetterLoweCase(this.childName) ? {value: this.childName, as: uppercaseFirstLetter(this.childName)} : this.childName
+            const value = isFirstLetterLoweCase(this.childName) ? { value: this.childName, as: uppercaseFirstLetter(this.childName) } : this.childName
             this.addImport(relativePath, value, this.childName + "Live")
             this.addLayerDependency(uppercaseFirstLetter(this.childName));
             this.addService(this.childName);
@@ -283,7 +285,25 @@ const createService = (serviceName: string) => {
     return service;
 }
 
+export class RootBuilder extends Effect.Service<RootBuilder>()(
+    "RootBuilder",
+    {
+        effect: Effect.gen(function*() {
+            const vfs = yield* VFS;
+            const root = new Root("./dist/src/");
 
-const root = new Root("./dist/src/");
-
-export default root;
+            const buildRoot = () => {
+                root.addImport("effect", "Context", "Data", "Effect", "Either", "Layer");
+                root.addImport(createRelativeImportPath(root.path(), "./dist/src/types.ts"), "Status")
+                root.addError();
+                root.addContext();
+                root.addLayer();
+                vfs.set(root.path(), root.print())
+            }
+            return {
+                root: root,
+                buildRoot: buildRoot
+            };
+        })
+    }
+) { }
