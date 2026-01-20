@@ -106,18 +106,58 @@ const getAST = (entryFile: string) => Effect.gen(function* () {
     return ts.createSourceFile(basename(fullPath), rawFile, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
 })
 
-export const definition = {
-    "type": "root",
-    "child": {
-        "type": "action",
-        "call": "last",
-        "args": ["hello maties!"]
-    }
-} satisfies Skill
-
-export const tools = {
-    last: (w: string) => console.log(w)
+const tools = {
+    first: (x: string) => console.log(x),
+    second: (n: number) => Effect.succeed(n)
 } satisfies Tool
+
+// export const definition = {
+//     type: "root",
+//     // name: "actual",
+//     child: {
+//         type: "action",
+//         call: "first",
+//         args: ["hello workds"]
+//     }
+// } satisfies Skill<typeof tools>
+
+export const definition = {
+    type: "root",
+    child: {
+        type: "sequence",
+        children: [
+            {
+                type: "sequence",
+                children: [
+                    {
+                        type: "action",
+                        call: "first",
+                        args: ["hello world"]
+                    },
+                ]
+            },
+            {
+                type: "action",
+                call: "second",
+                args: [144]
+            }
+        ]
+    }
+} satisfies Skill<typeof tools>
+
+// export const definition = {
+//     type: "root",
+//     name: "root",
+//     child: {
+//         type: "action",
+//         call: "first",
+//         args: ["hello world"]
+//     },
+// } satisfies Skill
+
+// export const tools = {
+//     first: (w: string) => console.log(w)
+// } satisfies Tool
 
 const main = Effect.gen(function* () {
     const jsonFilePath = yield* checkTsProject;

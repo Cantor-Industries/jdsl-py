@@ -5,6 +5,7 @@ import { ActionBuilder } from "./action.ts";
 import { Effect } from "effect";
 import { ReconLanguageServer } from "./lsp.ts";
 import { normalize, VFS } from "./vfs.ts";
+import { Sequence, SequenceBuilder } from "./sequence.ts";
 
 export class Tools extends Effect.Service<Tools>()(
     "Tools",
@@ -54,13 +55,17 @@ export class Skills extends Effect.Service<Skills>()(
             console.log("SKILLS INIT");
             const rootBuilder = yield* RootBuilder;
             const actionBuilder = yield* ActionBuilder;
+            const sequenceBuilder = yield* SequenceBuilder;
+            // const vfs = yield* VFS;
 
-            const skillVisitor = (node: Node, parent: Root): Node | undefined => {
+
+            const skillVisitor = (node: Node, parent: Root | Sequence): Node => {
                 const skill: Map<string, Node> = new Map();
                 for (const child of node.getChildAt(1).getChildren()) {
                     if (ts.isPropertyAssignment(child)) {
                         const key = child.getChildAt(0);
                         const value = child.getChildAt(2);
+                        // console.log(key.getText(), ":", value.getText())
                         skill.set(getEscapedText(key), value);
                     }
                 }
@@ -69,17 +74,36 @@ export class Skills extends Effect.Service<Skills>()(
                     if (key == "type") {
                         const valueName = getEscapedText(value);
                         if (valueName == "root") {
+                            console.log("Found root, exploring root");
                             const child = skill.get("child");
                             if (child == undefined) {
-                                console.error("Root Node Must Have child property");
+                                console.error("Root Node Must Have Child Property");
                                 break;
                             }
-                            rootBuilder.buildRoot();
-                            return skillVisitor(child, rootBuilder.root);
+                            if (skill.get("name")) {
+                                const name = getEscapedText(skill.get("name")!)
+                                rootBuilder.buildRoot(name);
+                            } else {
+                                rootBuilder.buildRoot();
+                            }
+                            skillVisitor(child, rootBuilder.root);
+                        }
+                        else if (valueName === "sequence") {
+                            console.log("Found sequence, exploring sequence");
+                            const children = skill.get("children");
+                            if (children == undefined) {
+                                throw new Error("Sequence Node Must Have Children Property");
+                            }
+                            sequenceBuilder.buildSequence(parent);
+                            children.forEachChild(child => {
+                                skillVisitor(child, sequenceBuilder.sequence());
+                            })
                         }
                         else if (valueName === "action") {
+                            console.log("Found action, exploring action")
                             actionBuilder.buildAction(skill, parent);
                         }
+
                     }
                 }
                 return node;
@@ -99,7 +123,7 @@ export class Skills extends Effect.Service<Skills>()(
             };
             return proto;
         }),
-        dependencies: [RootBuilder.Default, ActionBuilder.Default]
+        dependencies: [ActionBuilder.Default, RootBuilder.Default, SequenceBuilder.Default]
     }
 ) { }
 
@@ -135,9 +159,10 @@ export class Transform extends Effect.Service<Transform>()(
                 tools.init(toolsNodes);
                 console.log("Initializing skills");
                 skills.init(skillsNodes);
-                
+                vfs.writeFiles();
+
                 const diagnostics = languageService
-                    .getSemanticDiagnostics(normalize("./dist/src/actions/lastAction.ts"))
+                    .getSemanticDiagnostics(normalize("./dist/Root.ts"))
                     .filter(diagnostic => {
                         if (diagnostic.code != 5097) return diagnostic
                     });

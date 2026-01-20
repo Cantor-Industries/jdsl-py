@@ -42,6 +42,7 @@ export interface Sequence<A extends Tool = Tool> extends Base {
 
 export interface Skill<A extends Tool = Tool> extends Base {
     type: "root";
+    name?: string;
     child: Children<A>;
 }
 

@@ -1,58 +1,164 @@
 import ts, { factory } from "typescript";
 import { Effect } from "effect";
-import { createLayer, createRelativeImportPath, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
+import { createRelativeImportPath, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
 import { Action } from "./action.ts";
 import { VFS } from "./vfs.ts";
+import { generateFactoryCode } from "./factorycodegen.ts";
+import { Sequence } from "./sequence.ts";
 
 export class Root extends NodeCreator {
+    args: ts.ArrayLiteralExpression;
     private childName: string;
-    private services: ts.CallExpression[];
-    constructor(basePath?: string) {
-        super("Root", basePath);
+    private dependencyName: string;
+    public callParameters: ts.Identifier[];
+    public declarationParameters: ts.ParameterDeclaration[];
+    constructor(name: string, basePath?: string) {
+        super(name, basePath);
         this.childName = "";
-        this.services = [];
-        this.addService(this.name)
+        this.dependencyName = "";
+        this.args = factory.createArrayLiteralExpression();
+        this.callParameters = [];
+        this.declarationParameters = [];
     }
 
-    override addChild(child: Action): void {
+    override addChild(child: Action | Sequence): void {
+        console.log("Inside", this.name, "adding", child.name, "as a child")
         if (this.layerDependencies.length != 1) {
             this.childName = child.name;
             const relativePath = createRelativeImportPath(this.path(), child.path());
-            // class names must start with an uppercase letter
-            const value = isFirstLetterLoweCase(this.childName) ? { value: this.childName, as: uppercaseFirstLetter(this.childName) } : this.childName
-            this.addImport(relativePath, value, this.childName + "Live")
+            // class names imports must start with an uppercase letter
+            const value = isFirstLetterLoweCase(this.childName) ? { value: this.childName, as: uppercaseFirstLetter(this.childName) } : this.childName;
+            this.addImport(relativePath, value);
             this.addLayerDependency(uppercaseFirstLetter(this.childName));
-            this.addService(this.childName);
+
+            this.args = child.args;
+            this.callParameters = child.callParameters;
+            this.declarationParameters = child.declarationParameters;
+                        // console.log("Args Found:", child.args)
+
             this.addLayerBody();
+            this.update();
         } else {
             console.log("Root node can only have one child");
         }
     }
 
-    addService(serviceName: string) {
-        this.services.push(createService(serviceName));
+    override addLayerBody(): void {
+        this.layerBody = createRootLayerBody(this.name, this.dependencyName, this.args, this.callParameters, this.declarationParameters);
     }
 
-    override addLayerBody(): void {
-        this.layerBody = createRootLayerBody(this.name, this.childName);
+    override addLayerDependency(dependencyName: string): void {
+        super.addLayerDependency(dependencyName);
+        this.dependencyName = dependencyName;
     }
 
     override addLayer(): void {
-        const program = createProgram(this.services);
-        this.layer = createLayer(this.name, this.layerDependencies, this.layerBody, program);
+        this.layer = createRootLayer(this.name, this.layerDependencies, this.layerBody, this.dependencyName);
     }
 }
 
-const createProgram = (services: ts.CallExpression[]) => {
-    const program = factory.createVariableStatement(
-        [factory.createToken(ts.SyntaxKind.ExportKeyword)],
-        factory.createVariableDeclarationList(
-            [factory.createVariableDeclaration(
-                factory.createIdentifier("program"),
-                undefined,
-                undefined,
-                factory.createCallExpression(
-                    factory.createPropertyAccessExpression(
+const createRootLayer = (layerName: string, dependencies: ts.VariableStatement[], body: ts.Statement[], dependencyName: string) => {
+    const services = factory.createArrayLiteralExpression(
+        [
+            factory.createPropertyAccessExpression(
+                factory.createIdentifier(dependencyName),
+                factory.createIdentifier("Default")
+            )]
+    );
+
+    const layer = [
+        factory.createClassDeclaration(
+            [factory.createToken(ts.SyntaxKind.ExportKeyword)],
+            factory.createIdentifier(layerName),
+            undefined,
+            [factory.createHeritageClause(
+                ts.SyntaxKind.ExtendsKeyword,
+                [factory.createExpressionWithTypeArguments(
+                    factory.createCallExpression(
+                        factory.createCallExpression(
+                            factory.createPropertyAccessExpression(
+                                factory.createIdentifier("Effect"),
+                                factory.createIdentifier("Service")
+                            ),
+                            [factory.createTypeReferenceNode(
+                                factory.createIdentifier(layerName),
+                                undefined
+                            )],
+                            []
+                        ),
+                        undefined,
+                        [
+                            factory.createStringLiteral(layerName),
+                            factory.createObjectLiteralExpression(
+                                [factory.createPropertyAssignment(
+                                    factory.createIdentifier("effect"),
+                                    factory.createCallExpression(
+                                        factory.createPropertyAccessExpression(
+                                            factory.createIdentifier("Effect"),
+                                            factory.createIdentifier("gen")
+                                        ),
+                                        undefined,
+                                        [factory.createFunctionExpression(
+                                            undefined,
+                                            factory.createToken(ts.SyntaxKind.AsteriskToken),
+                                            undefined,
+                                            undefined,
+                                            [],
+                                            undefined,
+                                            factory.createBlock(
+                                                [...dependencies, ...body],
+                                                true
+                                            )
+                                        )]
+                                    )
+                                ),
+                                factory.createPropertyAssignment(
+                                    factory.createIdentifier("dependencies"),
+                                    services,
+                                )
+                                ],
+                                true
+                            )
+                        ]
+                    ),
+                    undefined
+                )]
+            )],
+            []
+        ),
+    ];
+    return layer;
+}
+
+const createRootLayerBody = (layerName: string, dependencyName: string, args: ts.ArrayLiteralExpression, callParameters: ts.Identifier[], declarationParameters: ts.ParameterDeclaration[]) => {
+    let values: ts.Expression[] = [];
+    let argsProvided = false;
+
+    if (args.elements.length != 0) {
+        argsProvided = true;
+        const targetText = generateFactoryCode(ts, args)
+        const arrayLiteral = eval(targetText) as ts.ArrayLiteralExpression;
+        values = [...arrayLiteral.elements]
+        // console.log(values);
+    } else {
+
+    }
+
+    const rootBody = [
+        // values,
+        factory.createVariableStatement(
+            undefined,
+            factory.createVariableDeclarationList(
+                [factory.createVariableDeclaration(
+                    factory.createIdentifier("update"),
+                    undefined,
+                    undefined,
+                    factory.createArrowFunction(
+                        undefined,
+                        undefined,
+                        argsProvided? [] : declarationParameters,
+                        undefined,
+                        factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
                         factory.createCallExpression(
                             factory.createPropertyAccessExpression(
                                 factory.createIdentifier("Effect"),
@@ -72,238 +178,139 @@ const createProgram = (services: ts.CallExpression[]) => {
                                             undefined,
                                             factory.createVariableDeclarationList(
                                                 [factory.createVariableDeclaration(
-                                                    factory.createIdentifier("root"),
+                                                    factory.createIdentifier("updateOrFail"),
                                                     undefined,
                                                     undefined,
                                                     factory.createYieldExpression(
                                                         factory.createToken(ts.SyntaxKind.AsteriskToken),
-                                                        factory.createIdentifier("Root")
+                                                        factory.createCallExpression(
+                                                            factory.createPropertyAccessExpression(
+                                                                factory.createIdentifier("Effect"),
+                                                                factory.createIdentifier("either")
+                                                            ),
+                                                            undefined,
+                                                            [factory.createCallExpression(
+                                                                factory.createPropertyAccessExpression(
+                                                                    factory.createIdentifier(lowercaseFirstLetter(dependencyName)),
+                                                                    factory.createIdentifier("update")
+                                                                ),
+                                                                undefined,
+                                                                argsProvided? values : callParameters
+                                                            )]
+                                                        )
                                                     )
                                                 )],
                                                 ts.NodeFlags.Const
                                             )
                                         ),
-                                        factory.createExpressionStatement(factory.createYieldExpression(
-                                            factory.createToken(ts.SyntaxKind.AsteriskToken),
+                                        factory.createIfStatement(
                                             factory.createCallExpression(
                                                 factory.createPropertyAccessExpression(
-                                                    factory.createIdentifier("root"),
-                                                    factory.createIdentifier("update")
+                                                    factory.createIdentifier("Either"),
+                                                    factory.createIdentifier("isLeft")
                                                 ),
                                                 undefined,
-                                                []
+                                                [factory.createIdentifier("updateOrFail")]
+                                            ),
+                                            factory.createBlock(
+                                                [
+                                                    factory.createExpressionStatement(factory.createCallExpression(
+                                                        factory.createPropertyAccessExpression(
+                                                            factory.createIdentifier("console"),
+                                                            factory.createIdentifier("error")
+                                                        ),
+                                                        undefined,
+                                                        [
+                                                            factory.createStringLiteral("Root Failed because:"),
+                                                            factory.createPropertyAccessExpression(
+                                                                factory.createPropertyAccessExpression(
+                                                                    factory.createIdentifier("updateOrFail"),
+                                                                    factory.createIdentifier("left")
+                                                                ),
+                                                                factory.createIdentifier("msg")
+                                                            )
+                                                        ]
+                                                    )),
+                                                    factory.createReturnStatement(factory.createYieldExpression(
+                                                        factory.createToken(ts.SyntaxKind.AsteriskToken),
+                                                        factory.createNewExpression(
+                                                            factory.createIdentifier(layerName + "Error"),
+                                                            undefined,
+                                                            [factory.createObjectLiteralExpression(
+                                                                [factory.createPropertyAssignment(
+                                                                    factory.createIdentifier("msg"),
+                                                                    factory.createPropertyAccessExpression(
+                                                                        factory.createPropertyAccessExpression(
+                                                                            factory.createIdentifier("updateOrFail"),
+                                                                            factory.createIdentifier("left")
+                                                                        ),
+                                                                        factory.createIdentifier("msg")
+                                                                    )
+                                                                )],
+                                                                false
+                                                            )]
+                                                        )
+                                                    ))
+                                                ],
+                                                true
+                                            ),
+                                            factory.createBlock(
+                                                [factory.createReturnStatement(factory.createPropertyAccessExpression(
+                                                    factory.createIdentifier("updateOrFail"),
+                                                    factory.createIdentifier("right")
+                                                ))],
+                                                true
                                             )
-                                        ))
+                                        ),
                                     ],
                                     true
                                 )
                             )]
-                        ),
-                        factory.createIdentifier("pipe")
-                    ),
-                    undefined,
-                    [
-                        ...services,
-                        factory.createPropertyAccessExpression(
-                            factory.createIdentifier("Effect"),
-                            factory.createIdentifier("runPromise")
                         )
-                    ]
-                )
-            )],
-            ts.NodeFlags.Const
-        )
-    )
-    return program;
-}
-
-const createRootLayerBody = (layerName: string, childName: string) => {
-    const rootBody = [
-        factory.createVariableStatement(
-            undefined,
-            factory.createVariableDeclarationList(
-                [factory.createVariableDeclaration(
-                    factory.createIdentifier("proto"),
-                    undefined,
-                    undefined,
-                    factory.createObjectLiteralExpression(
-                        [
-                            factory.createPropertyAssignment(
-                                factory.createIdentifier("status"),
-                                factory.createPropertyAccessExpression(
-                                    factory.createIdentifier("Status"),
-                                    factory.createIdentifier("READY")
-                                )
-                            ),
-                            factory.createPropertyAssignment(
-                                factory.createIdentifier("update"),
-                                factory.createArrowFunction(
-                                    undefined,
-                                    undefined,
-                                    [],
-                                    undefined,
-                                    factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-                                    factory.createCallExpression(
-                                        factory.createPropertyAccessExpression(
-                                            factory.createIdentifier("Effect"),
-                                            factory.createIdentifier("gen")
-                                        ),
-                                        undefined,
-                                        [factory.createFunctionExpression(
-                                            undefined,
-                                            factory.createToken(ts.SyntaxKind.AsteriskToken),
-                                            undefined,
-                                            undefined,
-                                            [],
-                                            undefined,
-                                            factory.createBlock(
-                                                [
-                                                    factory.createVariableStatement(
-                                                        undefined,
-                                                        factory.createVariableDeclarationList(
-                                                            [factory.createVariableDeclaration(
-                                                                factory.createIdentifier("updateOrFail"),
-                                                                undefined,
-                                                                undefined,
-                                                                factory.createYieldExpression(
-                                                                    factory.createToken(ts.SyntaxKind.AsteriskToken),
-                                                                    factory.createCallExpression(
-                                                                        factory.createPropertyAccessExpression(
-                                                                            factory.createIdentifier("Effect"),
-                                                                            factory.createIdentifier("either")
-                                                                        ),
-                                                                        undefined,
-                                                                        [factory.createCallExpression(
-                                                                            factory.createPropertyAccessExpression(
-                                                                                factory.createIdentifier(lowercaseFirstLetter(childName)),
-                                                                                factory.createIdentifier("update")
-                                                                            ),
-                                                                            undefined,
-                                                                            []
-                                                                        )]
-                                                                    )
-                                                                )
-                                                            )],
-                                                            ts.NodeFlags.Const
-                                                        )
-                                                    ),
-                                                    factory.createIfStatement(
-                                                        factory.createCallExpression(
-                                                            factory.createPropertyAccessExpression(
-                                                                factory.createIdentifier("Either"),
-                                                                factory.createIdentifier("isLeft")
-                                                            ),
-                                                            undefined,
-                                                            [factory.createIdentifier("updateOrFail")]
-                                                        ),
-                                                        factory.createBlock(
-                                                            [
-                                                                factory.createExpressionStatement(factory.createCallExpression(
-                                                                    factory.createPropertyAccessExpression(
-                                                                        factory.createIdentifier("console"),
-                                                                        factory.createIdentifier("log")
-                                                                    ),
-                                                                    undefined,
-                                                                    [
-                                                                        factory.createStringLiteral(layerName + " Failed because:"),
-                                                                        factory.createPropertyAccessExpression(
-                                                                            factory.createPropertyAccessExpression(
-                                                                                factory.createIdentifier("updateOrFail"),
-                                                                                factory.createIdentifier("left")
-                                                                            ),
-                                                                            factory.createIdentifier("msg")
-                                                                        )
-                                                                    ]
-                                                                )),
-                                                                factory.createExpressionStatement(factory.createBinaryExpression(
-                                                                    factory.createPropertyAccessExpression(
-                                                                        factory.createIdentifier("proto"),
-                                                                        factory.createIdentifier("status")
-                                                                    ),
-                                                                    factory.createToken(ts.SyntaxKind.EqualsToken),
-                                                                    factory.createPropertyAccessExpression(
-                                                                        factory.createIdentifier("Status"),
-                                                                        factory.createIdentifier("FAILED")
-                                                                    )
-                                                                )),
-                                                                factory.createReturnStatement(factory.createPropertyAccessExpression(
-                                                                    factory.createIdentifier("proto"),
-                                                                    factory.createIdentifier("status")
-                                                                ))
-                                                            ],
-                                                            true
-                                                        ),
-                                                        factory.createBlock(
-                                                            [
-                                                                factory.createExpressionStatement(factory.createBinaryExpression(
-                                                                    factory.createPropertyAccessExpression(
-                                                                        factory.createIdentifier("proto"),
-                                                                        factory.createIdentifier("status")
-                                                                    ),
-                                                                    factory.createToken(ts.SyntaxKind.EqualsToken),
-                                                                    factory.createPropertyAccessExpression(
-                                                                        factory.createIdentifier("updateOrFail"),
-                                                                        factory.createIdentifier("right")
-                                                                    )
-                                                                )),
-                                                                factory.createReturnStatement(factory.createPropertyAccessExpression(
-                                                                    factory.createIdentifier("proto"),
-                                                                    factory.createIdentifier("status")
-                                                                ))
-                                                            ],
-                                                            true
-                                                        )
-                                                    )
-                                                ],
-                                                true
-                                            )
-                                        )]
-                                    )
-                                )
-                            )
-                        ],
-                        true
                     )
                 )],
                 ts.NodeFlags.Const
             )
         ),
-        factory.createReturnStatement(factory.createIdentifier("proto")),
+        factory.createReturnStatement(factory.createAsExpression(
+            factory.createObjectLiteralExpression(
+                [factory.createShorthandPropertyAssignment(
+                    factory.createIdentifier("update"),
+                    undefined
+                )],
+                false
+            ),
+            factory.createTypeReferenceNode(
+                factory.createIdentifier("const"),
+                undefined
+            )
+        ))
     ];
     return rootBody;
-}
-
-const createService = (serviceName: string) => {
-    const service = factory.createCallExpression(
-        factory.createPropertyAccessExpression(
-            factory.createIdentifier("Effect"),
-            factory.createIdentifier("provide")
-        ),
-        undefined,
-        [factory.createIdentifier(serviceName + "Live")]
-    )
-    return service;
 }
 
 export class RootBuilder extends Effect.Service<RootBuilder>()(
     "RootBuilder",
     {
-        effect: Effect.gen(function*() {
+        effect: Effect.gen(function* () {
             const vfs = yield* VFS;
-            const root = new Root("./dist/src/");
+            const root = new Root("Root", "./dist/");
 
-            const buildRoot = () => {
-                root.addImport("effect", "Context", "Data", "Effect", "Either", "Layer");
-                root.addImport(createRelativeImportPath(root.path(), "./dist/src/types.ts"), "Status")
+            const buildRoot = (name?: string) => {
+                root.name = name ?? "Root";
+                root.name = root.name === "root" ? "Root" : root.name;
+                root.addImport("effect", "Data", "Effect", "Either");
+                // root.addImport(createRelativeImportPath(root.path(), "./dist/types.ts"), "Status")
                 root.addError();
-                root.addContext();
+                // root.addService(root.name);
                 root.addLayer();
                 vfs.set(root.path(), root.print())
             }
-            return {
-                root: root,
-                buildRoot: buildRoot
-            };
+            const updateRoot = () => {
+                root.addLayerBody();
+                root.addLayer()
+            }
+            return { root, buildRoot, updateRoot } as const;
         })
     }
 ) { }

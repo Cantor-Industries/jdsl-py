@@ -65,14 +65,14 @@ export class VFS extends Effect.Service<VFS>()(
                 }
             }
 
-            proto.set(normalize('dist/src/types.ts'),
-                `export enum Status {
-                READY = "ready",
-                RUNNING = "running",
-                SUCCESS = "success",
-                FAILED = "failed"
-            }
-            `)
+            // proto.set(normalize('dist/types.ts'),
+            //     `export enum Status {
+            //     READY = "ready",
+            //     RUNNING = "running",
+            //     SUCCESS = "success",
+            //     FAILED = "failed"
+            // }
+            // `)
             return proto;
         })
     }

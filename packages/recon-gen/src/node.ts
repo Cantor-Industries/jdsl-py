@@ -7,9 +7,9 @@ export class NodeCreator {
   private sourceFile: ts.SourceFile;
   private importList: ts.ImportDeclaration[];
   private context: (ts.VariableStatement | ts.ClassDeclaration)[];
-  protected layer: ts.VariableStatement[];
+  protected layer: (ts.VariableStatement | ts.ClassDeclaration)[];
   protected layerDependencies: ts.VariableStatement[];
-  protected layerBody: (ts.VariableStatement | ts.ReturnStatement)[];
+  protected layerBody: ts.Statement [];
   private namespace: ts.ModuleDeclaration[];
   private taggedError: (ts.VariableStatement | ts.ClassDeclaration)[];
 
@@ -83,7 +83,7 @@ export class NodeCreator {
     return printer.printList(ts.ListFormat.MultiLine, nodes, this.sourceFile);
   }
 
-  protected updateSourceFile() {
+  update() {
     this.layer = createLayer(this.name, this.layerDependencies, this.layerBody);
     this.sourceFile = ts.createSourceFile(this.name + ".ts", this.compile(), ts.ScriptTarget.Latest, true);
   }
@@ -93,7 +93,7 @@ export class NodeCreator {
   }
 
   print() {
-    this.updateSourceFile();
+    this.update();
     return this.sourceFile.getText();
   }
 }
@@ -271,16 +271,9 @@ const createImport = (packageName: string, ...values: (string | { value: string,
 }
 
 export function createRelativeImportPath(from: string, to: string): string {
-  // Get directories
   const fromDir = posix.dirname(from);
-
-  // Compute relative path
   let relativePath = posix.relative(fromDir, to);
 
-  // Remove .ts / .tsx extension
-  //   relativePath = relativePath.replace(/\.(ts|tsx)$/, "");
-
-  // Ensure relative import prefix
   if (!relativePath.startsWith(".")) {
     relativePath = "./" + relativePath;
   }
@@ -288,52 +281,113 @@ export function createRelativeImportPath(from: string, to: string): string {
   return relativePath;
 }
 
-export const createLayer = (layerName: string, dependencies: ts.VariableStatement[], body: (ts.VariableStatement | ts.ReturnStatement)[], ...other: ts.VariableStatement[]) => {
+export const createLayer = (layerName: string, dependencies: ts.VariableStatement[], body: ts.Statement [], ...other: ts.VariableStatement[]) => {
   const layer = [
-    factory.createVariableStatement(
+    factory.createClassDeclaration(
       [factory.createToken(ts.SyntaxKind.ExportKeyword)],
-      factory.createVariableDeclarationList(
-        [factory.createVariableDeclaration(
-          factory.createIdentifier(layerName + "Live"),
-          undefined,
-          undefined,
+      factory.createIdentifier(layerName),
+      undefined,
+      [factory.createHeritageClause(
+        ts.SyntaxKind.ExtendsKeyword,
+        [factory.createExpressionWithTypeArguments(
           factory.createCallExpression(
-            factory.createPropertyAccessExpression(
-              factory.createIdentifier("Layer"),
-              factory.createIdentifier("effect")
+            factory.createCallExpression(
+              factory.createPropertyAccessExpression(
+                factory.createIdentifier("Effect"),
+                factory.createIdentifier("Service")
+              ),
+              [factory.createTypeReferenceNode(
+                factory.createIdentifier(layerName),
+                undefined
+              )],
+              []
             ),
             undefined,
             [
-              factory.createIdentifier(layerName),
-              factory.createCallExpression(
-                factory.createPropertyAccessExpression(
-                  factory.createIdentifier("Effect"),
-                  factory.createIdentifier("gen")
-                ),
-                undefined,
-                [factory.createFunctionExpression(
-                  undefined,
-                  factory.createToken(ts.SyntaxKind.AsteriskToken),
-                  undefined,
-                  undefined,
-                  [],
-                  undefined,
-                  factory.createBlock(
-                    [...dependencies, ...body],
-                    true
+              factory.createStringLiteral(layerName),
+              factory.createObjectLiteralExpression(
+                [factory.createPropertyAssignment(
+                  factory.createIdentifier("effect"),
+                  factory.createCallExpression(
+                    factory.createPropertyAccessExpression(
+                      factory.createIdentifier("Effect"),
+                      factory.createIdentifier("sync")
+                    ),
+                    undefined,
+                    [factory.createArrowFunction(
+                      undefined,
+                      undefined,
+                      [],
+                      undefined,
+                      factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+                      factory.createBlock(
+                        [...dependencies, ...body],
+                        true
+                      )
+                    )]
                   )
-                )]
+                )],
+                true
               )
             ]
-          )
-        )],
-        ts.NodeFlags.Const
-      )
-    ),
+          ),
+          undefined
+        )]
+      )],
+      []
+    )
+    ,
     ...other,
   ];
   return layer;
 }
+
+// export const createLayer = (layerName: string, dependencies: ts.VariableStatement[], body: (ts.VariableStatement | ts.ReturnStatement)[], ...other: ts.VariableStatement[]) => {
+//   const layer = [
+//     factory.createVariableStatement(
+//       [factory.createToken(ts.SyntaxKind.ExportKeyword)],
+//       factory.createVariableDeclarationList(
+//         [factory.createVariableDeclaration(
+//           factory.createIdentifier(layerName + "Live"),
+//           undefined,
+//           undefined,
+//           factory.createCallExpression(
+//             factory.createPropertyAccessExpression(
+//               factory.createIdentifier("Layer"),
+//               factory.createIdentifier("effect")
+//             ),
+//             undefined,
+//             [
+//               factory.createIdentifier(layerName),
+//               factory.createCallExpression(
+//                 factory.createPropertyAccessExpression(
+//                   factory.createIdentifier("Effect"),
+//                   factory.createIdentifier("gen")
+//                 ),
+//                 undefined,
+//                 [factory.createFunctionExpression(
+//                   undefined,
+//                   factory.createToken(ts.SyntaxKind.AsteriskToken),
+//                   undefined,
+//                   undefined,
+//                   [],
+//                   undefined,
+//                   factory.createBlock(
+//                     [...dependencies, ...body],
+//                     true
+//                   )
+//                 )]
+//               )
+//             ]
+//           )
+//         )],
+//         ts.NodeFlags.Const
+//       )
+//     ),
+//     ...other,
+//   ];
+//   return layer;
+// }
 
 const createNamespace = (layerName: string): ts.ModuleDeclaration => {
   const nmspace = factory.createModuleDeclaration(
