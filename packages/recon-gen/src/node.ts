@@ -1,6 +1,12 @@
 import { posix } from "node:path"
 import ts, { Node, factory } from "typescript";
 
+export interface Dependency {
+    name: string;
+    callParameters: ts.Identifier[];
+    declarationParameters: ts.ParameterDeclaration[];
+}
+
 export class NodeCreator {
   public name: string;
   protected basePath: string
@@ -219,7 +225,7 @@ const createContext = (name: string): (ts.VariableStatement | ts.ClassDeclaratio
   return def
 }
 
-const createLayerDependency = (dependencyName: string) => {
+export const createLayerDependency = (dependencyName: string) => {
   const layerName = lowercaseFirstLetter(dependencyName);
   const dep = factory.createVariableStatement(
     undefined,

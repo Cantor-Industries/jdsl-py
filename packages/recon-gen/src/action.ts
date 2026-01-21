@@ -1,12 +1,10 @@
 import ts, { ArrowFunction, factory, Node } from "typescript";
 import { generateFactoryCode } from "./factorycodegen.ts"
-import { createRelativeImportPath, getEscapedText, NodeCreator } from "./node.ts";
+import { getEscapedText, NodeCreator } from "./node.ts";
 import { Effect } from "effect/index";
 import { Tools } from "./transform.ts";
 import { ReconLanguageServer } from "./lsp.ts";
-import { normalize, VFS } from "./vfs.ts";
-import { Root } from "./root.ts";
-import { Sequence } from "./sequence.ts";
+import { VFS } from "./vfs.ts";
 
 export class Action extends NodeCreator {
     public args: ts.ArrayLiteralExpression;
@@ -50,73 +48,56 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
             let currentAction: Action | undefined;
             const actions: Map<string, Action> = new Map()
 
-            const buildAction = (skill: Map<string, Node>, parent: Root | Sequence) => {
-                const action = skill.get("call");
-                if (!action) {
+            const buildAction = (skill: Map<string, Node>) => {
+                const call = skill.get("call");
+                if (!call) {
                     console.error("Action must have a call attribute");
                     return
                 }
-                if (actions.has(getEscapedText(action) + "Action")) {
-                    console.log(getEscapedText(action) + "Action already exists, exiting");
+                if (actions.has(getEscapedText(call) + "Action")) {
+                    console.log(getEscapedText(call) + "Action already exists, exiting");
                     return;
                 }
-                proto.addAction(getEscapedText(action) + "Action", "./dist/actions/");
-                proto.addImport("effect", "Data", "Effect");
-                // proto.addImport(createRelativeImportPath(proto.action().path(), "./dist/types.ts"), "Status");
-                proto.action().addError();
+                addAction(getEscapedText(call) + "Action", "./dist/actions/");
+                addImport("effect", "Data", "Effect");
+                // addImport(createRelativeImportPath(action().path(), "./dist/types.ts"), "Status");
+                action().addError();
 
                 const args = skill.get("args");
                 if (args && ts.isArrayLiteralExpression(args)) {
-                    proto.addArgs(args)
+                    addArgs(args)
                 }
-                proto.addLayer();
-                parent.addChild(proto.action());
-                vfs.set(proto.action().path(), proto.action().print());
-                vfs.set(parent.path(), parent.print());
+                addLayer();
+                vfs.set(action().path(), action().print());
             }
 
-            const proto = {
-                addAction: (name: string, basePath?: string) => {
-                    const action = new Action(name, basePath);
-                    currentAction = action;
-                    actions.set(name, action);
-                },
-                action: () => {
-                    if (currentAction) {
-                        return currentAction;
-                    }
-                    throw new Error("Action Map Empty");
-                },
-                addImport: (packageName: string, ...values: string[]) => {
-
-                    proto.action().addImport(packageName, ...values)
-                },
-                addContext: () => {
-                    proto.action().addContext();
-                    proto.action().addError();
-                },
-                addLayer: () => {
-                    const run = toolService.tools.get(proto.action().name.replace("Action", ""));
-                    if (!run) {
-                        throw new Error(` ${currentAction?.name} missing matching agent function)`)
-                    }
-                    proto.action().addRunFunction(run);
-                    proto.action().addLayerBody();
-                },
-                addArgs: (args: ts.ArrayLiteralExpression) => {
-                    proto.action().addArgs(args);
-                },
-                buildAction: buildAction,
-                getActions: () => {
-                    return actions;
-                },
-                print: () => {
-                    for (const action of actions) {
-                        action[1].print()
-                    }
-                }
+            const addAction = (name: string, basePath?: string) => {
+                const action = new Action(name, basePath);
+                currentAction = action;
+                actions.set(name, action);
             }
-            return proto;
+            const action = () => {
+                if (currentAction) {
+                    return currentAction;
+                }
+                throw new Error("Action Map Empty");
+            }
+            const addImport = (packageName: string, ...values: string[]) => {
+
+                action().addImport(packageName, ...values)
+            }
+            const addLayer = () => {
+                const run = toolService.tools.get(action().name.replace("Action", ""));
+                if (!run) {
+                    throw new Error(` ${currentAction?.name} missing matching agent function)`)
+                }
+                action().addRunFunction(run);
+                action().addLayerBody();
+            }
+            const addArgs = (args: ts.ArrayLiteralExpression) => {
+                action().addArgs(args);
+            }
+            return { action, buildAction } as const;
         }),
     }
 ) { }
@@ -192,7 +173,7 @@ const createRunFunction = (agentFunction: ts.ArrowFunction) => {
         return node.forEachChild(extractParameters)!;
     }
 
-    
+
     const runFunction = factory.createVariableStatement(
         undefined,
         factory.createVariableDeclarationList(
@@ -230,21 +211,6 @@ const createActonLayerBody = (layerName: string, actionFunction: ts.VariableStat
 
     const actionLayerBody = [
         actionFunction,
-        // factory.createVariableDeclarationList(
-        //     [factory.createVariableDeclaration(
-        //         factory.createIdentifier("status"),
-        //         undefined,
-        //         factory.createTypeReferenceNode(
-        //             factory.createIdentifier("Status"),
-        //             undefined
-        //         ),
-        //         factory.createPropertyAccessExpression(
-        //             factory.createIdentifier("Status"),
-        //             factory.createIdentifier("READY")
-        //         )
-        //     )],
-        //     ts.NodeFlags.Let
-        // ),
         factory.createVariableStatement(
             undefined,
             factory.createVariableDeclarationList(
@@ -275,35 +241,11 @@ const createActonLayerBody = (layerName: string, actionFunction: ts.VariableStat
                                     [factory.createTryStatement(
                                         factory.createBlock(
                                             [
-                                                // factory.createExpressionStatement(factory.createCallExpression(
-                                                //     factory.createIdentifier("run"),
-                                                //     undefined,
-                                                //     params,
-                                                // )),
                                                 factory.createReturnStatement(factory.createCallExpression(
                                                     factory.createIdentifier("run"),
                                                     undefined,
                                                     params,
                                                 )),
-                                                // factory.createExpressionStatement(factory.createBinaryExpression(
-                                                //     factory.createIdentifier("status"),
-                                                //     factory.createToken(ts.SyntaxKind.EqualsToken),
-                                                //     factory.createPropertyAccessExpression(
-                                                //         factory.createIdentifier("Status"),
-                                                //         factory.createIdentifier("SUCCESS")
-                                                //     )
-                                                // )),
-                                                // factory.createReturnStatement(factory.createYieldExpression(
-                                                //     factory.createToken(ts.SyntaxKind.AsteriskToken),
-                                                //     factory.createCallExpression(
-                                                //         factory.createPropertyAccessExpression(
-                                                //             factory.createIdentifier("Effect"),
-                                                //             factory.createIdentifier("succeed")
-                                                //         ),
-                                                //         undefined,
-                                                //         [factory.createIdentifier("status")]
-                                                //     )
-                                                // ))
                                             ],
                                             true
                                         ),
@@ -344,14 +286,6 @@ const createActonLayerBody = (layerName: string, actionFunction: ts.VariableStat
                                                         ),
                                                         undefined
                                                     ),
-                                                    // factory.createExpressionStatement(factory.createBinaryExpression(
-                                                    //     factory.createIdentifier("status"),
-                                                    //     factory.createToken(ts.SyntaxKind.EqualsToken),
-                                                    //     factory.createPropertyAccessExpression(
-                                                    //         factory.createIdentifier("Status"),
-                                                    //         factory.createIdentifier("FAILED")
-                                                    //     )
-                                                    // )),
                                                     factory.createReturnStatement(factory.createYieldExpression(
                                                         factory.createToken(ts.SyntaxKind.AsteriskToken),
                                                         factory.createNewExpression(

@@ -121,6 +121,21 @@ const tools = {
 //     }
 // } satisfies Skill<typeof tools>
 
+// export const definition = {
+//     type: "root",
+//     name: "root",
+//     child: {
+//         type: "sequence",
+//         children: [
+//             {
+//                 type: "action",
+//                 call: "first",
+//                 args: ["hello world"]
+//             }
+//         ]
+//     },
+// } satisfies Skill
+
 export const definition = {
     type: "root",
     child: {
@@ -129,6 +144,11 @@ export const definition = {
             {
                 type: "sequence",
                 children: [
+                    {
+                        type: "action",
+                        call: "first",
+                        args: ["hello world"]
+                    },
                     {
                         type: "action",
                         call: "first",
@@ -144,16 +164,6 @@ export const definition = {
         ]
     }
 } satisfies Skill<typeof tools>
-
-// export const definition = {
-//     type: "root",
-//     name: "root",
-//     child: {
-//         type: "action",
-//         call: "first",
-//         args: ["hello world"]
-//     },
-// } satisfies Skill
 
 // export const tools = {
 //     first: (w: string) => console.log(w)

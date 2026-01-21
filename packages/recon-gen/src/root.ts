@@ -1,6 +1,6 @@
 import ts, { factory } from "typescript";
 import { Effect } from "effect";
-import { createRelativeImportPath, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
+import { createRelativeImportPath, Dependency, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
 import { Action } from "./action.ts";
 import { VFS } from "./vfs.ts";
 import { generateFactoryCode } from "./factorycodegen.ts";
@@ -9,12 +9,14 @@ import { Sequence } from "./sequence.ts";
 export class Root extends NodeCreator {
     args: ts.ArrayLiteralExpression;
     private childName: string;
+    public dependencies: Dependency[];
     private dependencyName: string;
     public callParameters: ts.Identifier[];
     public declarationParameters: ts.ParameterDeclaration[];
     constructor(name: string, basePath?: string) {
         super(name, basePath);
         this.childName = "";
+        this.dependencies = [];
         this.dependencyName = "";
         this.args = factory.createArrayLiteralExpression();
         this.callParameters = [];
@@ -22,8 +24,8 @@ export class Root extends NodeCreator {
     }
 
     override addChild(child: Action | Sequence): void {
-        console.log("Inside", this.name, "adding", child.name, "as a child")
         if (this.layerDependencies.length != 1) {
+            console.log("Inside", this.name, "adding", child.name, "as a child")
             this.childName = child.name;
             const relativePath = createRelativeImportPath(this.path(), child.path());
             // class names imports must start with an uppercase letter
@@ -34,17 +36,19 @@ export class Root extends NodeCreator {
             this.args = child.args;
             this.callParameters = child.callParameters;
             this.declarationParameters = child.declarationParameters;
-                        // console.log("Args Found:", child.args)
-
+            this.dependencies.push({
+                name: uppercaseFirstLetter(this.childName),
+                callParameters: child.callParameters,
+                declarationParameters: child.declarationParameters
+            })
             this.addLayerBody();
-            this.update();
         } else {
             console.log("Root node can only have one child");
         }
     }
 
     override addLayerBody(): void {
-        this.layerBody = createRootLayerBody(this.name, this.dependencyName, this.args, this.callParameters, this.declarationParameters);
+        this.layerBody = createRootLayerBody(this.name, this.args, this.dependencies);
     }
 
     override addLayerDependency(dependencyName: string): void {
@@ -130,7 +134,10 @@ const createRootLayer = (layerName: string, dependencies: ts.VariableStatement[]
     return layer;
 }
 
-const createRootLayerBody = (layerName: string, dependencyName: string, args: ts.ArrayLiteralExpression, callParameters: ts.Identifier[], declarationParameters: ts.ParameterDeclaration[]) => {
+const createRootLayerBody = (layerName: string, args: ts.ArrayLiteralExpression, dependencies: Dependency[]) => {
+    const dependencyName = dependencies.map(dep => dep.name)[0];    
+    const callParameters = dependencies.map(dep => dep.callParameters)[0];
+    const declarationParameters = dependencies.map(dep => dep.declarationParameters)[0];    
     let values: ts.Expression[] = [];
     let argsProvided = false;
 
@@ -141,7 +148,7 @@ const createRootLayerBody = (layerName: string, dependencyName: string, args: ts
         values = [...arrayLiteral.elements]
         // console.log(values);
     } else {
-
+        values
     }
 
     const rootBody = [
@@ -156,7 +163,7 @@ const createRootLayerBody = (layerName: string, dependencyName: string, args: ts
                     factory.createArrowFunction(
                         undefined,
                         undefined,
-                        argsProvided? [] : declarationParameters,
+                        argsProvided ? [] : declarationParameters,
                         undefined,
                         factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
                         factory.createCallExpression(
@@ -195,7 +202,7 @@ const createRootLayerBody = (layerName: string, dependencyName: string, args: ts
                                                                     factory.createIdentifier("update")
                                                                 ),
                                                                 undefined,
-                                                                argsProvided? values : callParameters
+                                                                argsProvided ? values : callParameters
                                                             )]
                                                         )
                                                     )
@@ -300,17 +307,15 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
                 root.name = name ?? "Root";
                 root.name = root.name === "root" ? "Root" : root.name;
                 root.addImport("effect", "Data", "Effect", "Either");
-                // root.addImport(createRelativeImportPath(root.path(), "./dist/types.ts"), "Status")
                 root.addError();
-                // root.addService(root.name);
                 root.addLayer();
                 vfs.set(root.path(), root.print())
             }
-            const updateRoot = () => {
-                root.addLayerBody();
-                root.addLayer()
+            const addChild = (child: Action | Sequence) => {
+                root.addChild(child);
+                vfs.set(root.path(), root.print());
             }
-            return { root, buildRoot, updateRoot } as const;
+            return { root, buildRoot, addChild } as const;
         })
     }
 ) { }

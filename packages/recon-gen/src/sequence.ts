@@ -1,27 +1,25 @@
 import ts, { factory } from "typescript";
 import { Effect } from "effect"
-import { createRelativeImportPath, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
-import { generateFactoryCode } from "./factorycodegen.ts";
+import { createLayerDependency, createRelativeImportPath, Dependency, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
 import { VFS } from "./vfs.ts";
-import { Root } from "./root.ts";
 import { Action } from "./action.ts";
 
 export class Sequence extends NodeCreator {
     public args: ts.ArrayLiteralExpression;
     private childName: string;
+    public dependencies: Dependency[];
     private dependencyNames: string[];
     public callParameters: ts.Identifier[];
     public declarationParameters: ts.ParameterDeclaration[];
-    public parent: Root | Sequence;
 
-    constructor(name: string, parent: Root | Sequence, basepath?: string) {
+    constructor(name: string, basepath?: string) {
         super(name, basepath);
         this.childName = "";
         this.args = factory.createArrayLiteralExpression();
+        this.dependencies = [];
         this.dependencyNames = [];
         this.callParameters = [];
         this.declarationParameters = [];
-        this.parent = parent;
     }
 
     addArgs(args: ts.ArrayLiteralExpression) {
@@ -42,20 +40,24 @@ export class Sequence extends NodeCreator {
             this.args = child.args;
             this.callParameters = child.callParameters;
             this.declarationParameters = child.declarationParameters;
+
+            this.dependencies.push({
+                name: uppercaseFirstLetter(this.childName),
+                callParameters: child.callParameters,
+                declarationParameters: child.declarationParameters
+            })
             this.addLayerBody();
-            this.update()
-            console.log(this.name, "parent is", this.parent.name);
-            this.parent.addChild(this);
-            this.parent.update();
+            this.update();
         }
     }
 
     override addLayer(): void {
-        this.layer = createSequenceLayer(this.name, this.layerDependencies, this.layerBody, this.dependencyNames);
+        // this.layer = createSequenceLayer(this.name, this.layerDependencies, this.layerBody, this.dependencyNames);
+        this.layer = createSequenceLayer(this.name, this.layerBody, this.dependencies);
     }
 
     override addLayerBody(): void {
-        this.layerBody = createSequenceLayerBody(this.dependencyNames, this.callParameters, this.declarationParameters);
+        this.layerBody = createSequenceLayerBody(this.dependencies);
     }
 
     override addLayerDependency(dependencyName: string): void {
@@ -64,9 +66,11 @@ export class Sequence extends NodeCreator {
     }
 }
 
-const createSequenceLayer = (layerName: string, dependencies: ts.VariableStatement[], body: ts.Statement[], dependencyNames: string[]) => {
+const createSequenceLayer = (layerName: string, body: ts.Statement[], dependencies: Dependency[]) => {
     const serviceElements: ts.Expression[] = [];
     const services = factory.createArrayLiteralExpression(serviceElements);
+    const dependencyNames = dependencies.map(dep => dep.name);
+    const layerDependencies = dependencyNames.map(dep => createLayerDependency(dep))
 
     dependencyNames.forEach(depName => {
         serviceElements.push(
@@ -118,7 +122,7 @@ const createSequenceLayer = (layerName: string, dependencies: ts.VariableStateme
                                                 [],
                                                 undefined,
                                                 factory.createBlock(
-                                                    [...dependencies, ...body],
+                                                    [...layerDependencies, ...body],
                                                     true
                                                 )
                                             )]
@@ -142,8 +146,11 @@ const createSequenceLayer = (layerName: string, dependencies: ts.VariableStateme
     return layer;
 }
 
-const createSequenceLayerBody = (dependencyNames: string[], callParameters: ts.Identifier[], declarationParameters: ts.ParameterDeclaration[]) => {
+const createSequenceLayerBody = (dependencies: Dependency[]) => {
     const updateBody: ts.Statement[] = [];
+    const dependencyNames = dependencies.map(dep => dep.name);
+    const callParameters = dependencies.map(dep => dep.callParameters)[0];
+    const declarationParameters = dependencies.map(dep => dep.declarationParameters)[0];
 
     if (dependencyNames.length === 1) {
         const dependencyName = lowercaseFirstLetter(dependencyNames[0]);
@@ -159,16 +166,24 @@ const createSequenceLayerBody = (dependencyNames: string[], callParameters: ts.I
                     callParameters
                 )
             ))
-
         )
+    } else {
+        dependencyNames.forEach(dependencyName => {
+            updateBody.push(
+                factory.createReturnStatement(factory.createYieldExpression(
+                    factory.createToken(ts.SyntaxKind.AsteriskToken),
+                    factory.createCallExpression(
+                        factory.createPropertyAccessExpression(
+                            factory.createIdentifier(dependencyName),
+                            factory.createIdentifier("update")
+                        ),
+                        undefined,
+                        callParameters
+                    )
+                ))
+            )
+        })
     }
-
-    // if (args.elements.length != 0) {
-    //     const targetText = generateFactoryCode(ts, args)
-    //     const arrayLiteral = eval(targetText) as ts.ArrayLiteralExpression;
-    //     values = [...arrayLiteral.elements]
-    // }
-    // console.log(parameters);
 
     const sequenceBody = [
         factory.createVariableStatement(
@@ -232,50 +247,46 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
             console.log("SEQUENCEBUILDER INIT");
             const vfs = yield* VFS;
 
-            let currentSequence: Sequence;
+            const currentSequence: Sequence[] = [];
             const sequences: Map<string, Sequence> = new Map();
             let count = 0;
 
-            const buildSequence = (parent: Root | Sequence) => {
-                addSequence("sequence_" + count, parent, "./dist/sequences/");
+            const buildSequence = () => {
+                addSequence("sequence_" + count, "./dist/sequences/");
                 count += 1;
                 addImport("effect", "Data", "Effect");
                 // proto.addImport(createRelativeImportPath(proto.sequence().path(), "./dist/types.ts"), "Status");
                 sequence().addError();
                 addLayer();
 
-                // parent.addChild(sequence());
-                vfs.set(parent.path(), parent.print());
                 vfs.set(sequence().path(), sequence().print());
             };
-            const updateParent = (parent: Root | Sequence) => {
-                parent.addChild(sequence());
-                parent.addLayer();
-                parent.addLayerBody();
-                vfs.set(parent.path(), parent.print());
-            };
-            const addArgs = (args: ts.ArrayLiteralExpression) => {
-                currentSequence?.addArgs(args);
-            };
+            const addChild = (child: Action | Sequence) => {
+                sequence().addChild(child);
+                vfs.set(sequence().path(), sequence().print());
+            }
             const addImport = (packageName: string, ...values: string[]) => {
-                currentSequence?.addImport(packageName, ...values)
+                sequence().addImport(packageName, ...values)
             };
             const addLayer = () => {
-                currentSequence?.addLayer();
+                sequence().addLayer();
             };
-            const addSequence = (name: string, parent: Root | Sequence, basePath: string) => {
-                const sequence = new Sequence(name, parent, basePath);
-                currentSequence = sequence;
-                sequences.set(name, currentSequence);
+            const addSequence = (name: string, basePath: string) => {
+                const sequence = new Sequence(name, basePath);
+                currentSequence.push(sequence);
+                sequences.set(name, sequence);
             };
-            const getSequences = () => sequences
+            const pop = () => currentSequence.pop();
             const sequence = () => {
-                if (currentSequence) {
-                    return currentSequence;
+                const seq = currentSequence.at(-1);
+                if (seq) {
+                    return seq;
                 }
                 throw new Error("Sequence Map Empty");
+
+
             };
-            return { addArgs, addImport, addLayer, addSequence, buildSequence, getSequences, sequence, updateParent } as const;
+            return { addChild,  buildSequence, pop, sequence } as const;
         })
     }
 ) { }

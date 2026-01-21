@@ -1,7 +1,7 @@
 import ts, { Node, SourceFile } from "typescript";
 import { getEscapedText } from "./node.ts";
 import { Root, RootBuilder } from "./root.ts";
-import { ActionBuilder } from "./action.ts";
+import { Action, ActionBuilder } from "./action.ts";
 import { Effect } from "effect";
 import { ReconLanguageServer } from "./lsp.ts";
 import { normalize, VFS } from "./vfs.ts";
@@ -59,13 +59,12 @@ export class Skills extends Effect.Service<Skills>()(
             // const vfs = yield* VFS;
 
 
-            const skillVisitor = (node: Node, parent: Root | Sequence): Node => {
+            const skillVisitor = (node: Node): Action | Root | Sequence => {
                 const skill: Map<string, Node> = new Map();
                 for (const child of node.getChildAt(1).getChildren()) {
                     if (ts.isPropertyAssignment(child)) {
                         const key = child.getChildAt(0);
                         const value = child.getChildAt(2);
-                        // console.log(key.getText(), ":", value.getText())
                         skill.set(getEscapedText(key), value);
                     }
                 }
@@ -74,44 +73,61 @@ export class Skills extends Effect.Service<Skills>()(
                     if (key == "type") {
                         const valueName = getEscapedText(value);
                         if (valueName == "root") {
-                            console.log("Found root, exploring root");
-                            const child = skill.get("child");
-                            if (child == undefined) {
+                            const childNode = skill.get("child");
+                            if (childNode == undefined) {
                                 console.error("Root Node Must Have Child Property");
                                 break;
                             }
                             if (skill.get("name")) {
-                                const name = getEscapedText(skill.get("name")!)
+                                const name = getEscapedText(skill.get("name")!);
                                 rootBuilder.buildRoot(name);
                             } else {
                                 rootBuilder.buildRoot();
                             }
-                            skillVisitor(child, rootBuilder.root);
+                            const child = skillVisitor(childNode);
+                            if (child instanceof Root) {
+                                return rootBuilder.root;
+                            }
+                            rootBuilder.addChild(child);
+                            console.log("Finished exploring Root");
+                            return rootBuilder.root;
                         }
                         else if (valueName === "sequence") {
-                            console.log("Found sequence, exploring sequence");
-                            const children = skill.get("children");
-                            if (children == undefined) {
+                            const childNodes = skill.get("children");
+                            if (childNodes == undefined) {
                                 throw new Error("Sequence Node Must Have Children Property");
                             }
-                            sequenceBuilder.buildSequence(parent);
-                            children.forEachChild(child => {
-                                skillVisitor(child, sequenceBuilder.sequence());
+                            sequenceBuilder.buildSequence();
+                            console.log("Starting to explore", sequenceBuilder.sequence().name);
+                            childNodes.forEachChild(childNode => {
+                                const child = skillVisitor(childNode);
+                                if (child instanceof Sequence) {
+                                    sequenceBuilder.pop();
+                                    sequenceBuilder.addChild(child);
+                                } else if (!(child instanceof Root)) {
+                                    sequenceBuilder.addChild(child);
+                                }
+
                             })
+                            console.log("Finished exploring", sequenceBuilder.sequence().name);
+
+                            return sequenceBuilder.sequence();
                         }
                         else if (valueName === "action") {
-                            console.log("Found action, exploring action")
-                            actionBuilder.buildAction(skill, parent);
+                            actionBuilder.buildAction(skill);
+                            console.log("Finished exploring", actionBuilder.action().name)
+                            return actionBuilder.action();
                         }
 
                     }
                 }
-                return node;
+                return rootBuilder.root;
             }
 
             const skillWalker = (node: Node): Node => {
                 if (ts.isObjectLiteralExpression(node)) {
-                    return skillVisitor(node, rootBuilder.root)!;
+                    skillVisitor(node)!;
+                    return node;
                 } else {
                     return node.forEachChild(skillWalker)!
                 }
