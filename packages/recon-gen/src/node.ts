@@ -379,53 +379,6 @@ export const createLayer = (layerName: string, dependencies: ts.VariableStatemen
   return layer;
 }
 
-// export const createLayer = (layerName: string, dependencies: ts.VariableStatement[], body: (ts.VariableStatement | ts.ReturnStatement)[], ...other: ts.VariableStatement[]) => {
-//   const layer = [
-//     factory.createVariableStatement(
-//       [factory.createToken(ts.SyntaxKind.ExportKeyword)],
-//       factory.createVariableDeclarationList(
-//         [factory.createVariableDeclaration(
-//           factory.createIdentifier(layerName + "Live"),
-//           undefined,
-//           undefined,
-//           factory.createCallExpression(
-//             factory.createPropertyAccessExpression(
-//               factory.createIdentifier("Layer"),
-//               factory.createIdentifier("effect")
-//             ),
-//             undefined,
-//             [
-//               factory.createIdentifier(layerName),
-//               factory.createCallExpression(
-//                 factory.createPropertyAccessExpression(
-//                   factory.createIdentifier("Effect"),
-//                   factory.createIdentifier("gen")
-//                 ),
-//                 undefined,
-//                 [factory.createFunctionExpression(
-//                   undefined,
-//                   factory.createToken(ts.SyntaxKind.AsteriskToken),
-//                   undefined,
-//                   undefined,
-//                   [],
-//                   undefined,
-//                   factory.createBlock(
-//                     [...dependencies, ...body],
-//                     true
-//                   )
-//                 )]
-//               )
-//             ]
-//           )
-//         )],
-//         ts.NodeFlags.Const
-//       )
-//     ),
-//     ...other,
-//   ];
-//   return layer;
-// }
-
 const createNamespace = (layerName: string): ts.ModuleDeclaration => {
   const nmspace = factory.createModuleDeclaration(
     [
