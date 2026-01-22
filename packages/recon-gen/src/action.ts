@@ -3,21 +3,15 @@ import { generateFactoryCode } from "./factorycodegen.ts"
 import { getEscapedText, NodeCreator } from "./node.ts";
 import { Effect } from "effect/index";
 import { Tools } from "./transform.ts";
-import { ReconLanguageServer } from "./lsp.ts";
 import { VFS } from "./vfs.ts";
 
 export class Action extends NodeCreator {
-    public args: ts.ArrayLiteralExpression;
-    public callParameters: ts.Identifier[];
-    public declarationParameters: ts.ParameterDeclaration[];
     private runFunction: ts.VariableStatement[];
 
     constructor(name: string, basePath?: string) {
         super(name, basePath);
         this.args = factory.createArrayLiteralExpression();
         this.runFunction = [];
-        this.callParameters = [];
-        this.declarationParameters = [];
     }
 
     addArgs(args: ts.ArrayLiteralExpression) {
@@ -43,7 +37,6 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
             console.log("ACTIONBUILDER INIT");
             const toolService = yield* Tools;
             const vfs = yield* VFS;
-            const languageService = yield* ReconLanguageServer;
 
             let currentAction: Action | undefined;
             const actions: Map<string, Action> = new Map()
@@ -60,7 +53,6 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                 }
                 addAction(getEscapedText(call) + "Action", "./dist/actions/");
                 addImport("effect", "Data", "Effect");
-                // addImport(createRelativeImportPath(action().path(), "./dist/types.ts"), "Status");
                 action().addError();
 
                 const args = skill.get("args");
@@ -68,6 +60,7 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                     addArgs(args)
                 }
                 addLayer();
+                addReturnType();
                 vfs.set(action().path(), action().print());
             }
 
@@ -97,67 +90,17 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
             const addArgs = (args: ts.ArrayLiteralExpression) => {
                 action().addArgs(args);
             }
+            const addReturnType = () => {
+                const run = toolService.tools.get(action().name.replace("Action", ""));
+                if (!run) {
+                    throw new Error(` ${currentAction?.name} missing matching agent function)`)
+                }
+                run.parameters.forEach(param => console.log(param.getText()))
+            }
             return { action, buildAction } as const;
         }),
     }
 ) { }
-
-export class ActionMap {
-    private currentAction: string;
-    private actions: Map<string, Action>;
-    private agentTree: Map<string, ts.ArrowFunction>;
-
-    constructor(agentTree: Map<string, ts.ArrowFunction>) {
-        this.actions = new Map<string, Action>();
-        this.currentAction = "";
-        this.agentTree = agentTree;
-    }
-
-    addAction(name: string, basePath?: string) {
-        this.currentAction = name;
-        this.actions.set(name, new Action(name, basePath));
-    }
-
-    addImport(packageName: string, ...values: string[]) {
-        this.action().addImport(packageName, ...values)
-    }
-
-    addContext() {
-        this.action().addContext();
-        this.action().addError();
-    }
-
-    addLayer() {
-        const run = this.agentTree.get(this.currentAction.replace("Action", ""));
-        if (!run) {
-            throw new Error(this.currentAction + " missing matching agent function)")
-        }
-        this.action().addRunFunction(run);
-        this.action().addLayerBody();
-    }
-
-    addArgs(args: ts.ArrayLiteralExpression) {
-        this.action().addArgs(args);
-    }
-
-    action() {
-        const result = this.actions.get(this.currentAction);
-        if (result) {
-            return result;
-        }
-        throw new Error("Action Map Empty");
-    }
-
-    getActions() {
-        return this.actions;
-    }
-
-    print() {
-        for (const action of this.actions) {
-            action[1].print()
-        }
-    }
-}
 
 const createRunFunction = (agentFunction: ts.ArrowFunction) => {
     const arrowFunction = eval(generateFactoryCode(ts, agentFunction)) as ArrowFunction;
@@ -194,7 +137,6 @@ const createRunFunction = (agentFunction: ts.ArrowFunction) => {
 }
 
 const createActonLayerBody = (layerName: string, actionFunction: ts.VariableStatement, params: ts.Identifier[]) => {
-    // const parameters = params;
     let parameters: ts.ParameterDeclaration[] = [];
 
     const extractParameters = (node: ts.Node): ts.Node => {
