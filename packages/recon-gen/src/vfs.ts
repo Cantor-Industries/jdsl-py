@@ -16,11 +16,12 @@ export class VFS extends Effect.Service<VFS>()(
             const files = new Map<string, VirtualFile>();
             const proto = {
                 set(fileName: string, content: string) {
-                    const prev = files.get(fileName);
-                    files.set(normalize(fileName), {
+                    const prev = files.get(normalize(fileName));
+                    const newFile = {
                         version: (prev?.version ?? 0) + 1,
                         content,
-                    });
+                    }
+                    files.set(normalize(fileName), newFile);
                 },
                 get(fileName: string) {
                     return files.get(fileName);
