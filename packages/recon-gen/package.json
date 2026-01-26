@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "scripts": {
     "clean": "rm -rf ./dist",
-    "dev": "tsx dist/src/Root.ts",
+    "dev": "tsx dist/Root.ts",
     "main": "tsx main.ts"
   },
   "dependencies": {
