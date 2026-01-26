@@ -107,8 +107,9 @@ const getAST = (entryFile: string) => Effect.gen(function* () {
 })
 
 const tools = {
-    first: (x: string) => console.log(x),
-    second: (n: number) => Effect.succeed(n)
+    first: (n: number) => n,
+    second: (n: number) => n,
+    last: (n: number) => console.log(n)
 } satisfies Tool
 
 // export const definition = {
@@ -147,27 +148,23 @@ export const definition = {
                     {
                         type: "action",
                         call: "first",
-                        args: ["hello world"]
+                        args: [144]
                     },
                     {
                         type: "action",
-                        call: "first",
-                        args: ["hello world"]
+                        call: "second",
+                        args: [124]
                     },
                 ]
             },
             {
                 type: "action",
-                call: "second",
-                args: [144]
+                call: "last",
+                args: [114]
             }
         ]
     }
 } satisfies Skill<typeof tools>
-
-// export const tools = {
-//     first: (w: string) => console.log(w)
-// } satisfies Tool
 
 const main = Effect.gen(function* () {
     const jsonFilePath = yield* checkTsProject;

@@ -4,6 +4,7 @@ import { getEscapedText, NodeCreator } from "./node.ts";
 import { Effect } from "effect/index";
 import { Tools } from "./transform.ts";
 import { VFS } from "./vfs.ts";
+import { ReconLanguageServer } from "./lsp.ts";
 
 export class Action extends NodeCreator {
     private runFunction: ts.VariableStatement[];
@@ -37,6 +38,7 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
             console.log("ACTIONBUILDER INIT");
             const toolService = yield* Tools;
             const vfs = yield* VFS;
+            const languageServer = yield* ReconLanguageServer;
 
             let currentAction: Action | undefined;
             const actions: Map<string, Action> = new Map()
@@ -60,8 +62,10 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                     addArgs(args)
                 }
                 addLayer();
-                addReturnType();
+                action().update();
+                // addReturnType();
                 vfs.set(action().path(), action().print());
+                languageServer.getSyntacticDiagnostics(action().path());
             }
 
             const addAction = (name: string, basePath?: string) => {

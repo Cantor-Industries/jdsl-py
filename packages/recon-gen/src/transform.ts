@@ -6,6 +6,7 @@ import { Effect } from "effect";
 import { ReconLanguageServer } from "./lsp.ts";
 import { normalize, VFS } from "./vfs.ts";
 import { Sequence, SequenceBuilder } from "./sequence.ts";
+import { Selector, SelectorBuilder } from "./selector.ts";
 
 export class Tools extends Effect.Service<Tools>()(
     "Tools",
@@ -56,10 +57,11 @@ export class Skills extends Effect.Service<Skills>()(
             const rootBuilder = yield* RootBuilder;
             const actionBuilder = yield* ActionBuilder;
             const sequenceBuilder = yield* SequenceBuilder;
+            const selectorBuilder = yield* SelectorBuilder;
             // const vfs = yield* VFS;
 
 
-            const skillVisitor = (node: Node): Action | Root | Sequence => {
+            const skillVisitor = (node: Node): Action | Root | Sequence | Selector => {
                 const skill: Map<string, Node> = new Map();
                 for (const child of node.getChildAt(1).getChildren()) {
                     if (ts.isPropertyAssignment(child)) {
@@ -78,6 +80,7 @@ export class Skills extends Effect.Service<Skills>()(
                                 console.error("Root Node Must Have Child Property");
                                 break;
                             }
+                            console.log("Starting to explore", rootBuilder.root.name);
                             if (skill.get("name")) {
                                 const name = getEscapedText(skill.get("name")!);
                                 rootBuilder.buildRoot(name);
@@ -91,6 +94,27 @@ export class Skills extends Effect.Service<Skills>()(
                             rootBuilder.addChild(child);
                             console.log("Finished exploring Root");
                             return rootBuilder.root;
+                        }
+                        else if (valueName === "selector") {
+                            const childNodes = skill.get("children");
+                            if (childNodes == undefined) {
+                                throw new Error("Selector Node Must Have Children Property");
+                            }
+                            selectorBuilder.buildSelector();
+                            console.log("Starting to explore", selectorBuilder.selector().name);
+                            childNodes.forEachChild(childNode => {
+                                const child = skillVisitor(childNode);
+                                if (child instanceof Selector) {
+                                    selectorBuilder.pop();
+                                    selectorBuilder.addChild(child);
+                                } else if (!(child instanceof Root)) {
+                                    selectorBuilder.addChild(child);
+                                }
+
+                            })
+                            console.log("Finished exploring", selectorBuilder.selector().name);
+
+                            return selectorBuilder.selector();
                         }
                         else if (valueName === "sequence") {
                             const childNodes = skill.get("children");
@@ -106,6 +130,8 @@ export class Skills extends Effect.Service<Skills>()(
                                     sequenceBuilder.addChild(child);
                                 } else if (!(child instanceof Root)) {
                                     sequenceBuilder.addChild(child);
+                                } else {
+                                    return;
                                 }
 
                             })
@@ -115,7 +141,8 @@ export class Skills extends Effect.Service<Skills>()(
                         }
                         else if (valueName === "action") {
                             actionBuilder.buildAction(skill);
-                            console.log("Finished exploring", actionBuilder.action().name)
+                            console.log("Starting to explore", actionBuilder.action().name);
+                            console.log("Finished exploring", actionBuilder.action().name);
                             return actionBuilder.action();
                         }
 
@@ -139,7 +166,7 @@ export class Skills extends Effect.Service<Skills>()(
             };
             return proto;
         }),
-        dependencies: [ActionBuilder.Default, RootBuilder.Default, SequenceBuilder.Default]
+        dependencies: [ActionBuilder.Default, RootBuilder.Default, SequenceBuilder.Default, SelectorBuilder.Default]
     }
 ) { }
 
@@ -176,12 +203,15 @@ export class Transform extends Effect.Service<Transform>()(
                 console.log("Initializing skills");
                 skills.init(skillsNodes);
                 vfs.writeFiles();
+                const ignoredCodes = new Set([
+                    5097, // allow .ts extension imports
+                    6133, // declared but never used
+                    6196, // declared but never read
+                ]);
 
                 const diagnostics = languageService
                     .getSemanticDiagnostics(normalize("./dist/Root.ts"))
-                    .filter(diagnostic => {
-                        if (diagnostic.code != 5097) return diagnostic
-                    });
+                    .filter(diagnostic => !ignoredCodes.has(diagnostic.code));
                 if (diagnostics.length) {
                     throw new Error(
                         ts.formatDiagnosticsWithColorAndContext(diagnostics, {

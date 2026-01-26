@@ -3,6 +3,8 @@ import { Effect } from "effect"
 import { createLayerDependency, Dependency, lowercaseFirstLetter, NodeCreator } from "./node.ts";
 import { VFS } from "./vfs.ts";
 import { Action } from "./action.ts";
+import { Selector } from "./selector.ts";
+import { ReconLanguageServer } from "./lsp.ts";
 
 export class Sequence extends NodeCreator {
     private dependencyNames: string[];
@@ -16,8 +18,8 @@ export class Sequence extends NodeCreator {
         this.args = args;
     }
 
-    override addChild(child: Action | Sequence): void {
-      super.addChild(child);
+    override addChild(child: Action | Sequence | Selector): void {
+        super.addChild(child);
     }
 
     override addLayer(): void {
@@ -40,6 +42,7 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
         effect: Effect.gen(function* () {
             console.log("SEQUENCEBUILDER INIT");
             const vfs = yield* VFS;
+            const languageServer = yield* ReconLanguageServer;
 
             const currentSequence: Sequence[] = [];
             const sequences: Map<string, Sequence> = new Map();
@@ -53,11 +56,22 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
                 addLayer();
 
                 vfs.set(sequence().path(), sequence().print());
+                languageServer.getSyntacticDiagnostics(sequence().path());
             };
-            const addChild = (child: Action | Sequence) => {
+            const addChild = (child: Action | Sequence | Selector) => {
                 sequence().addChild(child);
                 vfs.set(sequence().path(), sequence().print());
-            }
+                languageServer.getSyntacticDiagnostics(sequence().path());
+                // const diagnostics = languageServer.getSemanticDiagnostics(sequence().path()).filter(diagnostic => {
+                //     if (diagnostic.code != 5097) return diagnostic
+                // });
+                // console.log(ts.formatDiagnosticsWithColorAndContext(diagnostics, {
+                //     getCanonicalFileName: f => f,
+                //     getCurrentDirectory: () => "/",
+                //     getNewLine: () => "\n"
+                // }))
+            };
+
             const addImport = (packageName: string, ...values: string[]) => {
                 sequence().addImport(packageName, ...values)
             };
@@ -165,43 +179,42 @@ const createSequenceLayer = (layerName: string, body: ts.Statement[], dependenci
 }
 
 const createSequenceLayerBody = (dependencies: Dependency[]) => {
-    const updateBody: ts.Statement[] = [];
-    const dependencyNames = dependencies.map(dep => dep.name);
-    const callParameters = dependencies.map(dep => dep.callParameters)[0];
-    const declarationParameters = dependencies.map(dep => dep.declarationParameters)[0];
-
-    if (dependencyNames.length === 1) {
-        const dependencyName = lowercaseFirstLetter(dependencyNames[0]);
-        updateBody.push(
-            factory.createReturnStatement(factory.createYieldExpression(
-                factory.createToken(ts.SyntaxKind.AsteriskToken),
-                factory.createCallExpression(
-                    factory.createPropertyAccessExpression(
-                        factory.createIdentifier(dependencyName),
-                        factory.createIdentifier("update")
-                    ),
-                    undefined,
-                    callParameters
-                )
-            ))
-        )
-    } else {
-        dependencyNames.forEach(dependencyName => {
-            updateBody.push(
-                factory.createReturnStatement(factory.createYieldExpression(
-                    factory.createToken(ts.SyntaxKind.AsteriskToken),
-                    factory.createCallExpression(
-                        factory.createPropertyAccessExpression(
-                            factory.createIdentifier(dependencyName),
-                            factory.createIdentifier("update")
-                        ),
-                        undefined,
-                        callParameters
-                    )
-                ))
-            )
-        })
+    if (dependencies.length === 0) {
+        throw new Error("Dependencies Array Cannot be Zero");
     }
+    const updateBody: ts.Statement[] = [];
+    const declarationParameters: ts.ParameterDeclaration[] = dependencies[0].declarationParameters;
+
+    let childCount = 0;
+    for (const dependency of dependencies) {
+        const statement = factory.createVariableStatement(
+            undefined,
+            factory.createVariableDeclarationList(
+                [factory.createVariableDeclaration(
+                    factory.createIdentifier("step_" + childCount),
+                    undefined,
+                    undefined,
+                    factory.createBinaryExpression(
+                        factory.createIdentifier("yield"),
+                        factory.createToken(ts.SyntaxKind.AsteriskToken),
+                        factory.createCallExpression(
+                            factory.createPropertyAccessExpression(
+                                factory.createIdentifier(lowercaseFirstLetter(dependency.name)),
+                                factory.createIdentifier("update")
+                            ),
+                            undefined,
+                            childCount === 0 ? dependency.callParameters : [factory.createIdentifier("step_" + (childCount - 1))]
+                        )
+                    )
+                )],
+                ts.NodeFlags.Const
+            )
+        );
+        childCount += 1;
+        updateBody.push(statement)
+
+    }
+    updateBody.push(factory.createReturnStatement(factory.createIdentifier("step_" + (childCount - 1))))
 
     const sequenceBody = [
         factory.createVariableStatement(

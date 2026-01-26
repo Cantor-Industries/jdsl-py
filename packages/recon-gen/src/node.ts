@@ -2,11 +2,13 @@ import { posix } from "node:path"
 import ts, { Node, factory } from "typescript";
 import { Sequence } from "./sequence.ts";
 import { Action } from "./action.ts";
+import { Selector } from "./selector.ts";
 
 export interface Dependency {
   name: string;
   callParameters: ts.Identifier[];
   declarationParameters: ts.ParameterDeclaration[];
+  pipeable: boolean;
 }
 
 export class NodeCreator {
@@ -21,7 +23,7 @@ export class NodeCreator {
   private namespace: ts.ModuleDeclaration[];
   private taggedError: (ts.VariableStatement | ts.ClassDeclaration)[];
   protected dependencies: Dependency[];
-  private childName: string;
+  protected childName: string;
   public args: ts.ArrayLiteralExpression;
   public callParameters: ts.Identifier[];
   public declarationParameters: ts.ParameterDeclaration[];
@@ -49,29 +51,30 @@ export class NodeCreator {
     this.importList.push(imports);
   }
 
-  protected addChild(child: Action | Sequence): void {
-    if (this.layerDependencies.length != 1) {
-      console.log("Inside", this.name, "adding", child.name, "as a child")
-      this.childName = child.name;
-      const relativePath = createRelativeImportPath(this.path(), child.path());
-      // class names imports must start with an uppercase letter
-      const value = isFirstLetterLoweCase(this.childName) ? { value: this.childName, as: uppercaseFirstLetter(this.childName) } : this.childName;
-      this.addImport(relativePath, value);
-      this.addLayerDependency(uppercaseFirstLetter(this.childName));
+  protected addChild(child: Action | Sequence | Selector, pipeable?: boolean): void {
+    // if (this.layerDependencies.length != 1) {
+    console.log("Inside", this.name, "adding", child.name, "as a child")
+    this.childName = child.name;
+    const relativePath = createRelativeImportPath(this.path(), child.path());
+    // class names imports must start with an uppercase letter
+    const value = isFirstLetterLoweCase(this.childName) ? { value: this.childName, as: uppercaseFirstLetter(this.childName) } : this.childName;
+    this.addImport(relativePath, value);
+    this.addLayerDependency(uppercaseFirstLetter(this.childName));
 
-      this.args = child.args;
-      this.callParameters = child.callParameters;
-      this.declarationParameters = child.declarationParameters;
-      this.dependencies.push({
-        name: uppercaseFirstLetter(this.childName),
-        callParameters: child.callParameters,
-        declarationParameters: child.declarationParameters
-      })
-      this.addLayerBody();
-      this.update();
-    } else {
-      console.log("Root node can only have one child");
-    }
+    this.args = child.args;
+    this.callParameters = child.callParameters;
+    this.declarationParameters = child.declarationParameters;
+    this.dependencies.push({
+      name: uppercaseFirstLetter(this.childName),
+      callParameters: child.callParameters,
+      declarationParameters: child.declarationParameters,
+      pipeable: pipeable ?? true
+    })
+    this.addLayerBody();
+    this.update();
+    // } else {
+    //   console.log("Root node can only have one child");
+    // }
   }
 
   addContext() {

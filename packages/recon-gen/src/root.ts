@@ -1,10 +1,12 @@
 import ts, { factory } from "typescript";
 import { Effect } from "effect";
-import { Dependency, lowercaseFirstLetter, NodeCreator } from "./node.ts";
+import { createRelativeImportPath, Dependency, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
 import { Action } from "./action.ts";
 import { VFS } from "./vfs.ts";
 import { generateFactoryCode } from "./factorycodegen.ts";
 import { Sequence } from "./sequence.ts";
+import { Selector } from "./selector.ts";
+import { ReconLanguageServer } from "./lsp.ts";
 
 export class Root extends NodeCreator {
     private dependencyName: string;
@@ -14,9 +16,31 @@ export class Root extends NodeCreator {
         this.args = factory.createArrayLiteralExpression();
     }
 
-    override addChild(child: Action | Sequence): void {
-        super.addChild(child);
+  override addChild(child: Action | Sequence | Selector, pipeable?: boolean): void {
+    if (this.layerDependencies.length != 1) {
+      console.log("Inside", this.name, "adding", child.name, "as a child")
+      this.childName = child.name;
+      const relativePath = createRelativeImportPath(this.path(), child.path());
+      // class names imports must start with an uppercase letter
+      const value = isFirstLetterLoweCase(this.childName) ? { value: this.childName, as: uppercaseFirstLetter(this.childName) } : this.childName;
+      this.addImport(relativePath, value);
+      this.addLayerDependency(uppercaseFirstLetter(this.childName));
+
+      this.args = child.args;
+      this.callParameters = child.callParameters;
+      this.declarationParameters = child.declarationParameters;
+      this.dependencies.push({
+        name: uppercaseFirstLetter(this.childName),
+        callParameters: child.callParameters,
+        declarationParameters: child.declarationParameters,
+        pipeable: pipeable ?? true
+      })
+      this.addLayerBody();
+      this.update();
+    } else {
+      console.log("Root node can only have one child");
     }
+  }
 
     override addLayerBody(): void {
         this.layerBody = createRootLayerBody(this.name, this.args, this.dependencies);
@@ -38,6 +62,7 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
         effect: Effect.gen(function* () {
             const vfs = yield* VFS;
             const root = new Root("Root", "./dist/");
+            const languageServer = yield* ReconLanguageServer;
 
             const buildRoot = (name?: string) => {
                 root.name = name ?? "Root";
@@ -45,11 +70,13 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
                 root.addImport("effect", "Data", "Effect", "Either");
                 root.addError();
                 root.addLayer();
-                vfs.set(root.path(), root.print())
+                vfs.set(root.path(), root.print());
+                languageServer.getSyntacticDiagnostics(root.path());
             }
-            const addChild = (child: Action | Sequence) => {
+            const addChild = (child: Action | Sequence | Selector) => {
                 root.addChild(child);
                 vfs.set(root.path(), root.print());
+                languageServer.getSyntacticDiagnostics(root.path());
             }
             return { root, buildRoot, addChild } as const;
         })
