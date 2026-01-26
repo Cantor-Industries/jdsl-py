@@ -15,7 +15,7 @@ export class NodeCreator {
 	public name: string;
 	protected basePath: string
 	private sourceFile: ts.SourceFile;
-	private importList: ts.ImportDeclaration[];
+	private importList: Map<string, ts.ImportDeclaration>;
 	private context: (ts.VariableStatement | ts.ClassDeclaration)[];
 	protected layer: (ts.VariableStatement | ts.ClassDeclaration)[];
 	protected layerDependencies: ts.VariableStatement[];
@@ -32,7 +32,7 @@ export class NodeCreator {
 		this.name = name;
 		this.basePath = basePath ?? "";
 		this.sourceFile = ts.createSourceFile(this.path(), "", ts.ScriptTarget.ESNext, true);
-		this.importList = [];
+		this.importList = new Map();
 		this.context = [];
 		this.layer = [];
 		this.layerDependencies = [];
@@ -48,7 +48,7 @@ export class NodeCreator {
 
 	addImport(packageName: string, ...values: (string | { value: string, as: string })[]) {
 		const imports = createImport(packageName, ...values);
-		this.importList.push(imports);
+		this.importList.set(packageName, imports);
 	}
 
 	protected addChild(child: Action | Sequence | Selector, pipeable?: boolean): void {
@@ -108,8 +108,10 @@ export class NodeCreator {
 
 	private compile() {
 		this.addLayer();
+		const imports: ts.ImportDeclaration[] = [];
+		this.importList.forEach(imprt => imports.push(imprt));
 		const nodes = factory.createNodeArray([
-			...this.importList,
+			...imports,
 			...this.context,
 			...this.taggedError,
 			...this.namespace,
