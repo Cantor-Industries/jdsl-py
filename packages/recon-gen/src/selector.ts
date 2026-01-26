@@ -19,7 +19,7 @@ export class Selector extends NodeCreator {
     }
 
     override addChild(child: Action | Sequence | Selector): void {
-      super.addChild(child);
+        super.addChild(child);
     }
 
     override addLayer(): void {
@@ -167,45 +167,56 @@ const createSelectorLayer = (layerName: string, body: ts.Statement[], dependenci
 }
 
 const createSelectorLayerBody = (dependencies: Dependency[]) => {
-    const updateBody: ts.Statement[] = [];
-    const dependencyNames = dependencies.map(dep => dep.name);
-    const callParameters = dependencies.map(dep => dep.callParameters)[0];
-    const declarationParameters = dependencies.map(dep => dep.declarationParameters)[0];
+    if (dependencies.length === 0) {
+        throw new Error("Dependencies Array Cannot be Zero");
+    }
+    const effects: ts.Expression[] = [];
+    const callParameters = dependencies[0].callParameters;
+    const declarationParameters = dependencies[0].declarationParameters;
 
-    if (dependencyNames.length === 1) {
-        const dependencyName = lowercaseFirstLetter(dependencyNames[0]);
-        updateBody.push(
-            factory.createReturnStatement(factory.createYieldExpression(
-                factory.createToken(ts.SyntaxKind.AsteriskToken),
-                factory.createCallExpression(
-                    factory.createPropertyAccessExpression(
-                        factory.createIdentifier(dependencyName),
-                        factory.createIdentifier("update")
-                    ),
-                    undefined,
-                    callParameters
-                )
-            ))
+    for (const dependency of dependencies) {
+        const effect = factory.createCallExpression(
+            factory.createPropertyAccessExpression(
+                factory.createIdentifier(lowercaseFirstLetter(dependency.name)),
+                factory.createIdentifier("update")
+            ),
+            undefined,
+            callParameters
         )
-    } else {
-        dependencyNames.forEach(dependencyName => {
-            updateBody.push(
-                factory.createReturnStatement(factory.createYieldExpression(
-                    factory.createToken(ts.SyntaxKind.AsteriskToken),
-                    factory.createCallExpression(
-                        factory.createPropertyAccessExpression(
-                            factory.createIdentifier(dependencyName),
-                            factory.createIdentifier("update")
-                        ),
-                        undefined,
-                        callParameters
-                    )
-                ))
-            )
-        })
+        effects.push(effect)
     }
 
-    const SelectorBody = [
+    const updateBody = [
+        factory.createVariableStatement(
+            undefined,
+            factory.createVariableDeclarationList(
+                [factory.createVariableDeclaration(
+                    factory.createIdentifier("effects"),
+                    undefined,
+                    undefined,
+                    factory.createArrayLiteralExpression(
+                        effects,
+                        false
+                    )
+                )],
+                ts.NodeFlags.Const
+            )
+        ),
+        factory.createReturnStatement(factory.createBinaryExpression(
+            factory.createIdentifier("yield"),
+            factory.createToken(ts.SyntaxKind.AsteriskToken),
+            factory.createCallExpression(
+                factory.createPropertyAccessExpression(
+                    factory.createIdentifier("Effect"),
+                    factory.createIdentifier("firstSuccessOf")
+                ),
+                undefined,
+                [factory.createIdentifier("effects")]
+            )
+        ))
+    ];
+
+    const selectorBody = [
         factory.createVariableStatement(
             undefined,
             factory.createVariableDeclarationList(
@@ -257,5 +268,5 @@ const createSelectorLayerBody = (dependencies: Dependency[]) => {
             )
         ))
     ];
-    return SelectorBody;
+    return selectorBody;
 }
