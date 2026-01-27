@@ -63,7 +63,6 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                 }
                 addLayer();
                 action().update();
-                // addReturnType();
                 vfs.set(action().path(), action().print());
                 languageServer.getSyntacticDiagnostics(action().path());
             }
@@ -93,13 +92,6 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
             }
             const addArgs = (args: ts.ArrayLiteralExpression) => {
                 action().addArgs(args);
-            }
-            const addReturnType = () => {
-                const run = toolService.tools.get(action().name.replace("Action", ""));
-                if (!run) {
-                    throw new Error(` ${currentAction?.name} missing matching agent function)`)
-                }
-                run.parameters.forEach(param => console.log(param.getText()))
             }
             return { action, buildAction } as const;
         }),
