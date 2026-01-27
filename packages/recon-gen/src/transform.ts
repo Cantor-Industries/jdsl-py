@@ -209,9 +209,14 @@ export class Transform extends Effect.Service<Transform>()(
                     6196, // declared but never read
                 ]);
 
-                const diagnostics = languageService
-                    .getSemanticDiagnostics(normalize("./dist/Root.ts"))
-                    .filter(diagnostic => !ignoredCodes.has(diagnostic.code));
+                let diagnostics: ts.Diagnostic[] = []
+
+                vfs.fileNames().forEach(file => {
+                    const diags = languageService
+                        .getSemanticDiagnostics(normalize(file))
+                        .filter(diagnostic => !ignoredCodes.has(diagnostic.code));
+                    diagnostics = diagnostics.concat(diags)
+                })
                 if (diagnostics.length) {
                     throw new Error(
                         ts.formatDiagnosticsWithColorAndContext(diagnostics, {
