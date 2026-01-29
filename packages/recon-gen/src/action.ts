@@ -1,5 +1,4 @@
-import ts, { ArrowFunction, factory, Node } from "typescript";
-import { generateFactoryCode } from "./factorycodegen.ts"
+import ts, { factory, Node } from "typescript";
 import { getEscapedText, NodeCreator } from "./node.ts";
 import { Effect } from "effect/index";
 import { Tools } from "./transform.ts";
@@ -20,14 +19,14 @@ export class Action extends NodeCreator {
     }
 
     addRunFunction(run: ts.ArrowFunction) {
-        const result = createRunFunction(run);
+        const result = createArrowFunction(run);
         this.runFunction.push(result.runFunction);
         this.callParameters = result.callParameters;
         this.declarationParameters = result.declarationParameters
     }
 
     override addLayerBody(): void {
-        this.layerBody = createActonLayerBody(this.name, this.runFunction[0], this.callParameters);
+        this.layerBody = createActonLayerBody(this.name, this.runFunction[0], this.callParameters, this.declarationParameters);
     }
 };
 
@@ -98,20 +97,8 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
     }
 ) { }
 
-const createRunFunction = (agentFunction: ts.ArrowFunction) => {
-    const arrowFunction = eval(generateFactoryCode(ts, agentFunction)) as ArrowFunction;
-    let declarationParameters: ts.ParameterDeclaration[] = [];
-
-    const extractParameters = (node: ts.Node): ts.Node => {
-        if (ts.isArrowFunction(node)) {
-            const parameterString = "[" + node.parameters.map(param => generateFactoryCode(ts, param)) + "]";
-            declarationParameters = eval(parameterString)
-
-            return node;
-        }
-        return node.forEachChild(extractParameters)!;
-    }
-
+const createArrowFunction = (agentFunction: ts.ArrowFunction) => {
+    const declarationParameters: ts.ParameterDeclaration[] = agentFunction.parameters.map(param => param);
 
     const runFunction = factory.createVariableStatement(
         undefined,
@@ -120,32 +107,18 @@ const createRunFunction = (agentFunction: ts.ArrowFunction) => {
                 factory.createIdentifier("run"),
                 undefined,
                 undefined,
-                arrowFunction
+                agentFunction
             )],
             ts.NodeFlags.Const
         )
     )
-    extractParameters(agentFunction);
     const parameters = agentFunction.parameters;
-    const callParameters = parameters.map(param => eval(generateFactoryCode(ts, param.getChildAt(0))) as ts.Identifier);
+    const callParameters = parameters.map(param => param.getChildAt(0) as ts.Identifier);
 
     return { runFunction, declarationParameters, callParameters };
 }
 
-const createActonLayerBody = (layerName: string, actionFunction: ts.VariableStatement, params: ts.Identifier[]) => {
-    let parameters: ts.ParameterDeclaration[] = [];
-
-    const extractParameters = (node: ts.Node): ts.Node => {
-        if (ts.isArrowFunction(node)) {
-            const parameterString = "[" + node.parameters.map(param => generateFactoryCode(ts, param)) + "]";
-            parameters = eval(parameterString)
-
-            return node;
-        }
-        return node.forEachChild(extractParameters)!;
-    }
-
-    extractParameters(actionFunction);
+const createActonLayerBody = (layerName: string, actionFunction: ts.VariableStatement, callParameters: ts.Identifier[], declarationParameters: ts.ParameterDeclaration[]) => {
 
     const actionLayerBody = [
         actionFunction,
@@ -159,7 +132,7 @@ const createActonLayerBody = (layerName: string, actionFunction: ts.VariableStat
                     factory.createArrowFunction(
                         undefined,
                         undefined,
-                        parameters,
+                        declarationParameters,
                         undefined,
                         factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
                         factory.createCallExpression(
@@ -182,7 +155,7 @@ const createActonLayerBody = (layerName: string, actionFunction: ts.VariableStat
                                                 factory.createReturnStatement(factory.createCallExpression(
                                                     factory.createIdentifier("run"),
                                                     undefined,
-                                                    params,
+                                                    callParameters,
                                                 )),
                                             ],
                                             true

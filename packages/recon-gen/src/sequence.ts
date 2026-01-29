@@ -62,14 +62,6 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
                 sequence().addChild(child);
                 vfs.set(sequence().path(), sequence().print());
                 languageServer.getSyntacticDiagnostics(sequence().path());
-                // const diagnostics = languageServer.getSemanticDiagnostics(sequence().path()).filter(diagnostic => {
-                //     if (diagnostic.code != 5097) return diagnostic
-                // });
-                // console.log(ts.formatDiagnosticsWithColorAndContext(diagnostics, {
-                //     getCanonicalFileName: f => f,
-                //     getCurrentDirectory: () => "/",
-                //     getNewLine: () => "\n"
-                // }))
             };
 
             const addImport = (packageName: string, ...values: string[]) => {
