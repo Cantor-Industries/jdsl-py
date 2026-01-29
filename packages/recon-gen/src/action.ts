@@ -4,6 +4,8 @@ import { Effect } from "effect/index";
 import { Tools } from "./transform.ts";
 import { VFS } from "./vfs.ts";
 import { ReconLanguageServer } from "./lsp.ts";
+import { generateFactoryCode } from "./factorycodegen.ts";
+import { layer } from "@effect/platform/Etag";
 
 export class Action extends NodeCreator {
     private runFunction: ts.VariableStatement[];
@@ -19,14 +21,14 @@ export class Action extends NodeCreator {
     }
 
     addRunFunction(run: ts.ArrowFunction) {
-        const result = createArrowFunction(run);
+        const result = createArrowFunction(this.name, run);
         this.runFunction.push(result.runFunction);
         this.callParameters = result.callParameters;
         this.declarationParameters = result.declarationParameters
     }
 
     override addLayerBody(): void {
-        this.layerBody = createActonLayerBody(this.name, this.runFunction[0], this.callParameters, this.declarationParameters);
+        this.layerBody = createActonLayerBody(this.runFunction[0], this.callParameters, this.declarationParameters);
     }
 };
 
@@ -97,8 +99,153 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
     }
 ) { }
 
-const createArrowFunction = (agentFunction: ts.ArrowFunction) => {
+const createArrowFunction = (layerName: string, agentFunction: ts.ArrowFunction) => {
     const declarationParameters: ts.ParameterDeclaration[] = agentFunction.parameters.map(param => param);
+
+    function hasAsyncModifier(fn: ts.ArrowFunction): boolean {
+        return !!fn.modifiers?.some(m => m.kind === ts.SyntaxKind.AsyncKeyword);
+    }
+
+    function normalizeToBlock(body: ts.ConciseBody): ts.Block {
+        if (ts.isBlock(body)) {
+            return body;
+        }
+
+        return ts.factory.createBlock(
+            [ts.factory.createReturnStatement(body)],
+            true
+        );
+    }
+
+    function removeAwaitExpressions(block: ts.Block): ts.Block {
+        const visitor = (node: ts.Node): ts.Node => {
+            if (ts.isAwaitExpression(node)) {
+                return ts.visitNode(node.expression, visitor);
+            }
+
+            return ts.visitEachChild(node, visitor, undefined);
+        };
+
+        return ts.visitNode(block, visitor) as ts.Block;
+    }
+
+    const isAsync = hasAsyncModifier(agentFunction);
+    const factoryFunction = eval(generateFactoryCode(ts, agentFunction)) as ts.ArrowFunction
+    let block = normalizeToBlock(factoryFunction.body);
+
+    if (isAsync) {
+        block = removeAwaitExpressions(block);
+    }
+
+    const innerArrowFunction = factory.createArrowFunction(
+        undefined,
+        undefined,
+        [],
+        undefined,
+        factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+        block
+    )
+
+    const effectFullCall =
+        factory.createCallExpression(
+            factory.createPropertyAccessExpression(
+                factory.createIdentifier("Effect"),
+                factory.createIdentifier(isAsync ? "tryPromise" : "try"),
+            ),
+            undefined,
+            [factory.createObjectLiteralExpression(
+                [
+                    factory.createPropertyAssignment(
+                        factory.createIdentifier("try"),
+                        innerArrowFunction
+                    ),
+                    factory.createPropertyAssignment(
+                        factory.createIdentifier("catch"),
+                        factory.createParenthesizedExpression(factory.createArrowFunction(
+                            undefined,
+                            undefined,
+                            [factory.createParameterDeclaration(
+                                undefined,
+                                undefined,
+                                factory.createIdentifier("error"),
+                                undefined,
+                                undefined,
+                                undefined
+                            )],
+                            undefined,
+                            factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+                            factory.createBlock(
+                                [
+                                    factory.createIfStatement(
+                                        factory.createBinaryExpression(
+                                            factory.createIdentifier("error"),
+                                            factory.createToken(ts.SyntaxKind.InstanceOfKeyword),
+                                            factory.createIdentifier("Error")
+                                        ),
+                                        factory.createBlock(
+                                            [
+                                                factory.createExpressionStatement(factory.createCallExpression(
+                                                    factory.createPropertyAccessExpression(
+                                                        factory.createIdentifier("console"),
+                                                        factory.createIdentifier("error")
+                                                    ),
+                                                    undefined,
+                                                    [
+                                                        factory.createStringLiteral(layerName + "failed because:"),
+                                                        factory.createPropertyAccessExpression(
+                                                            factory.createIdentifier("error"),
+                                                            factory.createIdentifier("message")
+                                                        )
+                                                    ]
+                                                )),
+                                                factory.createReturnStatement(factory.createNewExpression(
+                                                    factory.createIdentifier(layerName + "Error"),
+                                                    undefined,
+                                                    [factory.createObjectLiteralExpression(
+                                                        [factory.createPropertyAssignment(
+                                                            factory.createIdentifier("msg"),
+                                                            factory.createPropertyAccessExpression(
+                                                                factory.createIdentifier("error"),
+                                                                factory.createIdentifier("message")
+                                                            )
+                                                        )],
+                                                        false
+                                                    )]
+                                                ))
+                                            ],
+                                            true
+                                        ),
+                                        undefined
+                                    ),
+                                    factory.createReturnStatement(factory.createNewExpression(
+                                        factory.createIdentifier(layerName + "Error"),
+                                        undefined,
+                                        [factory.createObjectLiteralExpression(
+                                            [factory.createPropertyAssignment(
+                                                factory.createIdentifier("msg"),
+                                                factory.createStringLiteral("Unknown Error has occured")
+                                            )],
+                                            false
+                                        )]
+                                    ))
+                                ],
+                                true
+                            )
+                        ))
+                    )
+                ],
+                true
+            )]
+        )
+
+    const effectFullArrowFunction = factory.updateArrowFunction(
+        agentFunction,
+        undefined,
+        agentFunction.typeParameters,
+        agentFunction.parameters,
+        agentFunction.type, agentFunction.equalsGreaterThanToken,
+        effectFullCall
+    )
 
     const runFunction = factory.createVariableStatement(
         undefined,
@@ -107,7 +254,7 @@ const createArrowFunction = (agentFunction: ts.ArrowFunction) => {
                 factory.createIdentifier("run"),
                 undefined,
                 undefined,
-                agentFunction
+                effectFullArrowFunction
             )],
             ts.NodeFlags.Const
         )
@@ -118,7 +265,7 @@ const createArrowFunction = (agentFunction: ts.ArrowFunction) => {
     return { runFunction, declarationParameters, callParameters };
 }
 
-const createActonLayerBody = (layerName: string, actionFunction: ts.VariableStatement, callParameters: ts.Identifier[], declarationParameters: ts.ParameterDeclaration[]) => {
+const createActonLayerBody = (actionFunction: ts.VariableStatement, callParameters: ts.Identifier[], declarationParameters: ts.ParameterDeclaration[]) => {
 
     const actionLayerBody = [
         actionFunction,
@@ -149,74 +296,15 @@ const createActonLayerBody = (layerName: string, actionFunction: ts.VariableStat
                                 [],
                                 undefined,
                                 factory.createBlock(
-                                    [factory.createTryStatement(
-                                        factory.createBlock(
-                                            [
-                                                factory.createReturnStatement(factory.createCallExpression(
-                                                    factory.createIdentifier("run"),
-                                                    undefined,
-                                                    callParameters,
-                                                )),
-                                            ],
-                                            true
-                                        ),
-                                        factory.createCatchClause(
-                                            factory.createVariableDeclaration(
-                                                factory.createIdentifier("error"),
-                                                undefined,
-                                                factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
-                                                undefined
-                                            ),
-                                            factory.createBlock(
-                                                [
-                                                    factory.createIfStatement(
-                                                        factory.createBinaryExpression(
-                                                            factory.createIdentifier("error"),
-                                                            factory.createToken(ts.SyntaxKind.InstanceOfKeyword),
-                                                            factory.createIdentifier("Error")
-                                                        ),
-                                                        factory.createBlock(
-                                                            [factory.createReturnStatement(factory.createYieldExpression(
-                                                                factory.createToken(ts.SyntaxKind.AsteriskToken),
-                                                                factory.createNewExpression(
-                                                                    factory.createIdentifier(layerName + "Error"),
-                                                                    undefined,
-                                                                    [factory.createObjectLiteralExpression(
-                                                                        [factory.createPropertyAssignment(
-                                                                            factory.createIdentifier("msg"),
-                                                                            factory.createPropertyAccessExpression(
-                                                                                factory.createIdentifier("error"),
-                                                                                factory.createIdentifier("message")
-                                                                            )
-                                                                        )],
-                                                                        false
-                                                                    )]
-                                                                )
-                                                            ))],
-                                                            true
-                                                        ),
-                                                        undefined
-                                                    ),
-                                                    factory.createReturnStatement(factory.createYieldExpression(
-                                                        factory.createToken(ts.SyntaxKind.AsteriskToken),
-                                                        factory.createNewExpression(
-                                                            factory.createIdentifier(layerName + "Error"),
-                                                            undefined,
-                                                            [factory.createObjectLiteralExpression(
-                                                                [factory.createPropertyAssignment(
-                                                                    factory.createIdentifier("msg"),
-                                                                    factory.createStringLiteral("Unknown Error has occured")
-                                                                )],
-                                                                false
-                                                            )]
-                                                        )
-                                                    ))
-                                                ],
-                                                true
-                                            )
-                                        ),
-                                        undefined
-                                    )],
+                                    [factory.createReturnStatement(factory.createBinaryExpression(
+                                        factory.createIdentifier("yield"),
+                                        factory.createToken(ts.SyntaxKind.AsteriskToken),
+                                        factory.createCallExpression(
+                                            factory.createIdentifier("run"),
+                                            undefined,
+                                            callParameters
+                                        )
+                                    ))],
                                     true
                                 )
                             )]
