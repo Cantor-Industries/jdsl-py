@@ -168,13 +168,11 @@ const createRootLayerBody = (layerName: string, args: ts.ArrayLiteralExpression,
         const targetText = generateFactoryCode(ts, args)
         const arrayLiteral = eval(targetText) as ts.ArrayLiteralExpression;
         values = [...arrayLiteral.elements]
-        // console.log(values);
     } else {
         values
     }
 
     const rootBody = [
-        // values,
         factory.createVariableStatement(
             undefined,
             factory.createVariableDeclarationList(
