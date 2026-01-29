@@ -27,6 +27,7 @@ export class NodeCreator {
 	public args: ts.ArrayLiteralExpression;
 	public callParameters: ts.Identifier[];
 	public declarationParameters: ts.ParameterDeclaration[];
+	private firstChild: boolean;
 
 	constructor(name: string, basePath?: string) {
 		this.name = name;
@@ -44,6 +45,7 @@ export class NodeCreator {
 		this.args = factory.createArrayLiteralExpression();
 		this.callParameters = [];
 		this.declarationParameters = [];
+		this.firstChild = true
 	}
 
 	addImport(packageName: string, ...values: (string | { value: string, as: string })[]) {
@@ -60,9 +62,13 @@ export class NodeCreator {
 		this.addImport(relativePath, value);
 		this.addLayerDependency(uppercaseFirstLetter(this.childName));
 
-		this.args = child.args;
-		this.callParameters = child.callParameters;
-		this.declarationParameters = child.declarationParameters;
+		if (this.firstChild) {
+			this.firstChild = false;
+			this.args = child.args;
+			this.callParameters = child.callParameters;
+			this.declarationParameters = child.declarationParameters;
+		}
+
 		this.dependencies.push({
 			name: uppercaseFirstLetter(this.childName),
 			callParameters: child.callParameters,
