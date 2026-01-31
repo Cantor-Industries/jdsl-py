@@ -7,6 +7,7 @@ import { ReconLanguageServer } from "./lsp.ts";
 import { normalize, VFS } from "./vfs.ts";
 import { Sequence, SequenceBuilder } from "./sequence.ts";
 import { Selector, SelectorBuilder } from "./selector.ts";
+import { ReconEnvBuilder } from "./env.ts";
 
 export class Tools extends Effect.Service<Tools>()(
     "Tools",
@@ -58,8 +59,6 @@ export class Skills extends Effect.Service<Skills>()(
             const actionBuilder = yield* ActionBuilder;
             const sequenceBuilder = yield* SequenceBuilder;
             const selectorBuilder = yield* SelectorBuilder;
-            // const vfs = yield* VFS;
-
 
             const skillVisitor = (node: Node): Action | Root | Sequence | Selector => {
                 const skill: Map<string, Node> = new Map();
@@ -178,11 +177,13 @@ export class Transform extends Effect.Service<Transform>()(
             const tools = yield* Tools;
             const skills = yield* Skills;
             const languageService = yield* ReconLanguageServer;
+            const reconEnv = yield* ReconEnvBuilder;
             const vfs = yield* VFS;
 
             const transform = (sourceFile: SourceFile) => Effect.sync(() => {
                 const toolsNodes: Node[] = [];
                 const skillsNodes: Node[] = [];
+                const envNodes: Node[] = [];
 
                 const visitor = (node: Node): Node => {
                     if (ts.isSatisfiesExpression(node)) {
@@ -194,12 +195,18 @@ export class Transform extends Effect.Service<Transform>()(
                         }
                     }
 
+                    if (ts.isImportDeclaration(node)) {
+                        envNodes.push(node)
+                    }
+
                     return node.forEachChild(visitor)!
                 }
                 ts.visitNode(sourceFile, visitor, undefined);
 
                 console.log("Initializing tools");
                 tools.init(toolsNodes);
+                console.log("Initializing env");
+                reconEnv.init(envNodes);
                 console.log("Initializing skills");
                 skills.init(skillsNodes);
                 vfs.writeFiles();
