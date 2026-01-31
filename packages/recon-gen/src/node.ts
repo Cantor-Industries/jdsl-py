@@ -315,6 +315,9 @@ const createImport = (packageName: string, ...values: (string | { value: string,
 }
 
 export function createRelativeImportPath(from: string, to: string): string {
+	if (!to.startsWith(".")) {
+		return to
+	}
 	const fromDir = posix.dirname(from);
 	let relativePath = posix.relative(fromDir, to);
 
