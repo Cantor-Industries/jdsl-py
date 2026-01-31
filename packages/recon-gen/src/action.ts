@@ -5,7 +5,7 @@ import { Tools } from "./transform.ts";
 import { VFS } from "./vfs.ts";
 import { ReconLanguageServer } from "./lsp.ts";
 import { generateFactoryCode } from "./factorycodegen.ts";
-import { layer } from "@effect/platform/Etag";
+import { ReconEnvBuilder } from "./env.ts";
 
 export class Action extends NodeCreator {
     private runFunction: ts.VariableStatement[];
@@ -40,6 +40,7 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
             const toolService = yield* Tools;
             const vfs = yield* VFS;
             const languageServer = yield* ReconLanguageServer;
+            const reconEnv = yield* ReconEnvBuilder;
 
             let currentAction: Action | undefined;
             const actions: Map<string, Action> = new Map()
@@ -88,6 +89,10 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                 if (!run) {
                     throw new Error(` ${currentAction?.name} missing matching agent function)`)
                 }
+                const actionImports = reconEnv.checkSymbols(run);
+                for (const [packageName, packages] of actionImports) {
+                    addImport(packageName, ...packages.namedBindings)
+                }
                 action().addRunFunction(run);
                 action().addLayerBody();
             }
@@ -117,28 +122,12 @@ const createArrowFunction = (layerName: string, agentFunction: ts.ArrowFunction)
         );
     }
 
-    function removeAwaitExpressions(block: ts.Block): ts.Block {
-        const visitor = (node: ts.Node): ts.Node => {
-            if (ts.isAwaitExpression(node)) {
-                return ts.visitNode(node.expression, visitor);
-            }
-
-            return ts.visitEachChild(node, visitor, undefined);
-        };
-
-        return ts.visitNode(block, visitor) as ts.Block;
-    }
-
     const isAsync = hasAsyncModifier(agentFunction);
     const factoryFunction = eval(generateFactoryCode(ts, agentFunction)) as ts.ArrowFunction
-    let block = normalizeToBlock(factoryFunction.body);
-
-    if (isAsync) {
-        block = removeAwaitExpressions(block);
-    }
+    const block = normalizeToBlock(factoryFunction.body);
 
     const innerArrowFunction = factory.createArrowFunction(
-        undefined,
+        agentFunction.modifiers,
         undefined,
         [],
         undefined,
