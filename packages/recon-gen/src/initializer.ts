@@ -1,4 +1,4 @@
-import path, { basename } from "path";
+import path, { basename } from "node:path";
 import fs from "node:fs";
 import process from "node:process";
 
