@@ -209,7 +209,7 @@ export class Transform extends Effect.Service<Transform>()(
                 reconEnv.init(envNodes);
                 console.log("Initializing skills");
                 skills.init(skillsNodes);
-                vfs.writeFiles();
+                // vfs.writeFiles();
                 const ignoredCodes = new Set([
                     5097, // allow .ts extension imports
                     6133, // declared but never used
