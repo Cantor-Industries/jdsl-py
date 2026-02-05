@@ -1,0 +1,22 @@
+{
+  "name": "recon",
+  "private": "true",
+  "version": "0.0.1",
+  "description": "",
+  "directories": {
+    "doc": "docs"
+  },
+  "workspaces": [
+    "./packages/*"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf packages/**/dist"
+  },
+  "keywords": [],
+  "author": "Machar Kook",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

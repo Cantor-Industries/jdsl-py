@@ -1,7 +1,7 @@
-import { Context, Data, Effect, Either, Layer, Schema } from "effect";
+import { Context, Data, Effect, Either, Layer } from "effect";
 import { Db, DenoKVDB } from "@floq/kv";
 import { DenoKVStore } from "@floq/kv/store";
-import { MemBlock } from "recon/block";
+// import { MemBlock } from "recon/block";
 
 const KnowledgeBaseTag = Context.Tag("KnowledgeBaseTag")<KnowledgeBase, KnowlegeBase.Kb>();
 export class KnowledgeBase extends KnowledgeBaseTag { };
@@ -21,7 +21,6 @@ export declare namespace KnowlegeBase {
         close: () => Effect.Effect<void, never, never>;
         fetch: <T>(key: string[]) => Effect.Effect<T, KnowledgeBaseFetchError, never>;
         save: <T>(key: Db.Key, value: T) => Effect.Effect<void, KnowledgeBaseSaveError, never>;
-        // delete: () => void;
     }
 }
 
@@ -61,21 +60,11 @@ export const connect = (kbName: string) => Effect.gen(function* () {
     return kb;
 }).pipe(Effect.provide(DenoKVStore));
 
-// interface Student {
-//     fullName: string,
-//     email: string,
-//     currentCourse: string
-// }
-// const program = Effect.gen(function* () {
-//     const kb1 = yield* connect("kemu.db");
-//     const kb2 = yield* connect("kbros1");
-//     const data = yield* kb1.fetch<Student>(["students", "annmuyu04@gmail.com"]);
-//     // yield* kb2.save(["ann", "1"], data)
-//     console.log(data);
-//     const dt2 = yield* kb2.fetch(["ann", "1"])
-//     console.log(dt2);
-//     yield* kb1.close();
-//     yield* kb2.close();
-// })
+// export const getBlock = (key: Db.Key, db: Db.Db) => Layer.effect(MemBlock, Effect.gen(function* () {
+//     const proto = {
+//         load: (key: Db.Key) => Effect.gen(function* () {
 
-// Effect.runPromise(program);
+//         })
+//     }
+//     return proto;
+// }))

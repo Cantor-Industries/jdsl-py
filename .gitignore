@@ -1,7 +1,11 @@
 # compiled output
-/dist
+dist/
+packages/**/dist/
 /tmp
 /out-tsc
+
+# TypeScript build info
+*.tsbuildinfo
 
 # Runtime data
 pids
