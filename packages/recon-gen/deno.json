@@ -1,9 +1,4 @@
 {
-  "tasks": {
-    "clean": "rm -rf ./dist",
-    "dev": "deno run ./dist/src/Root.ts",
-    "main": "deno run --allow-env --allow-read --allow-ffi --allow-write main.ts"
-  },
   "allowScripts": {
     "allow": ["npm:@parcel/watcher@2.5.1", "npm:esbuild@0.27.2", "npm:msgpackr-extract@3.0.3"],
     "deny": []

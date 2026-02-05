@@ -1,24 +1,30 @@
 {
-  "name": "recon-gen",
+  "name": "@jdsl/recon-gen",
   "version": "0.1.0",
   "type": "module",
   "private": false,
   "license": "Apache-2.0",
   "scripts": {
-    "clean": "rm -rf ./dist",
-    "dev": "tsx dist/Root.ts",
-    "main": "tsx main.ts"
+    "clean": "rm -rf dist",
+    "build": "tsc -b"
   },
   "dependencies": {
-    "@effect/platform": "^0.94.0",
-    "@effect/platform-node": "^0.104.0",
+    "@effect/platform": "^0.94.3",
+    "@effect/platform-node": "^0.104.1",
     "code-block-writer": "^13.0.3",
-    "effect": "^3.17.13",
-    "tsx": "^4.21.0",
+    "effect": "^3.19.16"
+  },
+  "devDependencies": {
     "typescript": "^5.9.3"
   },
-  "exports": "./main.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "bin": {
-    "recon": "./main.ts"
-  }
+    "recon": "./dist/main.js"
+  },
+  "files": ["dist"]
 }
