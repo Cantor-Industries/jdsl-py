@@ -3,6 +3,9 @@
     "private": "true",
     "version": "0.1.0",
     "description": "",
+    "keywords": [],
+    "author": "Machar Kook",
+    "license": "Apache-2.0",
     "directories": {
         "doc": "docs"
     },
@@ -10,13 +13,13 @@
         "./packages/*"
     ],
     "scripts": {
-        "build": "tsc -b",
-        "clean": "rm -rf packages/**/dist"
+        "dev": "bun run --filter ./packages/** dev",
+        "lint": "bun run --filter ./packages/** lint"
     },
-    "keywords": [],
-    "author": "Machar Kook",
-    "license": "Apache-2.0",
     "devDependencies": {
         "typescript": "^5.9.3"
+    },
+    "engines": {
+        "bun": ">=1.0.0"
     }
 }

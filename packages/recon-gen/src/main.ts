@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { Effect, } from "effect";
 import { NodeContext, NodeRuntime } from "@effect/platform-node"
 import { Tools, Transform } from "./transform.ts";

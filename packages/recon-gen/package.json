@@ -4,10 +4,6 @@
   "type": "module",
   "private": false,
   "license": "Apache-2.0",
-  "scripts": {
-    "clean": "rm -rf dist",
-    "build": "tsc -b"
-  },
   "dependencies": {
     "@effect/platform": "^0.94.3",
     "@effect/platform-node": "^0.104.1",
@@ -18,13 +14,13 @@
     "typescript": "^5.9.3"
   },
   "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
+    ".": "./src/index.ts"
   },
   "bin": {
-    "recon": "./dist/main.js"
+    "recon": "./src/main.ts"
   },
-  "files": ["dist"]
+  "files": ["src"],
+  "engines": {
+    "bun": ">=1.0.0"
+  }
 }

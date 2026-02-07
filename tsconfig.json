@@ -1,11 +1,14 @@
 {
-    "files": [],
-    "references": [
-        {
-            "path": "packages/recon"
-        },
-        {
-            "path": "packages/recon-gen"
-        }
-    ]
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["bun"]
+  }
 }
