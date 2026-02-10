@@ -3,18 +3,21 @@ import { dirname } from "path";
 
 import { Either, Effect, Schema } from "effect";
 import { FileSystem, Path } from "@effect/platform";
+import { AiProvider } from "./providers";
+
+export const ProvidersList = Schema.Literal("anthropic", "google", "openai", "recon");
+export type Providers = typeof ProvidersList.Type;
 
 const ProviderConfig = Schema.Struct({
     apiKey: Schema.optional(Schema.String),
     authToken: Schema.optional(Schema.String)
 })
 
-export type Providers = "Anthropic" | "Google" | "Openai"
-
 const ConfigSchema = Schema.Struct({
-    "Anthropic": Schema.optional(ProviderConfig),
-    "Google": Schema.optional(ProviderConfig),
-    "Openai": Schema.optional(ProviderConfig)
+    "anthropic": Schema.optional(ProviderConfig),
+    "google": Schema.optional(ProviderConfig),
+    "openai": Schema.optional(ProviderConfig),
+    "recon": Schema.optional(ProviderConfig)
 })
 
 interface Config extends Schema.Schema.Type<typeof ConfigSchema> {}
@@ -25,6 +28,8 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
         effect: Effect.gen(function* () {
             const fs = yield* FileSystem.FileSystem;
             const path = yield* Path.Path;
+            const provider = yield* AiProvider;
+            
             let config: Config;
 
             const home = homedir();
@@ -61,18 +66,17 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
                 yield* fs.writeFileString(configPath, jsonString, );
             })
 
-            const forProvider = (provider: Providers) => Effect.succeed(config[provider] ?? {})
+            const getConfig = () => Effect.succeed(config[provider.getProvider()] ?? {})
 
             const configResult = yield* Effect.either(openConfig(configPath));
             if (Either.isLeft(configResult)) {
-                console.log("No config found")
                 yield* saveConfig({});
                 config = {};
             } else {
                 config = configResult.right;
             }
 
-            return { config, forProvider, saveConfig } as const;
+            return { getConfig, saveConfig } as const;
         })
     }
 ) { }
