@@ -66,7 +66,10 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
                 yield* fs.writeFileString(configPath, jsonString, );
             })
 
-            const getConfig = () => Effect.succeed(config[provider.getProvider()] ?? {})
+            const getConfig = () => Effect.gen(function*() {
+                const currentProvider = yield* provider.getProvider()
+                return config[currentProvider] ?? {}
+            })
 
             const configResult = yield* Effect.either(openConfig(configPath));
             if (Either.isLeft(configResult)) {
