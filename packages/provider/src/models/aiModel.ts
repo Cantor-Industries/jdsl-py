@@ -1,15 +1,15 @@
 import { Data, Effect } from "effect";
-import { BunRuntime, BunContext } from "@effect/platform-bun";
 
-import { createGoogleGenerativeAI, google } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI, type GoogleGenerativeAIProvider } from "@ai-sdk/google";
+import { createOpenAI, type OpenAIProvider } from "@ai-sdk/openai";
+import { createAnthropic, type AnthropicProvider } from "@ai-sdk/anthropic";
 
 import { AiModelConfig } from "./config";
 import { AiProvider } from "./providers";
-import { ModelsDev } from "./models-dev";
 
-export class AiError extends Data.TaggedError("AiError")<{msg: string}>{}
+export class AiError extends Data.TaggedError("AiError")<{msg: string}>{};
+export type AiModelProvider = AnthropicProvider | GoogleGenerativeAIProvider | OpenAIProvider;
+
 export class AiModel extends Effect.Service<AiModel>()(
     "AiModel",
     {
@@ -18,23 +18,29 @@ export class AiModel extends Effect.Service<AiModel>()(
             const modelProvider = yield* AiProvider;
 
             yield* modelProvider.chooseProvider("google");
-            yield* modelProvider.listModels()
-            const config = yield* modelConfig.getConfig();
+            yield* modelProvider.chooseModel("gemini-2.0-flash");
 
-            let model;
+            const getModel = () => Effect.gen(function*() {
+                const config = yield* modelConfig.getConfig();
+                const provider = yield* modelProvider.getProvider();
 
-            return {model} as const;
+                switch (provider) {
+                    case "anthropic":
+                        return createAnthropic(config)(yield* modelProvider.getModelName());
+
+                    case "google":
+                        return createGoogleGenerativeAI(config) (yield* modelProvider.getModelName());
+
+                    case "openai":
+                        return createOpenAI(config) (yield* modelProvider.getModelName());
+
+                    default:
+                        return yield* new AiError({msg: `${provider} not supported yet`});
+                }
+            });
+            
+            return {getModel} as const;
         })
     }
 ){}
 
-const program = Effect.gen(function* () {
-    const aiModel = yield* AiModel
-}).pipe(
-    Effect.provide(AiModel.Default),
-    Effect.provide(AiModelConfig.Default),
-    Effect.provide(AiProvider.Default),
-    Effect.provide(ModelsDev.Default)
-)
-
-BunRuntime.runMain(program.pipe(Effect.provide(BunContext.layer)))

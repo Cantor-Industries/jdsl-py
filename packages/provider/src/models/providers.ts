@@ -1,19 +1,33 @@
-import { Effect, Either } from "effect";
+import { Data, Effect, Either } from "effect";
 import type { Providers } from "./config";
 import { ModelsDev } from "./models-dev";
 
+export class AiProviderError extends Data.TaggedError("AiProviderError")<{ msg: string}> { }
 export class AiProvider extends Effect.Service<AiProvider>()(
     "AiProvider",
     {
         effect: Effect.gen(function*(){
             const modelsDev = yield* ModelsDev;
             let provider: Providers = "recon";
+            let modelName: string = "";
 
             const chooseProvider = (name: Providers) => Effect.sync(() => {
                 provider = name;
             })
 
+            const chooseModel = (name: string) => Effect.gen(function* () {
+                const modelList = yield* listModels();
+                if (!modelList.includes(name)) {
+                    return yield* new AiProviderError({msg: `${getProvider()} does not have a model ${name}`});
+                }
+                modelName = name
+            })
+
             const getProvider = () => Effect.succeed(provider);
+            const getModelName = () => Effect.gen(function* (){
+                yield* chooseModel(modelName);
+                return modelName
+            })
 
             const listModels = () => Effect.gen(function* () {
                 const models = yield* Effect.either(modelsDev.getModels(provider));
@@ -21,9 +35,9 @@ export class AiProvider extends Effect.Service<AiProvider>()(
                     return [] as string[];
                 }
                 return Object.keys(models.right.models);
-            })
+            });
 
-            return {chooseProvider, getProvider, listModels} as const;
+            return {chooseModel, chooseProvider, getModelName, getProvider, listModels} as const;
         })
     }
 ){}
