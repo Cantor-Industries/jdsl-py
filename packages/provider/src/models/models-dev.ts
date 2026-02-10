@@ -5,7 +5,7 @@ import { Data, Effect, Either, Schema } from "effect";
 import { FileSystem, Path } from "@effect/platform";
 
 import { type ModelProviders, type Models, ModelsDevSchema } from "./modelSchema";
-import type { Providers } from "./config";
+import type { Providers } from "../config";
 
 export class ModelsDevError extends Data.TaggedError("ModelsDevError")<{ msg: string, error?: unknown }> { }
 export class HttpError extends Data.TaggedError("HttpError")<{ status: number, statusText: string }> { }

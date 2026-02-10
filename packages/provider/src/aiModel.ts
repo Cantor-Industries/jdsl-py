@@ -17,9 +17,6 @@ export class AiModel extends Effect.Service<AiModel>()(
             const modelConfig = yield* AiModelConfig;
             const modelProvider = yield* AiProvider;
 
-            yield* modelProvider.chooseProvider("google");
-            yield* modelProvider.chooseModel("gemini-2.0-flash");
-
             const getModel = () => Effect.gen(function*() {
                 const config = yield* modelConfig.getConfig();
                 const provider = yield* modelProvider.getProvider();
