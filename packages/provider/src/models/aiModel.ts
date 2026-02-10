@@ -1,5 +1,6 @@
 import { Data, Effect } from "effect";
 import { BunRuntime, BunContext } from "@effect/platform-bun";
+
 import { createGoogleGenerativeAI, google } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
@@ -16,7 +17,7 @@ export class AiModel extends Effect.Service<AiModel>()(
             const modelConfig = yield* AiModelConfig;
             const modelProvider = yield* AiProvider;
 
-            yield* modelProvider.chooseProvider("openai");
+            yield* modelProvider.chooseProvider("google");
             yield* modelProvider.listModels()
             const config = yield* modelConfig.getConfig();
 

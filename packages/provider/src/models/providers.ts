@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Either } from "effect";
 import type { Providers } from "./config";
 import { ModelsDev } from "./models-dev";
 
@@ -16,8 +16,11 @@ export class AiProvider extends Effect.Service<AiProvider>()(
             const getProvider = () => Effect.succeed(provider);
 
             const listModels = () => Effect.gen(function* () {
-                const models = yield* modelsDev.getModels(provider);
-                return Object.keys(models.models);
+                const models = yield* Effect.either(modelsDev.getModels(provider));
+                if (Either.isLeft(models)) {
+                    return [] as string[];
+                }
+                return Object.keys(models.right.models);
             })
 
             return {chooseProvider, getProvider, listModels} as const;
