@@ -36,20 +36,20 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
     }
 ) { }
 
-const program = Effect.gen(function* () {
-    const languageModel = yield* LanguageModel;
-    const modelProvider = yield* AiProvider;
+// const program = Effect.gen(function* () {
+//     const languageModel = yield* LanguageModel;
+//     const modelProvider = yield* AiProvider;
 
-    yield* modelProvider.chooseProvider("google");
-    yield* modelProvider.chooseModel("gemini-2.0-flash");
-    const response = yield* languageModel.generateText("Who released the song What is love and in what year as part of what album. Respond in less than 20 words");
-    console.log(response.text)
-}).pipe(
-    Effect.provide(LanguageModel.Default),
-    Effect.provide(AiModel.Default),
-    Effect.provide(AiModelConfig.Default),
-    Effect.provide(AiProvider.Default),
-    Effect.provide(ModelsDev.Default)
-)
+//     yield* modelProvider.chooseProvider("google");
+//     yield* modelProvider.chooseModel("gemini-2.0-flash");
+//     const response = yield* languageModel.generateText("Who released the song What is love and in what year as part of what album. Respond in less than 20 words");
+//     console.log(response.text)
+// }).pipe(
+//     Effect.provide(LanguageModel.Default),
+//     Effect.provide(AiModel.Default),
+//     Effect.provide(AiModelConfig.Default),
+//     Effect.provide(AiProvider.Default),
+//     Effect.provide(ModelsDev.Default)
+// )
 
-BunRuntime.runMain(program.pipe(Effect.provide(BunContext.layer)))
+// BunRuntime.runMain(program.pipe(Effect.provide(BunContext.layer)))
