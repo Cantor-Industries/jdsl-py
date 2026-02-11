@@ -64,6 +64,19 @@ export class ModelsDev extends Effect.Service<ModelsDev>()(
                 return result as ModelProviders
             })
 
+            const updateModels = Effect.gen(function* () {
+                const cacheStats = yield* Effect.either(getCacheMetadata());
+                const now = new Date();
+                const ttlInMillis = 24 * 3600 * 1000;
+                if (Either.isRight(cacheStats)) {
+                    const stats = cacheStats.right;
+                    const elapsedTime = now.getTime() - Date.parse(stats.modified);
+                    if (elapsedTime > ttlInMillis) {
+                        return true;
+                    }
+                }
+                return false
+            })
 
             const getCacheMetadata = () => Effect.gen(function* () {
                 const fromAsync = (path: string) => Effect.tryPromise(async () => {
@@ -109,19 +122,14 @@ export class ModelsDev extends Effect.Service<ModelsDev>()(
                 yield* saveModelCache(models);
             }
             else {
-                models = modelsCache.right
-            }
-            const cacheStats = yield* Effect.either(getCacheMetadata());
-            if (Either.isRight(cacheStats)) {
-                const stats = cacheStats.right;
-                const now = new Date();
-                const ttlInMillis = 12*3600*1000;
-                const elapsedTime = now.getTime() - Date.parse(stats.modified);
-                if (elapsedTime > ttlInMillis) {
+                const status = yield* updateModels;
+                if (status) {
                     models = yield* fetchModels;
                     yield* saveModelCache(models);
+                } else {
+                    models = modelsCache.right
                 }
-            } 
+            }
             return { getProvider, listProviders } as const
         })
     }
