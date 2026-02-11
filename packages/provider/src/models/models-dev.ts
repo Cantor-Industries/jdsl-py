@@ -1,5 +1,7 @@
 import { homedir } from "os";
 import { dirname } from "path";
+import { stat } from "fs";
+import { promisify } from "util";
 
 import { Data, Effect, Either, Schema } from "effect";
 import { FileSystem, Path } from "@effect/platform";
@@ -7,10 +9,18 @@ import { FileSystem, Path } from "@effect/platform";
 import { type ModelProviders, type Provider, ModelsDevSchema } from "./modelSchema";
 import type { Providers } from "../config";
 
+const CacheMetadataSchema = Schema.Struct({
+    size: Schema.Number,
+    modified: Schema.Date,
+    created: Schema.Date
+})
+interface CacheMetadata extends Schema.Schema.Type<typeof CacheMetadataSchema> { }
+
 export class ModelsDevError extends Data.TaggedError("ModelsDevError")<{ msg: string, error?: unknown }> { }
 export class HttpError extends Data.TaggedError("HttpError")<{ status: number, statusText: string }> { }
 export class JSONParseError extends Data.TaggedError("JSONParseError")<{ error: unknown }> { }
 export class FetchError extends Data.TaggedError("FetchError")<{ error: unknown }> { }
+export class CacheError extends Data.TaggedError("CacheError")<{ msg: string }> { }
 
 export class ModelsDev extends Effect.Service<ModelsDev>()(
     "ModelsDev",
@@ -38,20 +48,30 @@ export class ModelsDev extends Effect.Service<ModelsDev>()(
                             const jsonResponse = await response.json() as any;
                             return jsonResponse;
                         } catch (error) {
-                            throw new JSONParseError({error})
+                            throw new JSONParseError({ error })
                         }
                     },
                     catch: (error) => {
                         if (error instanceof HttpError || error instanceof JSONParseError) {
                             return error
                         }
-                        return new FetchError({error})
+                        return new FetchError({ error })
                     }
                 })
 
                 const models = yield* getModels
                 const result = yield* Schema.encode(ModelsDevSchema)(models);
                 return result as ModelProviders
+            })
+
+
+            const getCacheMetadata = () => Effect.gen(function* () {
+                const fromAsync = (path: string) => Effect.tryPromise(async () => {
+                    const statPromise = promisify(stat);
+                    return await statPromise(path);
+                })
+                const stats = yield* fromAsync(modelCachePath)
+                return yield* Schema.encode(CacheMetadataSchema)({ size: stats.size, modified: stats.mtime, created: stats.ctime });
             })
 
             const getProvider = (provider: Providers) => Effect.gen(function* () {
@@ -87,10 +107,21 @@ export class ModelsDev extends Effect.Service<ModelsDev>()(
             if (Either.isLeft(modelsCache)) {
                 models = yield* fetchModels;
                 yield* saveModelCache(models);
-            } else {
+            }
+            else {
                 models = modelsCache.right
             }
-
+            const cacheStats = yield* Effect.either(getCacheMetadata());
+            if (Either.isRight(cacheStats)) {
+                const stats = cacheStats.right;
+                const now = new Date();
+                const ttlInMillis = 12*3600*1000;
+                const elapsedTime = now.getTime() - Date.parse(stats.modified);
+                if (elapsedTime > ttlInMillis) {
+                    models = yield* fetchModels;
+                    yield* saveModelCache(models);
+                }
+            } 
             return { getProvider, listProviders } as const
         })
     }
