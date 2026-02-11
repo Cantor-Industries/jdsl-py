@@ -11,7 +11,11 @@ export class AiProvider extends Effect.Service<AiProvider>()(
             let provider: Providers = "recon";
             let modelName: string = "";
 
-            const chooseProvider = (name: Providers) => Effect.sync(() => {
+            const chooseProvider = (name: Providers) => Effect.gen(function*() {
+                const providers = yield* modelsDev.listProviders();
+                if (!providers.includes(name)) {
+                    return yield* new AiProviderError({msg: `${name} is not a supported provider`});
+                }
                 provider = name;
             })
 
@@ -30,7 +34,7 @@ export class AiProvider extends Effect.Service<AiProvider>()(
             })
 
             const listModels = () => Effect.gen(function* () {
-                const models = yield* Effect.either(modelsDev.getModels(provider));
+                const models = yield* Effect.either(modelsDev.getProvider(provider));
                 if (Either.isLeft(models)) {
                     return [] as string[];
                 }

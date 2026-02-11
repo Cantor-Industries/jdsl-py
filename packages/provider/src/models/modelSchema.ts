@@ -64,6 +64,7 @@ const ModelSchema = Schema.Struct({
     modalities: ModalitiesSchema,
     status: Schema.optional(StatusSchema)
 });
+export interface Model extends Schema.Schema.Type<typeof ModelSchema> { };
 
 const ProviderSchema = Schema.Struct({
     id: Schema.String,
@@ -74,7 +75,7 @@ const ProviderSchema = Schema.Struct({
     api: Schema.optional(Schema.String),
     models: Schema.Record({key: Schema.String, value: ModelSchema})
 });
-export interface Models extends Schema.Schema.Type<typeof ProviderSchema> { };
+export interface Provider extends Schema.Schema.Type<typeof ProviderSchema> { };
 
 export const ModelsDevSchema = Schema.Record({key: Schema.String, value: ProviderSchema});
 export interface ModelProviders extends Schema.Schema.Type<typeof ModelsDevSchema> { };

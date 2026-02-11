@@ -4,7 +4,7 @@ import { dirname } from "path";
 import { Data, Effect, Either, Schema } from "effect";
 import { FileSystem, Path } from "@effect/platform";
 
-import { type ModelProviders, type Models, ModelsDevSchema } from "./modelSchema";
+import { type ModelProviders, type Provider, ModelsDevSchema } from "./modelSchema";
 import type { Providers } from "../config";
 
 export class ModelsDevError extends Data.TaggedError("ModelsDevError")<{ msg: string, error?: unknown }> { }
@@ -54,12 +54,16 @@ export class ModelsDev extends Effect.Service<ModelsDev>()(
                 return result as ModelProviders
             })
 
-            const getModels = (provider: Providers) => Effect.gen(function* () {
+            const getProvider = (provider: Providers) => Effect.gen(function* () {
                 const results = models[provider];
                 if (!results) {
                     return yield* new ModelsDevError({ msg: `invalid ${provider}. Could not find ${provider} on models.dev providers` })
                 }
-                return results as Models
+                return results as Provider
+            });
+
+            const listProviders = () => Effect.sync(() => {
+                return Object.keys(models);
             });
 
             const openModelCache = (filePath: string) => Effect.gen(function* () {
@@ -87,7 +91,7 @@ export class ModelsDev extends Effect.Service<ModelsDev>()(
                 models = modelsCache.right
             }
 
-            return { getModels } as const
+            return { getProvider, listProviders } as const
         })
     }
 ) { }
