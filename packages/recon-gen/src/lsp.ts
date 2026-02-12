@@ -1,4 +1,4 @@
-import ts, { LanguageServiceHost } from "typescript";
+import ts, { type LanguageServiceHost } from "typescript";
 import { normalize, VFS } from "./vfs.ts"
 import { Effect } from "effect";
 

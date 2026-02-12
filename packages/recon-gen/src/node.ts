@@ -1,5 +1,5 @@
-import { posix } from "node:path"
-import ts, { Node, factory } from "typescript";
+import { posix } from "path"
+import ts, { type Node, factory } from "typescript";
 import { Sequence } from "./sequence.ts";
 import { Action } from "./action.ts";
 import { Selector } from "./selector.ts";

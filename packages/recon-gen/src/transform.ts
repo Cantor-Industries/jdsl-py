@@ -1,4 +1,4 @@
-import ts, { Node, SourceFile } from "typescript";
+import ts, { type Node, type SourceFile } from "typescript";
 import { getEscapedText } from "./node.ts";
 import { Root, RootBuilder } from "./root.ts";
 import { Action, ActionBuilder } from "./action.ts";

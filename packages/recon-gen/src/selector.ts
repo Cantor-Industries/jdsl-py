@@ -1,7 +1,7 @@
 // Rember to explore Effect.firstSuccessOf
 import ts, { factory } from "typescript";
 import { Effect } from "effect"
-import { createLayerDependency, Dependency, lowercaseFirstLetter, NodeCreator } from "./node.ts";
+import { createLayerDependency, type Dependency, lowercaseFirstLetter, NodeCreator } from "./node.ts";
 import { VFS } from "./vfs.ts";
 import { Action } from "./action.ts";
 import { Sequence } from "./sequence.ts";
@@ -171,8 +171,8 @@ const createSelectorLayerBody = (dependencies: Dependency[]) => {
         throw new Error("Dependencies Array Cannot be Zero");
     }
     const effects: ts.Expression[] = [];
-    const callParameters = dependencies[0].callParameters;
-    const declarationParameters = dependencies[0].declarationParameters;
+    const callParameters = dependencies[0]!.callParameters;
+    const declarationParameters = dependencies[0]!.declarationParameters;
 
     for (const dependency of dependencies) {
         const effect = factory.createCallExpression(

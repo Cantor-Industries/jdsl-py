@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import ts, { Node } from "typescript";
+import ts, { type Node } from "typescript";
 import { ReconLanguageServer } from "./lsp.ts";
 import { getEscapedText } from "./node.ts";
 

@@ -8,10 +8,10 @@
     "@effect/platform": "^0.94.3",
     "@effect/platform-node": "^0.104.1",
     "code-block-writer": "^13.0.3",
-    "effect": "^3.19.16"
+    "effect": "^3.19.16",
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
   },
   "exports": {
     ".": "./src/index.ts"
@@ -21,6 +21,8 @@
   },
   "files": ["src"],
   "engines": {
-    "bun": ">=1.0.0"
+    "bun": ">=1.0.0",
+    "node": "20.0.0",
+    "deno": ">=2.4.0"
   }
 }

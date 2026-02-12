@@ -1,11 +1,11 @@
-import path, { basename } from "node:path";
-import fs from "node:fs";
-import process from "node:process";
+import path, { basename } from "path";
+import fs from "fs";
+import process from "process";
 
 import { Effect } from "effect";
 import { PackageJsonError, EntryFileMissingError } from "./errors.ts";
 import { ReconLanguageServer } from "./lsp.ts";
-import { PackageJson, DenoJson } from "./types.ts";
+import type { PackageJson, DenoJson } from "./types.ts";
 import { VFS } from "./vfs.ts";
 import { Transform } from "./transform.ts";
 

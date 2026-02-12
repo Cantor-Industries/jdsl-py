@@ -1,6 +1,6 @@
 import ts, { factory } from "typescript";
 import { Effect } from "effect";
-import { createRelativeImportPath, Dependency, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
+import { createRelativeImportPath, type Dependency, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
 import { Action } from "./action.ts";
 import { VFS } from "./vfs.ts";
 import { generateFactoryCode } from "./factorycodegen.ts";
@@ -183,7 +183,7 @@ const createRootLayerBody = (layerName: string, args: ts.ArrayLiteralExpression,
                     factory.createArrowFunction(
                         undefined,
                         undefined,
-                        argsProvided ? [] : declarationParameters,
+                        argsProvided ? [] : declarationParameters!,
                         undefined,
                         factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
                         factory.createCallExpression(
@@ -218,7 +218,7 @@ const createRootLayerBody = (layerName: string, args: ts.ArrayLiteralExpression,
                                                             undefined,
                                                             [factory.createCallExpression(
                                                                 factory.createPropertyAccessExpression(
-                                                                    factory.createIdentifier(lowercaseFirstLetter(dependencyName)),
+                                                                    factory.createIdentifier(lowercaseFirstLetter(dependencyName!)),
                                                                     factory.createIdentifier("update")
                                                                 ),
                                                                 undefined,

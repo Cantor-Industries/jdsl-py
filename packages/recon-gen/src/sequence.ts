@@ -1,6 +1,6 @@
 import ts, { factory } from "typescript";
 import { Effect } from "effect"
-import { createLayerDependency, Dependency, lowercaseFirstLetter, NodeCreator } from "./node.ts";
+import { createLayerDependency, type Dependency, lowercaseFirstLetter, NodeCreator } from "./node.ts";
 import { VFS } from "./vfs.ts";
 import { Action } from "./action.ts";
 import { Selector } from "./selector.ts";
@@ -171,11 +171,11 @@ const createSequenceLayer = (layerName: string, body: ts.Statement[], dependenci
 }
 
 const createSequenceLayerBody = (dependencies: Dependency[]) => {
-    if (dependencies.length === 0) {
+    if (!dependencies || dependencies.length === 0) {
         throw new Error("Dependencies Array Cannot be Zero");
     }
     const updateBody: ts.Statement[] = [];
-    const declarationParameters: ts.ParameterDeclaration[] = dependencies[0].declarationParameters;
+    const declarationParameters: ts.ParameterDeclaration[] = dependencies[0]!.declarationParameters;
 
     let childCount = 0;
     for (const dependency of dependencies) {

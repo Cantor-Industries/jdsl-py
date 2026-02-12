@@ -1,4 +1,4 @@
-import ts, { factory, Node } from "typescript";
+import ts, { factory, type Node } from "typescript";
 import { getEscapedText, NodeCreator } from "./node.ts";
 import { Effect } from "effect/index";
 import { Tools } from "./transform.ts";
@@ -28,7 +28,7 @@ export class Action extends NodeCreator {
     }
 
     override addLayerBody(): void {
-        this.layerBody = createActonLayerBody(this.runFunction[0], this.callParameters, this.declarationParameters);
+        this.layerBody = createActonLayerBody(this.runFunction[0]!, this.callParameters, this.declarationParameters);
     }
 };
 
