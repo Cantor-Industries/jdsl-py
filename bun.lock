@@ -36,15 +36,13 @@
       "name": "@jdsl/recon-gen",
       "version": "0.1.0",
       "bin": {
-        "recon": "bun src/main.ts",
+        "recon": "./src/main.ts",
       },
       "dependencies": {
         "@effect/platform": "^0.94.3",
         "@effect/platform-node": "^0.104.1",
         "code-block-writer": "^13.0.3",
         "effect": "^3.19.16",
-      },
-      "devDependencies": {
         "typescript": "^5.9.3",
       },
     },
@@ -187,7 +185,5 @@
     "ws": ["ws@8.19.0", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-blAT2mjOEIi0ZzruJfIhb3nps74PRWTCz1IjglWEEpQl5XS/UNama6u2/rjFkDDouqr4L67ry+1aGIALViWjDg=="],
 
     "zod": ["zod@4.3.6", "", {}, "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="],
-
-    "@jdsl/recon-gen/@effect/platform": ["@effect/platform@0.94.3", "", { "dependencies": { "find-my-way-ts": "^0.1.6", "msgpackr": "^1.11.4", "multipasta": "^0.2.7" }, "peerDependencies": { "effect": "^3.19.16" } }, "sha512-bvTR8xLQoRpKgHuprZDOeQdPkhyVw+WT05iI9jl2s8Qiblyk5Dz2JLwJU+EFeksIBaPYz49xa635Om91T1CefQ=="],
   }
 }
