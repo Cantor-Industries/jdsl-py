@@ -23,7 +23,6 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
                     })
                     return response
                 })
-
                 return yield* fromAsync(text)
             })
 
@@ -37,7 +36,6 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
                     })
                     return response
                 })
-                
                 return yield* fromAsync(text)
             })
 
@@ -53,7 +51,6 @@ const program = Effect.gen(function* () {
     yield* modelProvider.chooseProvider("google");
     yield* modelProvider.chooseModel("gemini-2.0-flash");
     const response = yield* languageModel.generateText("Who released the song What is love and in what year as part of what album. Respond in less than 20 words");
-    console.log(response.text)
 }).pipe(
     Effect.provide(LanguageModel.Default),
     Effect.provide(AiModel.Default),
