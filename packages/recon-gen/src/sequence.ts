@@ -40,7 +40,6 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
     "SequenceBuilder",
     {
         effect: Effect.gen(function* () {
-            console.log("SEQUENCEBUILDER INIT");
             const vfs = yield* VFS;
             const languageServer = yield* ReconLanguageServer;
 

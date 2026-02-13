@@ -40,7 +40,6 @@ export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
     "SelectorBuilder",
     {
         effect: Effect.gen(function* () {
-            console.log("SELECTORBUILDER INIT");
             const vfs = yield* VFS;
 
             const currentSelector: Selector[] = [];

@@ -112,7 +112,7 @@ export class ReconInitializer extends Effect.Service<ReconInitializer>()(
                 languageServer.getSyntacticDiagnostics(fullPath);
                 const program = languageServer.getProgram();
                 const sourceFile = program?.getSourceFile(fullPath)
-                yield* transform(sourceFile!)
+                yield* transform.transform(sourceFile!)
             })
             return {init} as const
         }),

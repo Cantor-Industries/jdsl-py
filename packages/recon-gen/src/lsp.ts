@@ -6,7 +6,6 @@ export class ReconCompilerOptions extends Effect.Service<ReconCompilerOptions>()
 	"ReconCompilerOptions",
 	{
 		effect: Effect.sync(() => {
-			console.log("RECON COMPILEROPTIONS INIT");
 			const options: ts.CompilerOptions = {
 				target: ts.ScriptTarget.ESNext,
 				module: ts.ModuleKind.NodeNext,
@@ -25,7 +24,6 @@ export class ReconLanguageServiceHost extends Effect.Service<ReconLanguageServic
 	"ReconLanguageServer",
 	{
 		effect: Effect.gen(function* () {
-			console.log("RECON LANGUAGE SERVICE HOST INIT");
 			const files = yield* VFS;
 			const options = yield* ReconCompilerOptions;
 
@@ -79,7 +77,6 @@ export class ReconLanguageServer extends Effect.Service<ReconLanguageServer>()(
 	"ReconLanguageServer",
 	{
 		effect: Effect.gen(function* () {
-			console.log("RECON LANGUAGE SERVER INIT");
 			const host = yield* ReconLanguageServiceHost;
 			const service = ts.createLanguageService(host);
 			return service;

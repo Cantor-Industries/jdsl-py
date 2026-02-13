@@ -36,7 +36,6 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
     "ActionBuilder",
     {
         effect: Effect.gen(function* () {
-            console.log("ACTIONBUILDER INIT");
             const toolService = yield* Tools;
             const vfs = yield* VFS;
             const languageServer = yield* ReconLanguageServer;

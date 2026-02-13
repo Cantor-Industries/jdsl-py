@@ -12,7 +12,6 @@ export class VFS extends Effect.Service<VFS>()(
     "VirtualFS",
     {
         effect: Effect.sync(() => {
-            console.log("VFS INIT")            
             const files = new Map<string, VirtualFile>();
             const proto = {
                 set(fileName: string, content: string) {

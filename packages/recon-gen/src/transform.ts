@@ -15,7 +15,6 @@ export class Tools extends Effect.Service<Tools>()(
         accessors: true,
         effect: Effect.sync(() => {
             const tools = new Map<string, ts.ArrowFunction>();
-            console.log("TOOLS INIT");
             const toolVisitor = (node: Node) => {
                 for (const child of node.getChildAt(1).getChildren()) {
                     if (ts.isPropertyAssignment(child)) {
@@ -40,7 +39,6 @@ export class Tools extends Effect.Service<Tools>()(
             const proto = {
                 init: (nodes: Node[]) => {
                     nodes.forEach(node => toolWalker(node));
-                    console.log("Tools: ", [...tools.keys()])
                     return tools;
                 },
                 tools: tools
@@ -54,7 +52,6 @@ export class Skills extends Effect.Service<Skills>()(
     "Skills",
     {
         effect: Effect.gen(function* () {
-            console.log("SKILLS INIT");
             const rootBuilder = yield* RootBuilder;
             const actionBuilder = yield* ActionBuilder;
             const sequenceBuilder = yield* SequenceBuilder;
@@ -173,7 +170,6 @@ export class Transform extends Effect.Service<Transform>()(
     "Transform",
     {
         effect: Effect.gen(function* () {
-            console.log("TRANSFORM INIT");
             const tools = yield* Tools;
             const skills = yield* Skills;
             const languageService = yield* ReconLanguageServer;
@@ -209,13 +205,12 @@ export class Transform extends Effect.Service<Transform>()(
                 reconEnv.init(envNodes);
                 console.log("Initializing skills");
                 skills.init(skillsNodes);
-                // vfs.writeFiles();
                 const ignoredCodes = new Set([
                     5097, // allow .ts extension imports
                     6133, // declared but never used
                     6196, // declared but never read
                 ]);
-
+                vfs.writeFiles();
                 let diagnostics: ts.Diagnostic[] = []
 
                 vfs.fileNames().forEach(file => {
@@ -235,7 +230,7 @@ export class Transform extends Effect.Service<Transform>()(
                 }
                 vfs.writeFiles();
             });
-            return transform
+            return {transform} as const;
         }),
         dependencies: [Skills.Default]
     }
