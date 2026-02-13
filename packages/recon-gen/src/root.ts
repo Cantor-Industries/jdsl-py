@@ -61,10 +61,11 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
     {
         effect: Effect.gen(function* () {
             const vfs = yield* VFS;
-            const root = new Root("Root", "./dist/");
             const languageServer = yield* ReconLanguageServer;
+            const rootList: Root[] = [];
 
             const buildRoot = (name?: string) => {
+                const root = new Root("Root", "./dist/");
                 root.name = name ?? "Root";
                 root.name = root.name === "root" ? "Root" : root.name;
                 root.addImport("effect", "Data", "Effect", "Either");
@@ -72,11 +73,21 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
                 root.addLayer();
                 vfs.set(root.path(), root.print());
                 languageServer.getSyntacticDiagnostics(root.path());
+                rootList.push(root);
             }
             const addChild = (child: Action | Sequence | Selector) => {
-                root.addChild(child);
-                vfs.set(root.path(), root.print());
-                languageServer.getSyntacticDiagnostics(root.path());
+                const curRoot = root();
+                curRoot.addChild(child);
+                vfs.set(curRoot.path(), curRoot.print());
+                languageServer.getSyntacticDiagnostics(curRoot.path());
+            }
+
+            const root = () => {
+                const root = rootList.at(-1);
+                if (root) {
+                    return root;
+                }
+                throw new Error("No Root Node Defined yet");
             }
             return { root, buildRoot, addChild } as const;
         })

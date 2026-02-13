@@ -36,14 +36,11 @@ export class Tools extends Effect.Service<Tools>()(
                     return node.forEachChild(toolWalker)!;
                 }
             }
-            const proto = {
-                init: (nodes: Node[]) => {
+                const init = (nodes: Node[]) => {
                     nodes.forEach(node => toolWalker(node));
                     return tools;
-                },
-                tools: tools
-            };
-            return proto;
+                }
+            return { init, tools } as const;
         })
     }
 ) { }
@@ -85,11 +82,11 @@ export class Skills extends Effect.Service<Skills>()(
                             }
                             const child = skillVisitor(childNode);
                             if (child instanceof Root) {
-                                return rootBuilder.root;
+                                return rootBuilder.root();
                             }
                             rootBuilder.addChild(child);
                             console.log("Finished exploring Root");
-                            return rootBuilder.root;
+                            return rootBuilder.root();
                         }
                         else if (valueName === "selector") {
                             const childNodes = skill.get("children");
@@ -144,7 +141,7 @@ export class Skills extends Effect.Service<Skills>()(
 
                     }
                 }
-                return rootBuilder.root;
+                return rootBuilder.root();
             }
 
             const skillWalker = (node: Node): Node => {
@@ -155,12 +152,10 @@ export class Skills extends Effect.Service<Skills>()(
                     return node.forEachChild(skillWalker)!
                 }
             }
-            const proto = {
-                init: (nodes: Node[]) => {
-                    nodes.forEach(node => skillWalker(node));
-                },
-            };
-            return proto;
+            const init = (nodes: Node[]) => {
+                nodes.forEach(node => skillWalker(node));
+            }
+            return { init } as const;
         }),
         dependencies: [ActionBuilder.Default, RootBuilder.Default, SequenceBuilder.Default, SelectorBuilder.Default]
     }
@@ -230,7 +225,7 @@ export class Transform extends Effect.Service<Transform>()(
                 }
                 vfs.writeFiles();
             });
-            return {transform} as const;
+            return { transform } as const;
         }),
         dependencies: [Skills.Default]
     }

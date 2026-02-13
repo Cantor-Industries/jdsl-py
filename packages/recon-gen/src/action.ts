@@ -50,11 +50,13 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                     console.error("Action must have a call attribute");
                     return
                 }
-                if (actions.has(getEscapedText(call) + "Action")) {
+                const actionName = getEscapedText(call) + "Action";
+                if (actions.has(actionName)) {
                     console.log(getEscapedText(call) + "Action already exists, exiting");
+                    currentAction = actions.get(actionName)
                     return;
                 }
-                addAction(getEscapedText(call) + "Action", "./dist/actions/");
+                addAction(actionName, "./dist/actions/");
                 addImport("effect", "Data", "Effect");
                 action().addError();
 
