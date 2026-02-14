@@ -1,4 +1,4 @@
-import ts, { type Node, type SourceFile } from "typescript";
+import ts, { factory, type Node, type SourceFile } from "typescript";
 import { getEscapedText } from "./node.ts";
 import { Root, RootBuilder } from "./root.ts";
 import { Action, ActionBuilder } from "./action.ts";
@@ -22,6 +22,16 @@ export class Tools extends Effect.Service<Tools>()(
                         const value = child.getChildAt(2);
                         if (ts.isArrowFunction(value)) {
                             tools.set(key.getText(), value);
+                        } else if (ts.isFunctionExpression(value)) {
+                            const arrowFunction = factory.createArrowFunction(
+                                value.modifiers,
+                                value.typeParameters,
+                                value.parameters,
+                                value.type,
+                                factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+                                value.body ?? factory.createBlock([], true)
+                            );
+                            tools.set(key.getText(), arrowFunction);
                         } else {
                             throw new Error("No arrow function declared in property");
                         }
