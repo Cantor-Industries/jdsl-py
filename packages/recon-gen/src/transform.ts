@@ -215,9 +215,8 @@ export class Transform extends Effect.Service<Transform>()(
                     6133, // declared but never used
                     6196, // declared but never read
                 ]);
-                vfs.writeFiles();
-                let diagnostics: ts.Diagnostic[] = []
 
+                let diagnostics: ts.Diagnostic[] = []
                 vfs.fileNames().forEach(file => {
                     const diags = languageService
                         .getSemanticDiagnostics(normalize(file))

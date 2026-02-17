@@ -47,27 +47,31 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
             const buildAction = (skill: Map<string, Node>) => {
                 const call = skill.get("call");
                 if (!call) {
-                    console.error("Action must have a call attribute");
-                    return
+                    throw new Error("Action must have a call attribute");
                 }
-                const actionName = getEscapedText(call) + "Action";
-                if (actions.has(actionName)) {
-                    console.log(getEscapedText(call) + "Action already exists, exiting");
-                    currentAction = actions.get(actionName)
-                    return;
-                }
-                addAction(actionName, "./dist/actions/");
-                addImport("effect", "Data", "Effect");
-                action().addError();
+                if (toolService.tools.get(getEscapedText(call))) {
+                    const actionName = getEscapedText(call) + "Action";
+                    if (actions.has(actionName)) {
+                        console.log(getEscapedText(call) + "Action already exists, exiting");
+                        currentAction = actions.get(actionName)
+                        return;
+                    }
+                    addAction(actionName, "./dist/actions/");
+                    addImport("effect", "Data", "Effect");
+                    action().addError();
 
-                const args = skill.get("args");
-                if (args && ts.isArrayLiteralExpression(args)) {
-                    addArgs(args)
+                    const args = skill.get("args");
+                    if (args && ts.isArrayLiteralExpression(args)) {
+                        addArgs(args)
+                    }
+                    addLayer();
+                    action().update();
+                    vfs.set(action().path(), action().print());
+                    languageServer.getSyntacticDiagnostics(action().path());
+                } else {
+                    throw new Error(`${getEscapedText(call)} missing matching agent function)`);
                 }
-                addLayer();
-                action().update();
-                vfs.set(action().path(), action().print());
-                languageServer.getSyntacticDiagnostics(action().path());
+
             }
 
             const addAction = (name: string, basePath?: string) => {
@@ -320,3 +324,6 @@ const createActonLayerBody = (actionFunction: ts.VariableStatement, callParamete
     ]
     return actionLayerBody as ts.Statement[];
 }
+
+type ExtractServices<R> =
+  R extends typeof Effect.Service<any> ? R : never;
