@@ -48,8 +48,8 @@ export class NodeCreator {
 		this.firstChild = true
 	}
 
-	addImport(packageName: string, ...values: (string | { value: string, as: string })[]) {
-		const imports = createImport(packageName, ...values);
+	addImport(packageName: string, namedImport: string | undefined, ...namedBindings: (string | { value: string, as: string })[]) {
+		const imports = createImport(packageName, namedImport, ...namedBindings);
 		this.importList.set(packageName, imports);
 	}
 
@@ -59,7 +59,7 @@ export class NodeCreator {
 		const relativePath = createRelativeImportPath(this.path(), child.path());
 		// class names imports must start with an uppercase letter
 		const value = isFirstLetterLoweCase(this.childName) ? { value: this.childName, as: uppercaseFirstLetter(this.childName) } : this.childName;
-		this.addImport(relativePath, value);
+		this.addImport(relativePath, undefined, value);
 		this.addLayerDependency(uppercaseFirstLetter(this.childName));
 
 		if (this.firstChild) {
@@ -283,20 +283,20 @@ export const createLayerDependency = (dependencyName: string) => {
 	return dep;
 }
 
-const createImport = (packageName: string, ...values: (string | { value: string, as: string })[]): ts.ImportDeclaration => {
+const createImport = (packageName: string, namedImport: string | undefined, ...namedBindings: (string | { value: string, as: string })[]): ts.ImportDeclaration => {
 	const namedImports = [];
-	for (const namedImport of values) {
-		if (typeof namedImport == "string") {
+	for (const namedBinding of namedBindings) {
+		if (typeof namedBinding == "string") {
 			namedImports.push(factory.createImportSpecifier(
 				false,
 				undefined,
-				factory.createIdentifier(namedImport)
+				factory.createIdentifier(namedBinding)
 			))
 		} else {
 			namedImports.push(factory.createImportSpecifier(
 				false,
-				factory.createIdentifier(namedImport.value),
-				factory.createIdentifier(namedImport.as)
+				factory.createIdentifier(namedBinding.value),
+				factory.createIdentifier(namedBinding.as)
 			))
 		}
 	}
@@ -305,8 +305,8 @@ const createImport = (packageName: string, ...values: (string | { value: string,
 		undefined,
 		factory.createImportClause(
 			undefined,
-			undefined,
-			factory.createNamedImports(namedImports)
+			namedImport ? factory.createIdentifier(namedImport) : undefined,
+			namedImports.length != 0 ? factory.createNamedImports(namedImports) : undefined
 		),
 		factory.createStringLiteral(packageName),
 		undefined
@@ -315,11 +315,16 @@ const createImport = (packageName: string, ...values: (string | { value: string,
 }
 
 export function createRelativeImportPath(from: string, to: string): string {
+	// a better way to detect node & workspace imports can be implemented
 	if (!to.startsWith(".")) {
 		return to
 	}
-	const fromDir = posix.dirname(from);
-	let relativePath = posix.relative(fromDir, to);
+	const fromPath = ts.sys.resolvePath(from);
+	const toPath = ts.sys.resolvePath(to);
+	// console.log(fromPath, "=>", toPath)
+
+	const fromDir = posix.dirname(fromPath);
+	let relativePath = posix.relative(fromDir, toPath);
 
 	if (!relativePath.startsWith(".")) {
 		relativePath = "./" + relativePath;

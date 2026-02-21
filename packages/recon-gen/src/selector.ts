@@ -60,7 +60,7 @@ export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
                 vfs.set(selector().path(), selector().print());
             }
             const addImport = (packageName: string, ...values: string[]) => {
-                selector().addImport(packageName, ...values)
+                selector().addImport(packageName, undefined, ...values)
             };
             const addLayer = () => {
                 selector().addLayer();

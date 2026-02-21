@@ -1,11 +1,12 @@
 import ts, { factory, type Node } from "typescript";
-import { getEscapedText, NodeCreator } from "./node.ts";
+import { createRelativeImportPath, getEscapedText, NodeCreator } from "./node.ts";
 import { Effect } from "effect/index";
 import { Tools } from "./transform.ts";
-import { VFS } from "./vfs.ts";
+import { normalize, VFS } from "./vfs.ts";
 import { ReconLanguageServer } from "./lsp.ts";
 import { generateFactoryCode } from "./factorycodegen.ts";
 import { ReconEnvBuilder } from "./env.ts";
+import { make } from "effect/Schema";
 
 export class Action extends NodeCreator {
     private runFunction: ts.VariableStatement[];
@@ -49,7 +50,8 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                 if (!call) {
                     throw new Error("Action must have a call attribute");
                 }
-                if (toolService.tools.get(getEscapedText(call))) {
+                const callName = getEscapedText(call);
+                if (toolService.tools.get(callName)) {
                     const actionName = getEscapedText(call) + "Action";
                     if (actions.has(actionName)) {
                         console.log(getEscapedText(call) + "Action already exists, exiting");
@@ -57,7 +59,7 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                         return;
                     }
                     addAction(actionName, "./dist/actions/");
-                    addImport("effect", "Data", "Effect");
+                    addImport("effect", undefined, "Data", "Effect");
                     action().addError();
 
                     const args = skill.get("args");
@@ -68,8 +70,31 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                     action().update();
                     vfs.set(action().path(), action().print());
                     languageServer.getSyntacticDiagnostics(action().path());
-                } else {
-                    throw new Error(`${getEscapedText(call)} missing matching agent function)`);
+                } else if (reconEnv.checkImport(callName)) {
+                    const actionName = callName + "Action";
+                    const runFunction = reconEnv.getRunFunction(callName);
+                    toolService.tools.set(callName, runFunction);
+                    addAction(actionName, "./dist/actions/");
+                    addImport("effect", undefined, "Data", "Effect");
+                    const localImports = reconEnv.getImport(callName);
+                    const packageName = createRelativeImportPath(action().path(), localImports.packageName);
+                    const namedImport = localImports.namedBinding?.namedImport;
+                    const namedBindings = localImports.namedBinding?.namedBindings;
+                    // console.log("Local Imports:", packageName, "->", namedBindings);
+                    addImport(packageName, namedImport, ...namedBindings ?? []);
+                    action().addError();
+
+                    const args = skill.get("args");
+                    if (args && ts.isArrayLiteralExpression(args)) {
+                        addArgs(args);
+                    }
+                    addLayer();
+                    action().update();
+                    vfs.set(action().path(), action().print());
+                    languageServer.getSyntacticDiagnostics(action().path());
+                }
+                else {
+                    throw new Error(`Failed to resolve ${callName})`);
                 }
 
             }
@@ -85,9 +110,9 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                 }
                 throw new Error("Action Map Empty");
             }
-            const addImport = (packageName: string, ...values: string[]) => {
+            const addImport = (packageName: string, namedImport: string | undefined, ...namedBindings: string[]) => {
 
-                action().addImport(packageName, ...values)
+                action().addImport(packageName, namedImport,...namedBindings)
             }
             const addLayer = () => {
                 const run = toolService.tools.get(action().name.replace("Action", ""));
@@ -96,7 +121,7 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                 }
                 const actionImports = reconEnv.checkSymbols(run);
                 for (const [packageName, packages] of actionImports) {
-                    addImport(packageName, ...packages.namedBindings)
+                    addImport(packageName, packages.namedImport, ...packages.namedBindings)
                 }
                 action().addRunFunction(run);
                 action().addLayerBody();
@@ -324,6 +349,3 @@ const createActonLayerBody = (actionFunction: ts.VariableStatement, callParamete
     ]
     return actionLayerBody as ts.Statement[];
 }
-
-type ExtractServices<R> =
-  R extends typeof Effect.Service<any> ? R : never;

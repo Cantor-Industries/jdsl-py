@@ -64,7 +64,7 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
             };
 
             const addImport = (packageName: string, ...values: string[]) => {
-                sequence().addImport(packageName, ...values)
+                sequence().addImport(packageName, undefined, ...values)
             };
             const addLayer = () => {
                 sequence().addLayer();

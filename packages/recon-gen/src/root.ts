@@ -23,7 +23,7 @@ export class Root extends NodeCreator {
       const relativePath = createRelativeImportPath(this.path(), child.path());
       // class names imports must start with an uppercase letter
       const value = isFirstLetterLoweCase(this.childName) ? { value: this.childName, as: uppercaseFirstLetter(this.childName) } : this.childName;
-      this.addImport(relativePath, value);
+      this.addImport(relativePath, undefined, value);
       this.addLayerDependency(uppercaseFirstLetter(this.childName));
 
       this.args = child.args;
@@ -68,7 +68,7 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
                 const root = new Root("Root", "./dist/");
                 root.name = name ?? "Root";
                 root.name = root.name === "root" ? "Root" : root.name;
-                root.addImport("effect", "Data", "Effect", "Either");
+                root.addImport("effect", undefined, "Data", "Effect", "Either");
                 root.addError();
                 root.addLayer();
                 vfs.set(root.path(), root.print());
