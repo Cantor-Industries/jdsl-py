@@ -2,9 +2,9 @@
 import { Effect, } from "effect";
 import { NodeContext, NodeRuntime } from "@effect/platform-node"
 import { Tools, Transform } from "./transform.ts";
-import { VFS } from "./vfs.ts";
-import { ReconLanguageServer } from "./lsp.ts";
-import { ReconEnvBuilder } from "./env.ts";
+import { VFS } from "./lsp/vfs.ts";
+import { ReconLanguageServer } from "./lsp/lsp.ts";
+import { ReconEnvBuilder } from "./lsp/env.ts";
 import { ReconInitializer } from "./initializer.ts";
 
 const main = Effect.gen(function* () {

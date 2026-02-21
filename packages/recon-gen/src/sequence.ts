@@ -1,10 +1,10 @@
 import ts, { factory } from "typescript";
 import { Effect } from "effect"
 import { createLayerDependency, type Dependency, lowercaseFirstLetter, NodeCreator } from "./node.ts";
-import { VFS } from "./vfs.ts";
+import { VFS } from "./lsp/vfs.ts";
 import { Action } from "./action.ts";
 import { Selector } from "./selector.ts";
-import { ReconLanguageServer } from "./lsp.ts";
+import { ReconLanguageServer } from "./lsp/lsp.ts";
 
 export class Sequence extends NodeCreator {
     private dependencyNames: string[];

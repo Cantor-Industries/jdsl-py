@@ -4,9 +4,9 @@ import process from "process";
 
 import { Effect } from "effect";
 import { PackageJsonError, EntryFileMissingError } from "./errors.ts";
-import { ReconLanguageServer } from "./lsp.ts";
+import { ReconLanguageServer } from "./lsp/lsp.ts";
 import type { PackageJson, DenoJson } from "./types.ts";
-import { VFS } from "./vfs.ts";
+import { VFS } from "./lsp/vfs.ts";
 import { Transform } from "./transform.ts";
 
 export class ReconInitializer extends Effect.Service<ReconInitializer>()(

@@ -2,11 +2,11 @@ import ts, { factory } from "typescript";
 import { Effect } from "effect";
 import { createRelativeImportPath, type Dependency, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
 import { Action } from "./action.ts";
-import { VFS } from "./vfs.ts";
+import { VFS } from "./lsp/vfs.ts";
 import { generateFactoryCode } from "./factorycodegen.ts";
 import { Sequence } from "./sequence.ts";
 import { Selector } from "./selector.ts";
-import { ReconLanguageServer } from "./lsp.ts";
+import { ReconLanguageServer } from "./lsp/lsp.ts";
 
 export class Root extends NodeCreator {
     private dependencyName: string;

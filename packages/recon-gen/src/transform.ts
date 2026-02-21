@@ -3,11 +3,11 @@ import { getEscapedText } from "./node.ts";
 import { Root, RootBuilder } from "./root.ts";
 import { Action, ActionBuilder } from "./action.ts";
 import { Effect } from "effect";
-import { ReconLanguageServer } from "./lsp.ts";
-import { normalize, VFS } from "./vfs.ts";
+import { ReconLanguageServer } from "./lsp/lsp.ts";
+import { normalize, VFS } from "./lsp/vfs.ts";
 import { Sequence, SequenceBuilder } from "./sequence.ts";
 import { Selector, SelectorBuilder } from "./selector.ts";
-import { ReconEnvBuilder } from "./env.ts";
+import { ReconEnvBuilder } from "./lsp/env.ts";
 
 export class Tools extends Effect.Service<Tools>()(
     "Tools",
