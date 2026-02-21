@@ -2,7 +2,7 @@ import { Effect } from "effect";
 import ts, { factory, type Node } from "typescript";
 import path from "path";
 import { ReconLanguageServer } from "./lsp.ts";
-import { getEscapedText } from "../node.ts";
+import { getEscapedText } from "../dsl/node.ts";
 
 export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
     "ReconEnvBuilder",

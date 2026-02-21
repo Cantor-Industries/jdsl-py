@@ -1,12 +1,12 @@
-// Rember to explore Effect.firstSuccessOf
 import ts, { factory } from "typescript";
 import { Effect } from "effect"
 import { createLayerDependency, type Dependency, lowercaseFirstLetter, NodeCreator } from "./node.ts";
-import { VFS } from "./lsp/vfs.ts";
+import { VFS } from "../lsp/vfs.ts";
 import { Action } from "./action.ts";
-import { Sequence } from "./sequence.ts";
+import { Selector } from "./selector.ts";
+import { ReconLanguageServer } from "../lsp/lsp.ts";
 
-export class Selector extends NodeCreator {
+export class Sequence extends NodeCreator {
     private dependencyNames: string[];
     constructor(name: string, basepath?: string) {
         super(name, basepath);
@@ -23,11 +23,11 @@ export class Selector extends NodeCreator {
     }
 
     override addLayer(): void {
-        this.layer = createSelectorLayer(this.name, this.layerBody, this.dependencies);
+        this.layer = createSequenceLayer(this.name, this.layerBody, this.dependencies);
     }
 
     override addLayerBody(): void {
-        this.layerBody = createSelectorLayerBody(this.dependencies);
+        this.layerBody = createSequenceLayerBody(this.dependencies);
     }
 
     override addLayerDependency(dependencyName: string): void {
@@ -36,56 +36,60 @@ export class Selector extends NodeCreator {
     }
 }
 
-export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
-    "SelectorBuilder",
+export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
+    "SequenceBuilder",
     {
         effect: Effect.gen(function* () {
             const vfs = yield* VFS;
+            const languageServer = yield* ReconLanguageServer;
 
-            const currentSelector: Selector[] = [];
-            const selectors: Map<string, Selector> = new Map();
+            const currentSequence: Sequence[] = [];
+            const sequences: Map<string, Sequence> = new Map();
             let count = 0;
 
-            const buildSelector = () => {
-                addSelector("selector_" + count, "./dist/selectors/");
+            const buildSequence = () => {
+                addSequence("sequence_" + count, "./dist/sequences/");
                 count += 1;
                 addImport("effect", "Data", "Effect");
-                selector().addError();
+                sequence().addError();
                 addLayer();
 
-                vfs.set(selector().path(), selector().print());
+                vfs.set(sequence().path(), sequence().print());
+                languageServer.getSyntacticDiagnostics(sequence().path());
             };
             const addChild = (child: Action | Sequence | Selector) => {
-                selector().addChild(child);
-                vfs.set(selector().path(), selector().print());
-            }
+                sequence().addChild(child);
+                vfs.set(sequence().path(), sequence().print());
+                languageServer.getSyntacticDiagnostics(sequence().path());
+            };
+
             const addImport = (packageName: string, ...values: string[]) => {
-                selector().addImport(packageName, undefined, ...values)
+                sequence().addImport(packageName, undefined, ...values)
             };
             const addLayer = () => {
-                selector().addLayer();
+                sequence().addLayer();
             };
-            const addSelector = (name: string, basePath: string) => {
-                const selector = new Selector(name, basePath);
-                currentSelector.push(selector);
-                selectors.set(name, selector);
+            const addSequence = (name: string, basePath: string) => {
+                const sequence = new Sequence(name, basePath);
+                currentSequence.push(sequence);
+                sequences.set(name, sequence);
             };
-            const pop = () => currentSelector.pop();
-            const selector = () => {
-                const sel = currentSelector.at(-1);
-                if (sel) {
-                    return sel;
+            const pop = () => currentSequence.pop();
+            const sequence = () => {
+                const seq = currentSequence.at(-1);
+                if (seq) {
+                    return seq;
                 }
-                throw new Error("Selector Map Empty");
+                throw new Error("Sequence Map Empty");
 
 
             };
-            return { addChild, buildSelector, pop, selector } as const;
+            return { addChild, buildSequence, pop, sequence } as const;
         })
     }
 ) { }
 
-const createSelectorLayer = (layerName: string, body: ts.Statement[], dependencies: Dependency[]) => {
+const createSequenceLayer = (layerName: string, body: ts.Statement[], dependencies: Dependency[]) => {
     const serviceElements: ts.Expression[] = [];
     const services = factory.createArrayLiteralExpression(serviceElements);
     const dependencyNames = dependencies.map(dep => dep.name);
@@ -165,57 +169,45 @@ const createSelectorLayer = (layerName: string, body: ts.Statement[], dependenci
     return layer;
 }
 
-const createSelectorLayerBody = (dependencies: Dependency[]) => {
-    if (dependencies.length === 0) {
+const createSequenceLayerBody = (dependencies: Dependency[]) => {
+    if (!dependencies || dependencies.length === 0) {
         throw new Error("Dependencies Array Cannot be Zero");
     }
-    const effects: ts.Expression[] = [];
-    const callParameters = dependencies[0]!.callParameters;
-    const declarationParameters = dependencies[0]!.declarationParameters;
+    const updateBody: ts.Statement[] = [];
+    const declarationParameters: ts.ParameterDeclaration[] = dependencies[0]!.declarationParameters;
 
+    let childCount = 0;
     for (const dependency of dependencies) {
-        const effect = factory.createCallExpression(
-            factory.createPropertyAccessExpression(
-                factory.createIdentifier(lowercaseFirstLetter(dependency.name)),
-                factory.createIdentifier("update")
-            ),
-            undefined,
-            callParameters
-        )
-        effects.push(effect)
-    }
-
-    const updateBody = [
-        factory.createVariableStatement(
+        const statement = factory.createVariableStatement(
             undefined,
             factory.createVariableDeclarationList(
                 [factory.createVariableDeclaration(
-                    factory.createIdentifier("effects"),
+                    factory.createIdentifier("step_" + childCount),
                     undefined,
                     undefined,
-                    factory.createArrayLiteralExpression(
-                        effects,
-                        false
+                    factory.createBinaryExpression(
+                        factory.createIdentifier("yield"),
+                        factory.createToken(ts.SyntaxKind.AsteriskToken),
+                        factory.createCallExpression(
+                            factory.createPropertyAccessExpression(
+                                factory.createIdentifier(lowercaseFirstLetter(dependency.name)),
+                                factory.createIdentifier("update")
+                            ),
+                            undefined,
+                            childCount === 0 ? dependency.callParameters : [factory.createIdentifier("step_" + (childCount - 1))]
+                        )
                     )
                 )],
                 ts.NodeFlags.Const
             )
-        ),
-        factory.createReturnStatement(factory.createBinaryExpression(
-            factory.createIdentifier("yield"),
-            factory.createToken(ts.SyntaxKind.AsteriskToken),
-            factory.createCallExpression(
-                factory.createPropertyAccessExpression(
-                    factory.createIdentifier("Effect"),
-                    factory.createIdentifier("firstSuccessOf")
-                ),
-                undefined,
-                [factory.createIdentifier("effects")]
-            )
-        ))
-    ];
+        );
+        childCount += 1;
+        updateBody.push(statement)
 
-    const selectorBody = [
+    }
+    updateBody.push(factory.createReturnStatement(factory.createIdentifier("step_" + (childCount - 1))))
+
+    const sequenceBody = [
         factory.createVariableStatement(
             undefined,
             factory.createVariableDeclarationList(
@@ -267,5 +259,5 @@ const createSelectorLayerBody = (dependencies: Dependency[]) => {
             )
         ))
     ];
-    return selectorBody;
+    return sequenceBody;
 }

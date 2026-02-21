@@ -7,7 +7,7 @@ import { PackageJsonError, EntryFileMissingError } from "./errors.ts";
 import { ReconLanguageServer } from "./lsp/lsp.ts";
 import type { PackageJson, DenoJson } from "./types.ts";
 import { VFS } from "./lsp/vfs.ts";
-import { Transform } from "./transform.ts";
+import { Transform } from "./dsl/transform.ts";
 
 export class ReconInitializer extends Effect.Service<ReconInitializer>()(
     "ReconInitializer",

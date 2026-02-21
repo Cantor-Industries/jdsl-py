@@ -2,11 +2,10 @@ import ts, { factory, type Node } from "typescript";
 import { createRelativeImportPath, getEscapedText, NodeCreator } from "./node.ts";
 import { Effect } from "effect/index";
 import { Tools } from "./transform.ts";
-import { normalize, VFS } from "./lsp/vfs.ts";
-import { ReconLanguageServer } from "./lsp/lsp.ts";
-import { generateFactoryCode } from "./factorycodegen.ts";
-import { ReconEnvBuilder } from "./lsp/env.ts";
-import { make } from "effect/Schema";
+import { VFS } from "../lsp/vfs.ts";
+import { ReconLanguageServer } from "../lsp/lsp.ts";
+import { generateFactoryCode } from "../factorycodegen.ts";
+import { ReconEnvBuilder } from "../lsp/env.ts";
 
 export class Action extends NodeCreator {
     private runFunction: ts.VariableStatement[];

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { Effect, } from "effect";
 import { NodeContext, NodeRuntime } from "@effect/platform-node"
-import { Tools, Transform } from "./transform.ts";
+import { Tools, Transform } from "./dsl/transform.ts";
 import { VFS } from "./lsp/vfs.ts";
 import { ReconLanguageServer } from "./lsp/lsp.ts";
 import { ReconEnvBuilder } from "./lsp/env.ts";
