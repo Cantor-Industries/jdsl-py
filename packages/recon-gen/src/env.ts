@@ -102,7 +102,19 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                 if (!symbol) {
                     throw new Error(`Unable to resolve symbol ${node.getText()}`);
                 }
-                const symbolAlias = checker?.getAliasedSymbol(symbol);
+                const visitedSymbols = new Set<ts.Symbol>();
+                let symbolAlias = symbol;
+                while (symbolAlias.flags & ts.SymbolFlags.Alias) {
+                    if (visitedSymbols.has(symbolAlias)) {
+                        break;
+                    }
+                    visitedSymbols.add(symbolAlias);
+                    const aliased = checker?.getAliasedSymbol(symbolAlias);
+                    if (!aliased) {
+                        break;
+                    }
+                    symbolAlias = aliased
+                }
                 const symbolType = checker?.getTypeOfSymbolAtLocation(symbolAlias!, symbolAlias?.valueDeclaration!);
                 const signatures = symbolType?.getCallSignatures();
                 if (!signatures || signatures?.length === 0) {
@@ -117,6 +129,7 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
 
                 const forwardedArgs = parameters.map(param => {
                     const name = param.name;
+                    // check for spread operator
                     return factory.createIdentifier(name)
                 })
                 const typeParams = declaration.typeParameters;
@@ -189,7 +202,6 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                     node: declaration
                 }
                 importNodes.set(getEscapedText(packageName), statement)
-                console.log(packageMap)
             }
 
             const init = (envNodes: Node[]) => {
