@@ -60,7 +60,7 @@ export class ModelsDev extends Effect.Service<ModelsDev>()(
                 })
 
                 const models = yield* getModels
-                const result = yield* Schema.encode(ModelsDevSchema)(models);
+                const result = yield* Schema.decode(ModelsDevSchema)(models);
                 return result as ModelProviders
             })
 
