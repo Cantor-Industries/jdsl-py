@@ -7,7 +7,7 @@ import { ReconLanguageServer } from "../lsp/lsp.ts";
 import { normalize, VFS } from "../lsp/vfs.ts";
 import { Sequence, SequenceBuilder } from "./sequence.ts";
 import { Selector, SelectorBuilder } from "./selector.ts";
-import { ReconEnvBuilder } from "../lsp/env.ts";
+import { ReconResolver } from "../lsp/resolver.ts";
 
 export class Tools extends Effect.Service<Tools>()(
     "Tools",
@@ -178,36 +178,14 @@ export class Transform extends Effect.Service<Transform>()(
             const tools = yield* Tools;
             const skills = yield* Skills;
             const languageService = yield* ReconLanguageServer;
-            const reconEnv = yield* ReconEnvBuilder;
+            const resolver = yield* ReconResolver;
             const vfs = yield* VFS;
 
             const transform = (sourceFile: SourceFile) => Effect.sync(() => {
-                const toolsNodes: Node[] = [];
-                const skillsNodes: Node[] = [];
-                const envNodes: Node[] = [];
-
-                const visitor = (node: Node): Node => {
-                    if (ts.isSatisfiesExpression(node)) {
-                        const satisfiesType = node.getChildAt(2);
-                        if (satisfiesType.getText().startsWith("Tool")) {
-                            toolsNodes.push(node.getChildAt(0));
-                        } else if (satisfiesType.getText().startsWith("Skill")) {
-                            skillsNodes.push(node.getChildAt(0));
-                        }
-                    }
-
-                    if (ts.isImportDeclaration(node)) {
-                        envNodes.push(node)
-                    }
-
-                    return node.forEachChild(visitor)!
-                }
-                ts.visitNode(sourceFile, visitor, undefined);
+                const { toolsNodes, skillsNodes } = resolver.resolve(sourceFile)
 
                 console.log("Initializing tools");
                 tools.init(toolsNodes);
-                console.log("Initializing env");
-                reconEnv.init(envNodes);
                 console.log("Initializing skills");
                 skills.init(skillsNodes);
                 const ignoredCodes = new Set([
@@ -236,6 +214,6 @@ export class Transform extends Effect.Service<Transform>()(
             });
             return { transform } as const;
         }),
-        dependencies: [Skills.Default]
+        dependencies: [Skills.Default, ReconResolver.Default]
     }
 ) { }
