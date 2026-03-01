@@ -4,14 +4,14 @@ import { Effect } from "effect";
 
 import { ReconLanguageServer } from "./lsp.ts";
 import { getEscapedText } from "../dsl/node.ts";
-import type { ImportDeclaration } from "./resolver.ts";
+import type { ImportClause, ImportDeclaration } from "../dsl/node.ts";
 
 export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
     "ReconEnvBuilder",
     {
         effect: Effect.gen(function* () {
             const languageServer = yield* ReconLanguageServer;
-            const importNodes = new Map<string, { namedImport: string | undefined, namedBindings: string[], node: Node }>();
+            const importNodes = new Map<string, ImportClause>();
             const packageMap = new Map<string, string>();
 
             const collectIdentifiers = (node: Node, out: ts.Identifier[]) => {
@@ -22,6 +22,7 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
             }
             const checkImport = (name: string) => {
                 console.log("Checking import:", name)
+                // console.log(packageMap)
                 const namedBinding = packageMap.get(name);
                 if (!namedBinding) {
                     console.log("Could not resolve", name)
@@ -36,26 +37,31 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
             }
 
             const getImport = (name: string) => {
-                const packageName = packageMap.get(name);
-                if (!packageName) {
+                const moduleSpecifier = packageMap.get(name);
+                if (!moduleSpecifier) {
                     throw new Error(`Could not resolve ${name}`)
                 }
-                const namedBinding = importNodes.get(packageName);
-                if (!packageName) {
+                const importClause = importNodes.get(moduleSpecifier);
+                if (!importClause) {
                     throw new Error(`Could not resolve package for ${name}`)
                 }
-                console.log(packageName, "=>", namedBinding?.namedBindings, ",", namedBinding?.namedImport);
-                return { namedBinding, packageName } as const
+                return { moduleSpecifier, importClause } as const
             }
 
             const getImportNode = (name: string) => {
                 if (!checkImport(name)) {
                     throw new Error(`${name} import not found/invalid`)
                 }
-                const namedBinding = packageMap.get(name)!;
-                const nodes = importNodes.get(namedBinding)!.node as ts.ImportDeclaration;
+                const namedBinding = packageMap.get(name);
+                if (!namedBinding) {
+                    throw new Error(`invalid ${name} import`);
+                }
+                const node = importNodes.get(namedBinding)?.node;
+                if (!node) {
+                    throw new Error(`Could not resolve node for ${name}`);
+                }
 
-                const importClause = nodes.importClause;
+                const importClause = node.importClause;
                 if (!importClause) {
                     throw new Error(`could not find import clause for ${name}`);
                 }
@@ -66,34 +72,15 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                 const namedBindings = importClause.namedBindings;
                 let binding: Node | undefined;
                 namedBindings?.forEachChild(child => {
-                    if (getEscapedText(child) === name) {
-                        // get identifier behind import specifier
-                        binding = child.getChildAt(0);
-                        return
+                    if (ts.isImportSpecifier(child)) {
+                        console.log(`Comparing ${name} against ${child.name.text}`);
+                        if (name === child.name.text) binding = child.name
                     }
                 })
                 if (!binding) {
                     throw new Error(`missing import clause for ${name}`);
                 }
                 return binding;
-            }
-            const getPath = (node: Node) => {
-                const program = languageServer.getProgram();
-                const checker = program?.getTypeChecker();
-                const symbol = checker?.getSymbolAtLocation(node);
-
-                if (!symbol) {
-                    throw new Error(`Unable to resolve symbol ${node.getText()}`);
-                }
-                const symbolAlias = checker?.getAliasedSymbol(symbol);
-                const symbolSourcefile = symbolAlias?.valueDeclaration?.getSourceFile();
-
-                if (!symbolSourcefile) {
-                    throw new Error(`Unable to resolve symbol ${symbol.name}`);
-                }
-
-                console.log(node.getText(), "=>", symbolSourcefile.fileName);
-                return symbolSourcefile.fileName;
             }
 
             const getRunFunction = (callName: string) => {
@@ -158,7 +145,7 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
             const checkSymbols = (runFunction: ts.ArrowFunction) => {
                 const identifiers: ts.Identifier[] = [];
                 collectIdentifiers(runFunction, identifiers);
-                const exportNodes = new Map<string, { namedImport: string | undefined, namedBindings: string[] }>();
+                const exportNodes = new Map<string, ImportClause>();
 
                 const program = languageServer.getProgram();
                 const checker = program?.getTypeChecker();
@@ -191,20 +178,17 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                 }
                 const namedBindings = importDeclarationObj?.namedBindings;
                 namedBindings?.forEach(child => {
-                    packageMap.set(child, moduleSpecifier);
+                    //remember to confirm it works
+                    packageMap.set(child.name, moduleSpecifier);
                 })
-                importNodes.set(moduleSpecifier, importDeclarationObj!)
-            }
-
-            const init = (envNodes: Node[]) => {
-                for (const envNode of envNodes) {
-                    if (ts.isImportDeclaration(envNode)) {
-                        // addImport(envNode);
-                    }
-                }
+                importNodes.set(moduleSpecifier, importDeclarationObj!);
+                // importNodes.entries().forEach(node => {
+                //     console.log(`${node[0]} ---> {\n\tnamedImport: ${node[1].namedImport},\n\tnamedBindings: ${node[1].namedBindings.map(value => [value.name, value.propertyName, value.isType])}\n\tphaseModifier: ${node[1].phaseModifier}\n}`);
+                // })
             }
 
             return { addImport, checkImport, checkSymbols, getImport, getRunFunction } as const
         })
+        
     }
 ) { }

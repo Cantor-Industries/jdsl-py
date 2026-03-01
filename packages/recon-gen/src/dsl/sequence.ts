@@ -1,6 +1,6 @@
 import ts, { factory } from "typescript";
 import { Effect } from "effect"
-import { createLayerDependency, type Dependency, lowercaseFirstLetter, NodeCreator } from "./node.ts";
+import { createLayerDependency, type Dependency, type ImportClause, lowercaseFirstLetter, NodeCreator } from "./node.ts";
 import { VFS } from "../lsp/vfs.ts";
 import { Action } from "./action.ts";
 import { Selector } from "./selector.ts";
@@ -50,7 +50,14 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
             const buildSequence = () => {
                 addSequence("sequence_" + count, "./dist/sequences/");
                 count += 1;
-                addImport("effect", "Data", "Effect");
+                const importClause: ImportClause = {
+                    phaseModifier: false,
+                    namedBindings: [
+                        { name: "Data", isType: false },
+                        { name: "Effect", isType: false },
+                    ]
+                }
+                addImport("effect", importClause);
                 sequence().addError();
                 addLayer();
 
@@ -63,8 +70,8 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
                 languageServer.getSyntacticDiagnostics(sequence().path());
             };
 
-            const addImport = (packageName: string, ...values: string[]) => {
-                sequence().addImport(packageName, undefined, ...values)
+            const addImport = (moduleSpecifier: string, importClause: ImportClause) => {
+                sequence().addImport(moduleSpecifier, importClause)
             };
             const addLayer = () => {
                 sequence().addLayer();

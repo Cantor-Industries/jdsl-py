@@ -1,7 +1,7 @@
 // Rember to explore Effect.firstSuccessOf
 import ts, { factory } from "typescript";
 import { Effect } from "effect"
-import { createLayerDependency, type Dependency, lowercaseFirstLetter, NodeCreator } from "./node.ts";
+import { createLayerDependency, type Dependency, type ImportClause, lowercaseFirstLetter, NodeCreator } from "./node.ts";
 import { VFS } from "../lsp/vfs.ts";
 import { Action } from "./action.ts";
 import { Sequence } from "./sequence.ts";
@@ -49,7 +49,15 @@ export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
             const buildSelector = () => {
                 addSelector("selector_" + count, "./dist/selectors/");
                 count += 1;
-                addImport("effect", "Data", "Effect");
+                const importClause: ImportClause = {
+                    phaseModifier: false,
+                    namedBindings: [
+                        { name: "Data", isType: false },
+                        { name: "Effect", isType: false },
+                        { name: "Either", isType: false },
+                    ]
+                }
+                addImport("effect", importClause);
                 selector().addError();
                 addLayer();
 
@@ -59,8 +67,8 @@ export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
                 selector().addChild(child);
                 vfs.set(selector().path(), selector().print());
             }
-            const addImport = (packageName: string, ...values: string[]) => {
-                selector().addImport(packageName, undefined, ...values)
+            const addImport = (packageName: string, importClause: ImportClause) => {
+                selector().addImport(packageName, importClause)
             };
             const addLayer = () => {
                 selector().addLayer();

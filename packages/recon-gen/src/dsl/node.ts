@@ -6,9 +6,26 @@ import { Selector } from "./selector.ts";
 
 export interface Dependency {
 	name: string;
-	callParameters: ts.Identifier[];
+	callParameters: (ts.Identifier | ts.SpreadElement)[];
 	declarationParameters: ts.ParameterDeclaration[];
 	pipeable: boolean;
+}
+
+export interface ImportSpecifier {
+	propertyName?: string ;
+	name: string;
+	isType: boolean
+}
+
+export interface ImportClause {
+	namedImport?: string;
+	namedBindings: ImportSpecifier[];
+	node?: ts.ImportDeclaration;
+	phaseModifier?: boolean
+}
+
+export interface ImportDeclaration {
+	[moduleSpecifier: string]: ImportClause
 }
 
 export class NodeCreator {
@@ -25,7 +42,7 @@ export class NodeCreator {
 	protected dependencies: Dependency[];
 	protected childName: string;
 	public args: ts.ArrayLiteralExpression;
-	public callParameters: ts.Identifier[];
+	public callParameters: (ts.Identifier | ts.SpreadElement)[];
 	public declarationParameters: ts.ParameterDeclaration[];
 	private firstChild: boolean;
 
@@ -48,9 +65,9 @@ export class NodeCreator {
 		this.firstChild = true
 	}
 
-	addImport(packageName: string, namedImport: string | undefined, ...namedBindings: (string | { value: string, as: string })[]) {
-		const imports = createImport(packageName, namedImport, ...namedBindings);
-		this.importList.set(packageName, imports);
+	addImport(moduleSpecifier: string, importClause: ImportClause) {
+		const imports = createImport(moduleSpecifier, importClause);
+		this.importList.set(moduleSpecifier, imports);
 	}
 
 	protected addChild(child: Action | Sequence | Selector, pipeable?: boolean): void {
@@ -58,8 +75,13 @@ export class NodeCreator {
 		this.childName = child.name;
 		const relativePath = createRelativeImportPath(this.path(), child.path());
 		// class names imports must start with an uppercase letter
-		const value = isFirstLetterLoweCase(this.childName) ? { value: this.childName, as: uppercaseFirstLetter(this.childName) } : this.childName;
-		this.addImport(relativePath, undefined, value);
+		const namedBinding: ImportSpecifier = isFirstLetterLoweCase(this.childName) ? 
+			{propertyName: this.childName, name: uppercaseFirstLetter(this.childName), isType: false} : { propertyName: undefined, name: this.childName, isType: false}
+		const importClause: ImportClause = {
+			namedImport: undefined,
+			namedBindings: [namedBinding],
+		}
+		this.addImport(relativePath, importClause);
 		this.addLayerDependency(uppercaseFirstLetter(this.childName));
 
 		if (this.firstChild) {
@@ -283,34 +305,26 @@ export const createLayerDependency = (dependencyName: string) => {
 	return dep;
 }
 
-const createImport = (packageName: string, namedImport: string | undefined, ...namedBindings: (string | { value: string, as: string })[]): ts.ImportDeclaration => {
+const createImport = (moduleSpecifier: string, importClause: ImportClause): ts.ImportDeclaration => {
 	const namedImports = [];
-	for (const namedBinding of namedBindings) {
-		if (typeof namedBinding == "string") {
-			namedImports.push(factory.createImportSpecifier(
-				false,
-				undefined,
-				factory.createIdentifier(namedBinding)
-			))
-		} else {
-			namedImports.push(factory.createImportSpecifier(
-				false,
-				factory.createIdentifier(namedBinding.value),
-				factory.createIdentifier(namedBinding.as)
-			))
-		}
+	for (const namedBinding of importClause.namedBindings) {
+		namedImports.push(factory.createImportSpecifier(
+			namedBinding.isType,
+			namedBinding.propertyName ? factory.createIdentifier(namedBinding.propertyName) : undefined,
+			factory.createIdentifier(namedBinding.name)
+		))
 	}
-
 	const imports = factory.createImportDeclaration(
 		undefined,
 		factory.createImportClause(
-			undefined,
-			namedImport ? factory.createIdentifier(namedImport) : undefined,
+			importClause.phaseModifier ? ts.SyntaxKind.TypeKeyword: undefined,
+			importClause.namedImport ? factory.createIdentifier(importClause.namedImport) : undefined,
 			namedImports.length != 0 ? factory.createNamedImports(namedImports) : undefined
 		),
-		factory.createStringLiteral(packageName),
+		factory.createStringLiteral(moduleSpecifier),
 		undefined
-	);
+	)
+
 	return imports;
 }
 

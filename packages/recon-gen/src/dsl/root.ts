@@ -1,6 +1,6 @@
 import ts, { factory } from "typescript";
 import { Effect } from "effect";
-import { createRelativeImportPath, type Dependency, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
+import { createRelativeImportPath, type Dependency, type ImportClause, type ImportSpecifier, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
 import { Action } from "./action.ts";
 import { VFS } from "../lsp/vfs.ts";
 import { generateFactoryCode } from "../factorycodegen.ts";
@@ -16,31 +16,36 @@ export class Root extends NodeCreator {
         this.args = factory.createArrayLiteralExpression();
     }
 
-  override addChild(child: Action | Sequence | Selector, pipeable?: boolean): void {
-    if (this.layerDependencies.length != 1) {
-      console.log("Inside", this.name, "adding", child.name, "as a child")
-      this.childName = child.name;
-      const relativePath = createRelativeImportPath(this.path(), child.path());
-      // class names imports must start with an uppercase letter
-      const value = isFirstLetterLoweCase(this.childName) ? { value: this.childName, as: uppercaseFirstLetter(this.childName) } : this.childName;
-      this.addImport(relativePath, undefined, value);
-      this.addLayerDependency(uppercaseFirstLetter(this.childName));
+    override addChild(child: Action | Sequence | Selector, pipeable?: boolean): void {
+        if (this.layerDependencies.length != 1) {
+            console.log("Inside", this.name, "adding", child.name, "as a child")
+            this.childName = child.name;
+            const relativePath = createRelativeImportPath(this.path(), child.path());
+            // class names imports must start with an uppercase letter
+            const namedBinding: ImportSpecifier = isFirstLetterLoweCase(this.childName) ?
+                { propertyName: this.childName, name: uppercaseFirstLetter(this.childName), isType: false } : { propertyName: undefined, name: this.childName, isType: false }
+            const importClause: ImportClause = {
+                namedImport: undefined,
+                namedBindings: [namedBinding],
+            }      
+            this.addImport(relativePath, importClause);
+            this.addLayerDependency(uppercaseFirstLetter(this.childName));
 
-      this.args = child.args;
-      this.callParameters = child.callParameters;
-      this.declarationParameters = child.declarationParameters;
-      this.dependencies.push({
-        name: uppercaseFirstLetter(this.childName),
-        callParameters: child.callParameters,
-        declarationParameters: child.declarationParameters,
-        pipeable: pipeable ?? true
-      })
-      this.addLayerBody();
-      this.update();
-    } else {
-      console.log("Root node can only have one child");
+            this.args = child.args;
+            this.callParameters = child.callParameters;
+            this.declarationParameters = child.declarationParameters;
+            this.dependencies.push({
+                name: uppercaseFirstLetter(this.childName),
+                callParameters: child.callParameters,
+                declarationParameters: child.declarationParameters,
+                pipeable: pipeable ?? true
+            })
+            this.addLayerBody();
+            this.update();
+        } else {
+            console.log("Root node can only have one child");
+        }
     }
-  }
 
     override addLayerBody(): void {
         this.layerBody = createRootLayerBody(this.name, this.args, this.dependencies);
@@ -68,7 +73,15 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
                 const root = new Root("Root", "./dist/");
                 root.name = name ?? "Root";
                 root.name = root.name === "root" ? "Root" : root.name;
-                root.addImport("effect", undefined, "Data", "Effect", "Either");
+                const importClause: ImportClause = {
+                    phaseModifier: false,
+                    namedBindings: [
+                        { name: "Data", isType: false },
+                        { name: "Effect", isType: false },
+                        { name: "Either", isType: false },
+                    ]
+                }
+                root.addImport("effect", importClause);
                 root.addError();
                 root.addLayer();
                 vfs.set(root.path(), root.print());
@@ -168,9 +181,9 @@ const createRootLayer = (layerName: string, dependencies: ts.VariableStatement[]
 }
 
 const createRootLayerBody = (layerName: string, args: ts.ArrayLiteralExpression, dependencies: Dependency[]) => {
-    const dependencyName = dependencies.map(dep => dep.name)[0];    
+    const dependencyName = dependencies.map(dep => dep.name)[0];
     const callParameters = dependencies.map(dep => dep.callParameters)[0];
-    const declarationParameters = dependencies.map(dep => dep.declarationParameters)[0];    
+    const declarationParameters = dependencies.map(dep => dep.declarationParameters)[0];
     let values: ts.Expression[] = [];
     let argsProvided = false;
 

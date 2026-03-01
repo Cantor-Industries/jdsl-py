@@ -1,25 +1,16 @@
 import ts, { type Node, type SourceFile } from "typescript";
+// import type { Node, SourceFile, factory } from "typescript";
 import { Effect } from "effect";
-import { getEscapedText } from "../dsl/node.ts";
+import { getEscapedText, type ImportSpecifier } from "../dsl/node.ts";
 import { ReconEnvBuilder } from "./env.ts";
 import { ReconLanguageServer } from "./lsp.ts";
 
-export interface ImportDeclaration {
-    [moduleSpecifier: string]: {
-        namedImport: string | undefined;
-        namedBindings: string[];
-        node: ts.ImportDeclaration
-    }
-}
-
-export class ReconResolver extends Effect.Service<ReconResolver>()(
-    "ReconResolver",
+export class ImportResolver extends Effect.Service<ImportResolver>()(
+    "ImportResolver",
     {
         effect: Effect.gen(function* () {
             const reconEnv = yield* ReconEnvBuilder;
             const languageServer = yield* ReconLanguageServer;
-            const toolsNodes: Node[] = [];
-            const skillsNodes: Node[] = [];
 
             const extractDeclarations = (node: ts.ImportDeclaration, checker: ts.TypeChecker) => {
                 let importedSymbol: Node | undefined;
@@ -31,7 +22,11 @@ export class ReconResolver extends Effect.Service<ReconResolver>()(
                 if (importClause.name) {
                     importedSymbol = importClause.name
                 } else {
-                    importedSymbol = importClause.namedBindings?.forEachChild(child => child)?.getChildAt(0);
+                    importClause.namedBindings?.forEachChild(child => {
+                        if (ts.isImportSpecifier(child)) {
+                            importedSymbol = child.name
+                        }
+                    })
                 }
                 if (!importedSymbol) {
                     throw new Error(`Failed to resolve import clause at ${node.getText()}`);
@@ -110,20 +105,38 @@ export class ReconResolver extends Effect.Service<ReconResolver>()(
                 const importClause = node.importClause;
                 const namedImport = importClause?.name;
                 const namedBindings = importClause?.namedBindings;
-                const bindings: string[] = [];
+                const bindings: ImportSpecifier[] = [];
 
                 namedBindings?.forEachChild(child => {
-                    bindings.push(child.getText());
+                    if (namedBindings && ts.isImportSpecifier(child)) {
+                        const propertyName = child.propertyName;
+                        const name = child.name
+                        console.log(propertyName?.text, "->", name.text)
+                        bindings.push({propertyName: propertyName?.text, name: name.text, isType: child.isTypeOnly})
+                    }
                 })
                 const importDeclarationObj = {
                     [moduleSpecifier]: {
                         namedImport: namedImport?.text,
                         namedBindings: bindings,
-                        node: node
+                        node: node,
+                        phaseModifier: importClause?.phaseModifier ? true : false
                     }
                 }
                 reconEnv.addImport(importDeclarationObj);
             }
+            return { resolveImport } as const;
+        })
+    }
+) { }
+
+export class ReconResolver extends Effect.Service<ReconResolver>()(
+    "ReconResolver",
+    {
+        effect: Effect.gen(function* () {
+            const importResolver = yield* ImportResolver;
+            const toolsNodes: Node[] = [];
+            const skillsNodes: Node[] = [];
 
             const visitor = (node: Node): Node => {
                 if (ts.isSatisfiesExpression(node)) {
@@ -137,8 +150,7 @@ export class ReconResolver extends Effect.Service<ReconResolver>()(
 
                 if (ts.isImportDeclaration(node)) {
                     console.log("Processing:", node.getText());
-                    resolveImport(node);
-
+                    importResolver.resolveImport(node);
                 }
 
                 return node.forEachChild(visitor)!
@@ -150,6 +162,7 @@ export class ReconResolver extends Effect.Service<ReconResolver>()(
             }
 
             return { resolve } as const;
-        })
+        }),
+        dependencies: [ImportResolver.Default]
     }
 ) { }
