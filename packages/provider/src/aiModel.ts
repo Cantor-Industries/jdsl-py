@@ -4,8 +4,8 @@ import { createGoogleGenerativeAI, type GoogleGenerativeAIProvider } from "@ai-s
 import { createOpenAI, type OpenAIProvider } from "@ai-sdk/openai";
 import { createAnthropic, type AnthropicProvider } from "@ai-sdk/anthropic";
 
-import { AiModelConfig } from "./config";
-import { AiProvider } from "./providers";
+import { AiModelConfig } from "./config.ts";
+import { AiProvider } from "./providers.ts";
 
 export class AiError extends Data.TaggedError("AiError")<{msg: string}>{};
 export type AiModelProvider = AnthropicProvider | GoogleGenerativeAIProvider | OpenAIProvider;

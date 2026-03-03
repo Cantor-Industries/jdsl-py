@@ -3,7 +3,7 @@ import { dirname } from "path";
 
 import { Either, Effect, Schema } from "effect";
 import { FileSystem, Path } from "@effect/platform";
-import { AiProvider } from "./providers";
+import { AiProvider } from "./providers.ts";
 
 export const ProvidersList = Schema.Literal("anthropic", "google", "openai", "recon");
 export type Providers = typeof ProvidersList.Type;

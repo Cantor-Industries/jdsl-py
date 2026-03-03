@@ -1,6 +1,6 @@
 import { Data, Effect, Either } from "effect";
-import type { Providers } from "./config";
-import { ModelsDev } from "./models/models-dev";
+import type { Providers } from "./config.ts";
+import { ModelsDev } from "./models/models-dev.ts";
 
 export class AiProviderError extends Data.TaggedError("AiProviderError")<{ msg: string}> { }
 export class AiProvider extends Effect.Service<AiProvider>()(

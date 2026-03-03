@@ -6,8 +6,8 @@ import { promisify } from "util";
 import { Data, Effect, Either, Schema } from "effect";
 import { FileSystem, Path } from "@effect/platform";
 
-import { type ModelProviders, type Provider, ModelsDevSchema } from "./modelSchema";
-import type { Providers } from "../config";
+import { type ModelProviders, type Provider, ModelsDevSchema } from "./modelSchema.ts";
+import type { Providers } from "../config.ts";
 
 const CacheMetadataSchema = Schema.Struct({
     size: Schema.Number,
