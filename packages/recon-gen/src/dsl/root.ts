@@ -7,6 +7,7 @@ import { generateFactoryCode } from "../factorycodegen.ts";
 import { Sequence } from "./sequence.ts";
 import { Selector } from "./selector.ts";
 import { ReconLanguageServer } from "../lsp/lsp.ts";
+import { ReconEnvBuilder } from "src/lsp/env.ts";
 
 export class Root extends NodeCreator {
     private dependencyName: string;
@@ -67,6 +68,7 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
         effect: Effect.gen(function* () {
             const vfs = yield* VFS;
             const languageServer = yield* ReconLanguageServer;
+            const reconEnv = yield* ReconEnvBuilder;
             const rootList: Root[] = [];
 
             const buildRoot = (name?: string) => {
@@ -91,6 +93,15 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
             const addChild = (child: Action | Sequence | Selector) => {
                 const curRoot = root();
                 curRoot.addChild(child);
+                const parameters = child.declarationParameters;
+                parameters.map(param => {
+                    const paramType = param.type;
+                    if (paramType && ts.isTypeReferenceNode(paramType)) {
+                        const name = paramType.getText();
+                        const localImport = reconEnv.getImport(name);
+                        curRoot.addImport(localImport.moduleSpecifier, localImport.importClause)
+                    }
+                })
                 vfs.set(curRoot.path(), curRoot.print());
                 languageServer.getSyntacticDiagnostics(curRoot.path());
             }

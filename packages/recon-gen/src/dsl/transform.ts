@@ -133,9 +133,7 @@ export class Skills extends Effect.Service<Skills>()(
                                     sequenceBuilder.addChild(child);
                                 } else if (!(child instanceof Root)) {
                                     sequenceBuilder.addChild(child);
-                                } else {
-                                    return;
-                                }
+                                } 
 
                             })
                             console.log("Finished exploring", sequenceBuilder.sequence().name);
@@ -184,9 +182,9 @@ export class Transform extends Effect.Service<Transform>()(
             const transform = (sourceFile: SourceFile) => Effect.sync(() => {
                 const { toolsNodes, skillsNodes } = resolver.resolve(sourceFile)
 
-                console.log("Initializing tools");
+                console.log(`Discovered ${toolsNodes.length} Tool definition(s)`);
                 tools.init(toolsNodes);
-                console.log("Initializing skills");
+                console.log(`Discovered ${skillsNodes.length} Skill definition(s)`);
                 skills.init(skillsNodes);
                 const ignoredCodes = new Set([
                     5097, // allow .ts extension imports

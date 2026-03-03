@@ -5,6 +5,7 @@ import { VFS } from "../lsp/vfs.ts";
 import { Action } from "./action.ts";
 import { Selector } from "./selector.ts";
 import { ReconLanguageServer } from "../lsp/lsp.ts";
+import { ReconEnvBuilder } from "src/lsp/env.ts";
 
 export class Sequence extends NodeCreator {
     public dependencyNames: string[];
@@ -42,6 +43,7 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
         effect: Effect.gen(function* () {
             const vfs = yield* VFS;
             const languageServer = yield* ReconLanguageServer;
+            const reconEnv = yield* ReconEnvBuilder;
 
             const currentSequence: Sequence[] = [];
             const sequences: Map<string, Sequence> = new Map();
@@ -70,12 +72,22 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
                     return
                 }
                 sequence().addChild(child);
+                const parameters = child.declarationParameters;
+                parameters.map(param => {
+                    const paramType = param.type;
+                    if (paramType && ts.isTypeReferenceNode(paramType)) {
+                        const name = paramType.getText();
+                        const localImport = reconEnv.getImport(name);
+                        sequence().addImport(localImport.moduleSpecifier, localImport.importClause)
+                    }
+                })
+                sequence().addImport
                 vfs.set(sequence().path(), sequence().print());
                 languageServer.getSyntacticDiagnostics(sequence().path());
             };
 
             const addImport = (moduleSpecifier: string, importClause: ImportClause) => {
-                sequence().addImport(moduleSpecifier, importClause)
+                sequence().addImport(moduleSpecifier, importClause);
             };
             const addLayer = () => {
                 sequence().addLayer();

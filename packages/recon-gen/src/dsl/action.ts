@@ -129,8 +129,8 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                     throw new Error(` ${currentAction?.name} missing matching agent function)`)
                 }
                 const actionImports = reconEnv.checkSymbols(run);
-                for (const [packageName, packages] of actionImports) {
-                    addImport(packageName, packages)
+                for (const [moduleSpecifier, importClause] of actionImports) {
+                    addImport(moduleSpecifier, importClause)
                 }
                 action().addRunFunction(run);
                 action().addLayerBody();

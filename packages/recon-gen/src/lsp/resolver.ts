@@ -12,7 +12,28 @@ export class ImportResolver extends Effect.Service<ImportResolver>()(
             const reconEnv = yield* ReconEnvBuilder;
             const languageServer = yield* ReconLanguageServer;
 
-            const extractDeclarations = (node: ts.ImportDeclaration, checker: ts.TypeChecker) => {
+            const extractSymbolAlias = (node: Node, checker: ts.TypeChecker) => {
+                const symbol = checker.getSymbolAtLocation(node);
+                if (!symbol) {
+                    throw new Error(`Failed to resolve symbol ${node.getText()}`);
+                }
+                const visitedSymbols = new Set<ts.Symbol>();
+                let symbolAlias = symbol;
+                while (symbolAlias.flags & ts.SymbolFlags.Alias) {
+                    if (visitedSymbols.has(symbolAlias)) {
+                        break;
+                    }
+                    visitedSymbols.add(symbolAlias);
+                    const aliased = checker?.getAliasedSymbol(symbolAlias);
+                    if (!aliased) {
+                        break;
+                    }
+                    symbolAlias = aliased;
+                }
+                return symbolAlias;
+            }
+
+            const extractImportDeclarations = (node: ts.ImportDeclaration, checker: ts.TypeChecker) => {
                 let importedSymbol: Node | undefined;
 
                 const importClause = node.importClause;
@@ -31,23 +52,7 @@ export class ImportResolver extends Effect.Service<ImportResolver>()(
                 if (!importedSymbol) {
                     throw new Error(`Failed to resolve import clause at ${node.getText()}`);
                 }
-                const symbol = checker.getSymbolAtLocation(importedSymbol);
-                if (!symbol) {
-                    throw new Error(`Failed to resolve symbol ${importedSymbol.getText()}`);
-                }
-                const visitedSymbols = new Set<ts.Symbol>();
-                let symbolAlias = symbol;
-                while (symbolAlias.flags & ts.SymbolFlags.Alias) {
-                    if (visitedSymbols.has(symbolAlias)) {
-                        break;
-                    }
-                    visitedSymbols.add(symbolAlias);
-                    const aliased = checker?.getAliasedSymbol(symbolAlias);
-                    if (!aliased) {
-                        break;
-                    }
-                    symbolAlias = aliased;
-                }
+                const symbolAlias = extractSymbolAlias(importedSymbol, checker);
                 const declarations = symbolAlias.getDeclarations();
 
                 if (!declarations || declarations.length === 0) {
@@ -57,13 +62,13 @@ export class ImportResolver extends Effect.Service<ImportResolver>()(
             }
 
             const resolveModuleSpecifier = (node: ts.ImportDeclaration, checker: ts.TypeChecker) => {
-                const declarations = extractDeclarations(node, checker);
+                const declarations = extractImportDeclarations(node, checker);
                 const declaration = declarations[0];
                 const declPath = declaration?.getSourceFile().fileName ?? node.moduleSpecifier.getText();
                 return declPath;
             }
-            const resolveSymbol = (node: ts.ImportDeclaration, checker: ts.TypeChecker) => {
-                const declarations = extractDeclarations(node, checker);
+            const resolveImportedSymbols = (node: ts.ImportDeclaration, checker: ts.TypeChecker) => {
+                const declarations = extractImportDeclarations(node, checker);
                 const declaration = declarations[0];
                 const sourceFile = declaration?.getSourceFile();
                 const importNodes: ts.ImportDeclaration[] = [];
@@ -93,7 +98,7 @@ export class ImportResolver extends Effect.Service<ImportResolver>()(
                 let moduleSpecifier: string;
 
                 if (packageName.startsWith("./") || packageName.startsWith("../") || packageName.startsWith("/")) {
-                    const importNodes = resolveSymbol(node, checker);
+                    const importNodes = resolveImportedSymbols(node, checker);
                     importNodes.forEach(node => {
                         resolveImport(node);
                     })
@@ -125,7 +130,7 @@ export class ImportResolver extends Effect.Service<ImportResolver>()(
                 }
                 reconEnv.addImport(importDeclarationObj);
             }
-            return { resolveImport } as const;
+            return { extractSymbolAlias, resolveImport } as const;
         })
     }
 ) { }
@@ -140,11 +145,14 @@ export class ReconResolver extends Effect.Service<ReconResolver>()(
 
             const visitor = (node: Node): Node => {
                 if (ts.isSatisfiesExpression(node)) {
-                    const satisfiesType = node.getChildAt(2);
+                    ts.factory.createSatisfiesExpression(node.expression,node.type)
+                    const satisfiesType = node.type;
                     if (satisfiesType.getText().startsWith("Tool")) {
-                        toolsNodes.push(node.getChildAt(0));
+                        const tool = node.expression;
+                        toolsNodes.push(tool);
                     } else if (satisfiesType.getText().startsWith("Skill")) {
-                        skillsNodes.push(node.getChildAt(0));
+                        const skill = node.expression
+                        skillsNodes.push(skill);
                     }
                 }
 

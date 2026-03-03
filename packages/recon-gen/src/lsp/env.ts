@@ -1,5 +1,5 @@
 import path from "path";
-import ts, { factory, type Node } from "typescript";
+import ts, { factory, type Node, type VariableDeclaration } from "typescript";
 import { Effect } from "effect";
 
 import { ReconLanguageServer } from "./lsp.ts";
@@ -83,6 +83,10 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                 return binding;
             }
 
+            const hasAsyncModifier = (fn: ts.ArrowFunction | ts.FunctionDeclaration | ts.FunctionExpression) => {
+                return !!fn.modifiers?.some(m => m.kind === ts.SyntaxKind.AsyncKeyword);
+            }
+
             const getRunFunction = (callName: string) => {
                 const program = languageServer.getProgram();
                 const checker = program?.getTypeChecker();
@@ -110,16 +114,46 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                     throw new Error(`${callName} not callable`);
                 }
                 console.log(`${callName} is a top-level import has: ${signatures.length} signatures`);
+                console.log(`signature -----> ${checker?.signatureToString(signatures[0]!)}`)
                 const signature = signatures[0]!;
-                const parameters = signature.getParameters();
-                const declaration = signature.getDeclaration();
-                const valueDeclaration = symbolAlias?.valueDeclaration;
+                // const parameters = signature.getParameters();
+                let parameters: ts.ParameterDeclaration[];
+                // const declaration = signature.getDeclaration();
+                let declaration: ts. FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction | undefined;
+                const valueDeclaration = symbolAlias?.valueDeclaration as ts.FunctionDeclaration | ts.VariableDeclaration;
+                // console.log("Value declaration kind:", valueDeclaration.kind)
+                if (ts.isFunctionDeclaration(valueDeclaration!)) {
+                    if (hasAsyncModifier(valueDeclaration)) console.log(callName, "is an async function declaration");
+                    else console.log(callName, "is a function declaration");
+                    declaration = valueDeclaration;
+                } else if (ts.isVariableDeclaration(valueDeclaration)) {
+                    console.log(callName, "is a variable statement");
+                    // const declarationList = valueDeclaration.;
+                    // const variableDeclaration = declarationList.declarations[0];
+                    const initializer = valueDeclaration.initializer;
+                    // console.log("----->", initializer?.getFullText())
+                    // console.log("----->", initializer?.kind);
+                    if (initializer && (ts.isFunctionExpression(initializer) || ts.isArrowFunction(initializer))) {
+                        declaration = initializer;
+                    }
+                } 
+                // else {
+                //     throw new Error(`Resolved declaration for ${callName} is neither a FunctionDeclaration, FunctionExpression, or ArrowFunction`);
+                // }
+                if (!declaration) {
+                    throw new Error(`Resolved declaration for ${callName} is neither a FunctionDeclaration, FunctionExpression, or ArrowFunction`);
+                }
+                // console.log(valueDeclaration?.getFullText());
+                parameters = [...declaration.parameters]
                 const returnType = checker?.getReturnTypeOfSignature(signature);
 
+                // const parameters = valueDeclaration.parameters
                 const forwardedArgs = parameters.map(param => {
-                    const name = param.name;
                     // check for spread operator
-                    return factory.createIdentifier(name)
+                    // if (param.dotDotDotToken) {
+                    //     return factory.createSpreadElement(factory.createIdentifier(param.name.getText()))
+                    // }
+                    return factory.createIdentifier(param.name.getText())
                 })
                 const typeParams = declaration.typeParameters;
                 const callTypeArgs = typeParams && typeParams.length > 0 ?
@@ -132,7 +166,7 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                 )
 
                 const runFunction = factory.createArrowFunction(
-                    undefined, // isAsync?
+                    hasAsyncModifier(declaration) ? [factory.createModifier(ts.SyntaxKind.AsyncKeyword)] : undefined, // isAsync?
                     declaration.typeParameters,
                     declaration.parameters,
                     declaration.type,
@@ -178,13 +212,10 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                 }
                 const namedBindings = importDeclarationObj?.namedBindings;
                 namedBindings?.forEach(child => {
-                    //remember to confirm it works
                     packageMap.set(child.name, moduleSpecifier);
                 })
                 importNodes.set(moduleSpecifier, importDeclarationObj!);
-                // importNodes.entries().forEach(node => {
-                //     console.log(`${node[0]} ---> {\n\tnamedImport: ${node[1].namedImport},\n\tnamedBindings: ${node[1].namedBindings.map(value => [value.name, value.propertyName, value.isType])}\n\tphaseModifier: ${node[1].phaseModifier}\n}`);
-                // })
+
             }
 
             return { addImport, checkImport, checkSymbols, getImport, getRunFunction } as const

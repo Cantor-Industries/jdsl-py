@@ -1,10 +1,11 @@
-// Rember to explore Effect.firstSuccessOf
 import ts, { factory } from "typescript";
 import { Effect } from "effect"
 import { createLayerDependency, type Dependency, type ImportClause, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
 import { VFS } from "../lsp/vfs.ts";
 import { Action } from "./action.ts";
 import { Sequence } from "./sequence.ts";
+import { ReconLanguageServer } from "src/lsp/lsp.ts";
+import { ReconEnvBuilder } from "src/lsp/env.ts";
 
 export class Selector extends NodeCreator {
     public dependencyNames: string[];
@@ -41,6 +42,8 @@ export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
     {
         effect: Effect.gen(function* () {
             const vfs = yield* VFS;
+            const languageServer = yield* ReconLanguageServer;
+            const reconEnv = yield* ReconEnvBuilder;
 
             const currentSelector: Selector[] = [];
             const selectors: Map<string, Selector> = new Map();
@@ -61,20 +64,30 @@ export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
                 addLayer();
 
                 vfs.set(selector().path(), selector().print());
+                languageServer.getSyntacticDiagnostics(selector().path());
             };
             const addChild = (child: Action | Sequence | Selector) => {
                 if (selector().dependencyNames.includes(uppercaseFirstLetter(child.name))) {
                     console.log(`${child.name} is already included as a dependency`);
                     return
                 }
-                // console.log(`${child.name} is in ${selector().name}: ${selector().dependencyNames.includes(child.name)} [${selector().dependencyNames}]`)
-                // console.log(`Adding ${child.name} as a child to ${selector().name}`)
                 selector().addChild(child);
+                const parameters = child.declarationParameters;
+                parameters.map(param => {
+                    const paramType = param.type;
+                    if (paramType && ts.isTypeReferenceNode(paramType)) {
+                        const name = paramType.getText();
+                        const localImport = reconEnv.getImport(name);
+                        selector().addImport(localImport.moduleSpecifier, localImport.importClause)
+                    }
+                })
+                selector().addImport
                 vfs.set(selector().path(), selector().print());
-                // console.log(selector().dependencyNames)
+                languageServer.getSyntacticDiagnostics(selector().path());
             }
-            const addImport = (packageName: string, importClause: ImportClause) => {
-                selector().addImport(packageName, importClause)
+
+            const addImport = (moduleSpecifier: string, importClause: ImportClause) => {
+                selector().addImport(moduleSpecifier, importClause);
             };
             const addLayer = () => {
                 selector().addLayer();
