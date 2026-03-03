@@ -1,13 +1,13 @@
 // Rember to explore Effect.firstSuccessOf
 import ts, { factory } from "typescript";
 import { Effect } from "effect"
-import { createLayerDependency, type Dependency, type ImportClause, lowercaseFirstLetter, NodeCreator } from "./node.ts";
+import { createLayerDependency, type Dependency, type ImportClause, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
 import { VFS } from "../lsp/vfs.ts";
 import { Action } from "./action.ts";
 import { Sequence } from "./sequence.ts";
 
 export class Selector extends NodeCreator {
-    private dependencyNames: string[];
+    public dependencyNames: string[];
     constructor(name: string, basepath?: string) {
         super(name, basepath);
         this.args = factory.createArrayLiteralExpression();
@@ -54,7 +54,6 @@ export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
                     namedBindings: [
                         { name: "Data", isType: false },
                         { name: "Effect", isType: false },
-                        { name: "Either", isType: false },
                     ]
                 }
                 addImport("effect", importClause);
@@ -64,8 +63,15 @@ export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
                 vfs.set(selector().path(), selector().print());
             };
             const addChild = (child: Action | Sequence | Selector) => {
+                if (selector().dependencyNames.includes(uppercaseFirstLetter(child.name))) {
+                    console.log(`${child.name} is already included as a dependency`);
+                    return
+                }
+                // console.log(`${child.name} is in ${selector().name}: ${selector().dependencyNames.includes(child.name)} [${selector().dependencyNames}]`)
+                // console.log(`Adding ${child.name} as a child to ${selector().name}`)
                 selector().addChild(child);
                 vfs.set(selector().path(), selector().print());
+                // console.log(selector().dependencyNames)
             }
             const addImport = (packageName: string, importClause: ImportClause) => {
                 selector().addImport(packageName, importClause)

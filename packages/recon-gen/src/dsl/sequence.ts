@@ -1,13 +1,13 @@
 import ts, { factory } from "typescript";
 import { Effect } from "effect"
-import { createLayerDependency, type Dependency, type ImportClause, lowercaseFirstLetter, NodeCreator } from "./node.ts";
+import { createLayerDependency, type Dependency, type ImportClause, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
 import { VFS } from "../lsp/vfs.ts";
 import { Action } from "./action.ts";
 import { Selector } from "./selector.ts";
 import { ReconLanguageServer } from "../lsp/lsp.ts";
 
 export class Sequence extends NodeCreator {
-    private dependencyNames: string[];
+    public dependencyNames: string[];
     constructor(name: string, basepath?: string) {
         super(name, basepath);
         this.args = factory.createArrayLiteralExpression();
@@ -65,6 +65,10 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
                 languageServer.getSyntacticDiagnostics(sequence().path());
             };
             const addChild = (child: Action | Sequence | Selector) => {
+                if (sequence().dependencyNames.includes(uppercaseFirstLetter(child.name))) {
+                    console.log(`${child.name} is already included as a dependency`);
+                    return
+                }
                 sequence().addChild(child);
                 vfs.set(sequence().path(), sequence().print());
                 languageServer.getSyntacticDiagnostics(sequence().path());
