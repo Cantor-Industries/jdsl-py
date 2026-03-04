@@ -116,7 +116,6 @@ export class ImportResolver extends Effect.Service<ImportResolver>()(
                     if (namedBindings && ts.isImportSpecifier(child)) {
                         const propertyName = child.propertyName;
                         const name = child.name
-                        console.log(propertyName?.text, "->", name.text)
                         bindings.push({propertyName: propertyName?.text, name: name.text, isType: child.isTypeOnly})
                     }
                 })
@@ -157,7 +156,6 @@ export class ReconResolver extends Effect.Service<ReconResolver>()(
                 }
 
                 if (ts.isImportDeclaration(node)) {
-                    console.log("Processing:", node.getText());
                     importResolver.resolveImport(node);
                 }
 

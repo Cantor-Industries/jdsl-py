@@ -104,7 +104,8 @@ export class Skills extends Effect.Service<Skills>()(
                                 throw new Error("Selector Node Must Have Children Property");
                             }
                             selectorBuilder.buildSelector();
-                            const selector = selectorBuilder.selector()
+                            const selector = selectorBuilder.selector();
+                            console.log("Starting to explore", selector.name);
                             childNodes.forEachChild(childNode => {
                                 const child = skillVisitor(childNode);
                                 if (!(child instanceof Root)) {
@@ -112,7 +113,7 @@ export class Skills extends Effect.Service<Skills>()(
                                 }
 
                             })
-                            console.log("Finished exploring", selectorBuilder.selector().name);
+                            console.log("Finished exploring", selector.name);
                             return selector;
                         }
                         else if (valueName === "sequence") {
@@ -122,13 +123,14 @@ export class Skills extends Effect.Service<Skills>()(
                             }
                             sequenceBuilder.buildSequence();
                             const sequence = sequenceBuilder.sequence();
+                            console.log("Starting to explore", sequence.name);
                             childNodes.forEachChild(childNode => {
                                 const child = skillVisitor(childNode);
                                 if (!(child instanceof Root)) {
                                     sequenceBuilder.addChild(sequence, child);
                                 }
                             })
-                            console.log("Finished exploring", sequenceBuilder.sequence().name);
+                            console.log("Finished exploring", sequence.name);
                             return sequence;
                         }
                         else if (valueName === "action") {

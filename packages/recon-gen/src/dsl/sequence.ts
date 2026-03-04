@@ -81,7 +81,7 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
                         sequence.addImport(localImport.moduleSpecifier, localImport.importClause)
                     }
                 })
-                sequence.addImport
+
                 vfs.set(sequence.path(), sequence.print());
                 languageServer.getSyntacticDiagnostics(sequence.path());
             };

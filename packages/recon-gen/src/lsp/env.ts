@@ -21,8 +21,6 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                 ts.forEachChild(node, child => collectIdentifiers(child, out))
             }
             const checkImport = (name: string) => {
-                console.log("Checking import:", name)
-                // console.log(packageMap)
                 const namedBinding = packageMap.get(name);
                 if (!namedBinding) {
                     console.log("Could not resolve", name)
@@ -32,7 +30,6 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                 if (!packageName) {
                     return false;
                 }
-                console.log("Import found:", name)
                 return true;
             }
 
@@ -113,8 +110,6 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                 if (!signatures || signatures?.length === 0) {
                     throw new Error(`${callName} not callable`);
                 }
-                console.log(`${callName} is a top-level import has: ${signatures.length} signatures`);
-                console.log(`signature -----> ${checker?.signatureToString(signatures[0]!)}`)
                 const signature = signatures[0]!;
                 // const parameters = signature.getParameters();
                 let parameters: ts.ParameterDeclaration[];

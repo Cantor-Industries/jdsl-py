@@ -81,7 +81,7 @@ export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
                         selector.addImport(localImport.moduleSpecifier, localImport.importClause)
                     }
                 })
-                selector.addImport
+
                 vfs.set(selector.path(), selector.print());
                 languageServer.getSyntacticDiagnostics(selector.path());
             }
