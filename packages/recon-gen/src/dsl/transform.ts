@@ -46,10 +46,10 @@ export class Tools extends Effect.Service<Tools>()(
                     return node.forEachChild(toolWalker)!;
                 }
             }
-                const init = (nodes: Node[]) => {
-                    nodes.forEach(node => toolWalker(node));
-                    return tools;
-                }
+            const init = (nodes: Node[]) => {
+                nodes.forEach(node => toolWalker(node));
+                return tools;
+            }
             return { init, tools } as const;
         })
     }
@@ -104,20 +104,16 @@ export class Skills extends Effect.Service<Skills>()(
                                 throw new Error("Selector Node Must Have Children Property");
                             }
                             selectorBuilder.buildSelector();
-                            console.log("Starting to explore", selectorBuilder.selector().name);
+                            const selector = selectorBuilder.selector()
                             childNodes.forEachChild(childNode => {
                                 const child = skillVisitor(childNode);
-                                if (child instanceof Selector) {
-                                    selectorBuilder.pop();
-                                    selectorBuilder.addChild(child);
-                                } else if (!(child instanceof Root)) {
-                                    selectorBuilder.addChild(child);
+                                if (!(child instanceof Root)) {
+                                    selectorBuilder.addChild(selector, child);
                                 }
 
                             })
                             console.log("Finished exploring", selectorBuilder.selector().name);
-
-                            return selectorBuilder.selector();
+                            return selector;
                         }
                         else if (valueName === "sequence") {
                             const childNodes = skill.get("children");
@@ -125,20 +121,15 @@ export class Skills extends Effect.Service<Skills>()(
                                 throw new Error("Sequence Node Must Have Children Property");
                             }
                             sequenceBuilder.buildSequence();
-                            console.log("Starting to explore", sequenceBuilder.sequence().name);
+                            const sequence = sequenceBuilder.sequence();
                             childNodes.forEachChild(childNode => {
                                 const child = skillVisitor(childNode);
-                                if (child instanceof Sequence) {
-                                    sequenceBuilder.pop();
-                                    sequenceBuilder.addChild(child);
-                                } else if (!(child instanceof Root)) {
-                                    sequenceBuilder.addChild(child);
-                                } 
-
+                                if (!(child instanceof Root)) {
+                                    sequenceBuilder.addChild(sequence, child);
+                                }
                             })
                             console.log("Finished exploring", sequenceBuilder.sequence().name);
-
-                            return sequenceBuilder.sequence();
+                            return sequence;
                         }
                         else if (valueName === "action") {
                             actionBuilder.buildAction(skill);

@@ -66,24 +66,24 @@ export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
                 vfs.set(selector().path(), selector().print());
                 languageServer.getSyntacticDiagnostics(selector().path());
             };
-            const addChild = (child: Action | Sequence | Selector) => {
-                if (selector().dependencyNames.includes(uppercaseFirstLetter(child.name))) {
+            const addChild = (selector: Selector, child: Action | Sequence | Selector) => {
+                if (selector.dependencyNames.includes(uppercaseFirstLetter(child.name))) {
                     console.log(`${child.name} is already included as a dependency`);
                     return
                 }
-                selector().addChild(child);
+                selector.addChild(child);
                 const parameters = child.declarationParameters;
                 parameters.map(param => {
                     const paramType = param.type;
                     if (paramType && ts.isTypeReferenceNode(paramType)) {
                         const name = paramType.getText();
                         const localImport = reconEnv.getImport(name);
-                        selector().addImport(localImport.moduleSpecifier, localImport.importClause)
+                        selector.addImport(localImport.moduleSpecifier, localImport.importClause)
                     }
                 })
-                selector().addImport
-                vfs.set(selector().path(), selector().print());
-                languageServer.getSyntacticDiagnostics(selector().path());
+                selector.addImport
+                vfs.set(selector.path(), selector.print());
+                languageServer.getSyntacticDiagnostics(selector.path());
             }
 
             const addImport = (moduleSpecifier: string, importClause: ImportClause) => {
@@ -104,8 +104,6 @@ export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
                     return sel;
                 }
                 throw new Error("Selector Map Empty");
-
-
             };
             return { addChild, buildSelector, pop, selector } as const;
         })

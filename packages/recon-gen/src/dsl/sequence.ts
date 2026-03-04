@@ -66,24 +66,24 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
                 vfs.set(sequence().path(), sequence().print());
                 languageServer.getSyntacticDiagnostics(sequence().path());
             };
-            const addChild = (child: Action | Sequence | Selector) => {
-                if (sequence().dependencyNames.includes(uppercaseFirstLetter(child.name))) {
+            const addChild = (sequence: Sequence, child: Action | Sequence | Selector) => {
+                if (sequence.dependencyNames.includes(uppercaseFirstLetter(child.name))) {
                     console.log(`${child.name} is already included as a dependency`);
                     return
                 }
-                sequence().addChild(child);
+                sequence.addChild(child);
                 const parameters = child.declarationParameters;
                 parameters.map(param => {
                     const paramType = param.type;
                     if (paramType && ts.isTypeReferenceNode(paramType)) {
                         const name = paramType.getText();
                         const localImport = reconEnv.getImport(name);
-                        sequence().addImport(localImport.moduleSpecifier, localImport.importClause)
+                        sequence.addImport(localImport.moduleSpecifier, localImport.importClause)
                     }
                 })
-                sequence().addImport
-                vfs.set(sequence().path(), sequence().print());
-                languageServer.getSyntacticDiagnostics(sequence().path());
+                sequence.addImport
+                vfs.set(sequence.path(), sequence.print());
+                languageServer.getSyntacticDiagnostics(sequence.path());
             };
 
             const addImport = (moduleSpecifier: string, importClause: ImportClause) => {
@@ -104,8 +104,6 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
                     return seq;
                 }
                 throw new Error("Sequence Map Empty");
-
-
             };
             return { addChild, buildSequence, pop, sequence } as const;
         })
