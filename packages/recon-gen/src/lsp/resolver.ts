@@ -1,5 +1,4 @@
 import ts, { type Node, type SourceFile } from "typescript";
-// import type { Node, SourceFile, factory } from "typescript";
 import { Effect } from "effect";
 import { getEscapedText, type ImportSpecifier } from "../dsl/node.ts";
 import { ReconEnvBuilder } from "./env.ts";
@@ -49,8 +48,21 @@ export class ImportResolver extends Effect.Service<ImportResolver>()(
                         }
                     })
                 }
+                // }
+                // if (importClause.namedBindings) {
+                //     const namedBindings = importClause.namedBindings;
+                //     if (ts.isNamespaceImport(namedBindings)) {
+                //         importedSymbol = namedBindings.name;
+                //     }
+                //     if (ts.isNamedImportBindings(namedBindings)) {
+                //         namedBindings.forEachChild(binding => {
+                //             if (ts.isImportSpecifier(binding)) {
+                //                 importedSymbol = binding.name
+                //             }
+                //         })
+                //     }
                 if (!importedSymbol) {
-                    throw new Error(`Failed to resolve import clause at ${node.getText()}`);
+                    throw new Error(`Failed to resolve import clause ${importClause.getText()}`);
                 }
                 const symbolAlias = extractSymbolAlias(importedSymbol, checker);
                 const declarations = symbolAlias.getDeclarations();
@@ -97,11 +109,7 @@ export class ImportResolver extends Effect.Service<ImportResolver>()(
                 const packageName = getEscapedText(node.moduleSpecifier);
                 let moduleSpecifier: string;
 
-                if (packageName.startsWith("./") || packageName.startsWith("../") || packageName.startsWith("/")) {
-                    const importNodes = resolveImportedSymbols(node, checker);
-                    importNodes.forEach(node => {
-                        resolveImport(node);
-                    })
+                if (packageName.startsWith("./") || packageName.startsWith("../")) {
                     moduleSpecifier = resolveModuleSpecifier(node, checker);
                 } else {
                     moduleSpecifier = packageName;
@@ -117,9 +125,7 @@ export class ImportResolver extends Effect.Service<ImportResolver>()(
                 }
 
                 if (ts.isNamespaceImport(namedBindings)) {
-                    // const name = namedBindings.name.text;
-                    bindings.push({propertyName: "*", name: namedBindings.name.text, isType: false})
-                    // console.log(`${namedBindings.getText()} is a named import, identifier name: ${name}`);
+                    bindings.push({ propertyName: "*", name: namedBindings.name.text, isType: false })
                 }
 
                 if (ts.isNamedImportBindings(namedBindings)) {

@@ -33,7 +33,7 @@ export class Tools extends Effect.Service<Tools>()(
                             );
                             tools.set(key.getText(), arrowFunction);
                         } else {
-                            throw new Error("No arrow function declared in property");
+                            throw new Error(`No arrow function declared in property: ${value.getText()}, ${value.kind}`);
                         }
                     }
                 }
