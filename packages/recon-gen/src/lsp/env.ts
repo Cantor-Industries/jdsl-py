@@ -1,5 +1,4 @@
-import path from "path";
-import ts, { factory, type Node, type VariableDeclaration } from "typescript";
+import ts, { factory, type Node,  } from "typescript";
 import { Effect } from "effect";
 
 import { ReconLanguageServer } from "./lsp.ts";
@@ -210,7 +209,7 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                     packageMap.set(child.name, moduleSpecifier);
                 })
                 importNodes.set(moduleSpecifier, importDeclarationObj!);
-
+                console.log(`${moduleSpecifier}: {namedImport: ${importDeclarationObj?.namedImport}, namedBindings: ${JSON.stringify(importDeclarationObj?.namedBindings)}}`);
             }
 
             return { addImport, checkImport, checkSymbols, getImport, getRunFunction } as const

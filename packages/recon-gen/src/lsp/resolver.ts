@@ -112,13 +112,26 @@ export class ImportResolver extends Effect.Service<ImportResolver>()(
                 const namedBindings = importClause?.namedBindings;
                 const bindings: ImportSpecifier[] = [];
 
-                namedBindings?.forEachChild(child => {
-                    if (namedBindings && ts.isImportSpecifier(child)) {
-                        const propertyName = child.propertyName;
-                        const name = child.name
-                        bindings.push({propertyName: propertyName?.text, name: name.text, isType: child.isTypeOnly})
-                    }
-                })
+                if (!namedBindings) {
+                    return;
+                }
+
+                if (ts.isNamespaceImport(namedBindings)) {
+                    // const name = namedBindings.name.text;
+                    bindings.push({propertyName: "*", name: namedBindings.name.text, isType: false})
+                    // console.log(`${namedBindings.getText()} is a named import, identifier name: ${name}`);
+                }
+
+                if (ts.isNamedImportBindings(namedBindings)) {
+                    namedBindings.forEachChild(child => {
+                        if (ts.isImportSpecifier(child)) {
+                            const propertyName = child.propertyName;
+                            const name = child.name
+                            bindings.push({ propertyName: propertyName?.text, name: name.text, isType: child.isTypeOnly })
+                        }
+                    })
+                }
+
                 const importDeclarationObj = {
                     [moduleSpecifier]: {
                         namedImport: namedImport?.text,
@@ -144,7 +157,6 @@ export class ReconResolver extends Effect.Service<ReconResolver>()(
 
             const visitor = (node: Node): Node => {
                 if (ts.isSatisfiesExpression(node)) {
-                    ts.factory.createSatisfiesExpression(node.expression,node.type)
                     const satisfiesType = node.type;
                     if (satisfiesType.getText().startsWith("Tool")) {
                         const tool = node.expression;

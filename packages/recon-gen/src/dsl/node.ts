@@ -12,7 +12,7 @@ export interface Dependency {
 }
 
 export interface ImportSpecifier {
-	propertyName?: string ;
+	propertyName?: string;
 	name: string;
 	isType: boolean
 }
@@ -75,8 +75,8 @@ export class NodeCreator {
 		this.childName = child.name;
 		const relativePath = createRelativeImportPath(this.path(), child.path());
 		// class names imports must start with an uppercase letter
-		const namedBinding: ImportSpecifier = isFirstLetterLoweCase(this.childName) ? 
-			{propertyName: this.childName, name: uppercaseFirstLetter(this.childName), isType: false} : { propertyName: undefined, name: this.childName, isType: false}
+		const namedBinding: ImportSpecifier = isFirstLetterLoweCase(this.childName) ?
+			{ propertyName: this.childName, name: uppercaseFirstLetter(this.childName), isType: false } : { propertyName: undefined, name: this.childName, isType: false }
 		const importClause: ImportClause = {
 			namedImport: undefined,
 			namedBindings: [namedBinding],
@@ -307,19 +307,27 @@ export const createLayerDependency = (dependencyName: string) => {
 
 const createImport = (moduleSpecifier: string, importClause: ImportClause): ts.ImportDeclaration => {
 	const namedImports = [];
-	for (const namedBinding of importClause.namedBindings) {
-		namedImports.push(factory.createImportSpecifier(
-			namedBinding.isType,
-			namedBinding.propertyName ? factory.createIdentifier(namedBinding.propertyName) : undefined,
-			factory.createIdentifier(namedBinding.name)
-		))
+	const namedBindings = importClause.namedBindings;
+	let namespaceImportNode: ts.NamespaceImport | undefined;
+	if (namedBindings.length === 1 && namedBindings[0]?.propertyName === "*") {
+		const name = namedBindings[0].name;
+		namespaceImportNode = factory.createNamespaceImport(factory.createIdentifier(name));
+	} else {
+		for (const namedBinding of namedBindings) {
+			namedImports.push(factory.createImportSpecifier(
+				namedBinding.isType,
+				namedBinding.propertyName ? factory.createIdentifier(namedBinding.propertyName) : undefined,
+				factory.createIdentifier(namedBinding.name)
+			))
+		}
 	}
+	const namedImportsNode = namedImports.length !=0 ? factory.createNamedImports(namedImports) : undefined;
 	const imports = factory.createImportDeclaration(
 		undefined,
 		factory.createImportClause(
-			importClause.phaseModifier ? ts.SyntaxKind.TypeKeyword: undefined,
+			importClause.phaseModifier ? ts.SyntaxKind.TypeKeyword : undefined,
 			importClause.namedImport ? factory.createIdentifier(importClause.namedImport) : undefined,
-			namedImports.length != 0 ? factory.createNamedImports(namedImports) : undefined
+			namespaceImportNode ? namespaceImportNode : namedImportsNode
 		),
 		factory.createStringLiteral(moduleSpecifier),
 		undefined
