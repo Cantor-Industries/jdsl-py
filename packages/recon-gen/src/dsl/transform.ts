@@ -18,8 +18,8 @@ export class Tools extends Effect.Service<Tools>()(
             const toolVisitor = (node: Node) => {
                 for (const child of node.getChildAt(1).getChildren()) {
                     if (ts.isPropertyAssignment(child)) {
-                        const key = child.getChildAt(0);
-                        const value = child.getChildAt(2);
+                        const key = child.name;
+                        const value = child.initializer;
                         if (ts.isArrowFunction(value)) {
                             tools.set(key.getText(), value);
                         } else if (ts.isFunctionExpression(value)) {
@@ -32,6 +32,8 @@ export class Tools extends Effect.Service<Tools>()(
                                 value.body ?? factory.createBlock([], true)
                             );
                             tools.set(key.getText(), arrowFunction);
+                        } else if (ts.isPropertyAccessExpression(value)) {
+                            throw new Error(`Property Access Expressions not yet supported in Recon`);
                         } else {
                             throw new Error(`No arrow function declared in property: ${value.getText()}, ${value.kind}`);
                         }
@@ -68,8 +70,8 @@ export class Skills extends Effect.Service<Skills>()(
                 const skill: Map<string, Node> = new Map();
                 for (const child of node.getChildAt(1).getChildren()) {
                     if (ts.isPropertyAssignment(child)) {
-                        const key = child.getChildAt(0);
-                        const value = child.getChildAt(2);
+                        const key = child.name;
+                        const value = child.initializer;
                         skill.set(getEscapedText(key), value);
                     }
                 }

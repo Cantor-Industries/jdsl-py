@@ -48,19 +48,6 @@ export class ImportResolver extends Effect.Service<ImportResolver>()(
                         }
                     })
                 }
-                // }
-                // if (importClause.namedBindings) {
-                //     const namedBindings = importClause.namedBindings;
-                //     if (ts.isNamespaceImport(namedBindings)) {
-                //         importedSymbol = namedBindings.name;
-                //     }
-                //     if (ts.isNamedImportBindings(namedBindings)) {
-                //         namedBindings.forEachChild(binding => {
-                //             if (ts.isImportSpecifier(binding)) {
-                //                 importedSymbol = binding.name
-                //             }
-                //         })
-                //     }
                 if (!importedSymbol) {
                     throw new Error(`Failed to resolve import clause ${importClause.getText()}`);
                 }
