@@ -1,6 +1,7 @@
 import { Data, Effect, Either } from "effect";
 import type { Providers } from "./config.ts";
 import { ModelsDev } from "./models/models-dev.ts";
+import type { Model } from "./models/modelSchema.ts";
 
 export class AiProviderError extends Data.TaggedError("AiProviderError")<{ msg: string}> { }
 export class AiProvider extends Effect.Service<AiProvider>()(
@@ -28,9 +29,20 @@ export class AiProvider extends Effect.Service<AiProvider>()(
             })
 
             const getProvider = () => Effect.succeed(provider);
+
             const getModelName = () => Effect.gen(function* (){
                 yield* chooseModel(modelName);
                 return modelName
+            })
+
+            const getModelSpecs = () => Effect.gen(function* () {
+                const results = yield* modelsDev.getProvider(provider);
+                const modelSpecs = results.models[modelName];
+
+                if (!modelSpecs) {
+                    return yield* new AiProviderError({msg: `${provider} does not have a model named ${modelName}.`});
+                }
+                return modelSpecs as Model;
             })
 
             const listModels = () => Effect.gen(function* () {
@@ -41,7 +53,7 @@ export class AiProvider extends Effect.Service<AiProvider>()(
                 return Object.keys(models.right.models);
             });
 
-            return {chooseModel, chooseProvider, getModelName, getProvider, listModels} as const;
+            return {chooseModel, chooseProvider, getModelName, getModelSpecs, getProvider, listModels} as const;
         })
     }
 ){}
