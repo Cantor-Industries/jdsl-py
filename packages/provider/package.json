@@ -16,5 +16,12 @@
     "@effect/platform-bun": "^0.87.1",
     "ai": "^6.0.77",
     "effect": "^3.19.16"
+  },
+  "exports": {
+    ".": "./index.ts",
+    "./aimodel": "./src/aiModel.ts",
+    "./models-dev": "./src/models/models-dev.ts",
+    "./config": "./src/config.ts",
+    "./providers": "./src/providers.ts"
   }
 }
