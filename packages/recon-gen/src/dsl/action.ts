@@ -54,7 +54,11 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                     const actionName = getEscapedText(call) + "Action";
                     if (actions.has(actionName)) {
                         console.log(getEscapedText(call) + "Action already exists, exiting");
-                        currentAction = actions.get(actionName)
+                        currentAction = actions.get(actionName);
+                        const args = skill.get("args");
+                        if (args && ts.isArrayLiteralExpression(args)) {
+                            addArgs(args)
+                        }
                         return;
                     }
                     addAction(actionName, "./recon/actions/");
@@ -65,7 +69,7 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                             { name: "Effect", isType: false },
                         ]
                     }
-                    addImport("effect", importClause); 
+                    addImport("effect", importClause);
                     action().addError();
 
                     const args = skill.get("args");
