@@ -50,7 +50,7 @@ export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
             let count = 0;
 
             const buildSelector = () => {
-                addSelector("selector_" + count, "./dist/selectors/");
+                addSelector("selector_" + count, "./recon/selectors/");
                 count += 1;
                 const importClause: ImportClause = {
                     phaseModifier: false,

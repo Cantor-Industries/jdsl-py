@@ -50,7 +50,7 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
             let count = 0;
 
             const buildSequence = () => {
-                addSequence("sequence_" + count, "./dist/sequences/");
+                addSequence("sequence_" + count, "./recon/sequences/");
                 count += 1;
                 const importClause: ImportClause = {
                     phaseModifier: false,

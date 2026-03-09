@@ -4,6 +4,7 @@ import process from "process";
 
 import { Effect } from "effect";
 import { PackageJsonError, EntryFileMissingError } from "./errors.ts";
+export { PackageJsonError, EntryFileMissingError } from "./errors.ts";
 import { ReconLanguageServer } from "./lsp/lsp.ts";
 import type { PackageJson, DenoJson } from "./types.ts";
 import { VFS } from "./lsp/vfs.ts";
@@ -60,7 +61,7 @@ export class ReconInitializer extends Effect.Service<ReconInitializer>()(
                 } else if (fs.existsSync(denoJsonPath)) {
                     return denoJsonPath;
                 } else {
-                    return yield* new PackageJsonError({ msg: "Could not read package/deno.json: Error: ENOENT: no such file or directory" })
+                    return yield* new PackageJsonError({ msg: "No package/deno.json in current directory." })
                 }
             })
 
@@ -95,7 +96,7 @@ export class ReconInitializer extends Effect.Service<ReconInitializer>()(
                     if (fromExports) {
                         return fromExports;
                     }
-                    return yield* new EntryFileMissingError({ msg: "Deno project detected but no exports entry point found" })
+                    return yield* new EntryFileMissingError({ msg: "Deno project detected but no entry point found" })
                 }
                 return yield* new EntryFileMissingError({ msg: `Unsupported config file: ${jsonFilePath}` })
             })
@@ -105,7 +106,7 @@ export class ReconInitializer extends Effect.Service<ReconInitializer>()(
 
                 const fullPath = path.resolve(process.cwd(), entryFile);
                 if (!fs.existsSync(fullPath)) {
-                    return yield* new EntryFileMissingError({ msg: `Entry file ${basename(fullPath)} could not be found` });
+                    return yield* new EntryFileMissingError({ msg: `"${basename(fullPath)}" not found` });
                 }
                 const rawFile = fs.readFileSync(fullPath, 'utf-8');
                 vfs.set(fullPath, rawFile);

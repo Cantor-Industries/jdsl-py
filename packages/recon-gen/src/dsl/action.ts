@@ -57,7 +57,7 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                         currentAction = actions.get(actionName)
                         return;
                     }
-                    addAction(actionName, "./dist/actions/");
+                    addAction(actionName, "./recon/actions/");
                     const importClause: ImportClause = {
                         phaseModifier: false,
                         namedBindings: [
@@ -80,7 +80,7 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                     const actionName = callName + "Action";
                     const runFunction = reconEnv.getRunFunction(callName);
                     toolService.tools.set(callName, runFunction);
-                    addAction(actionName, "./dist/actions/");
+                    addAction(actionName, "./recon/actions/");
                     const importClause: ImportClause = {
                         phaseModifier: false,
                         namedBindings: [

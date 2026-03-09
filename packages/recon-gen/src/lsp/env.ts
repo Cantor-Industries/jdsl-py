@@ -69,7 +69,6 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                 let binding: Node | undefined;
                 namedBindings?.forEachChild(child => {
                     if (ts.isImportSpecifier(child)) {
-                        console.log(`Comparing ${name} against ${child.name.text}`);
                         if (name === child.name.text) binding = child.name
                     }
                 })
@@ -110,43 +109,25 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                     throw new Error(`${callName} not callable`);
                 }
                 const signature = signatures[0]!;
-                // const parameters = signature.getParameters();
                 let parameters: ts.ParameterDeclaration[];
-                // const declaration = signature.getDeclaration();
                 let declaration: ts. FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction | undefined;
                 const valueDeclaration = symbolAlias?.valueDeclaration as ts.FunctionDeclaration | ts.VariableDeclaration;
-                // console.log("Value declaration kind:", valueDeclaration.kind)
                 if (ts.isFunctionDeclaration(valueDeclaration!)) {
-                    if (hasAsyncModifier(valueDeclaration)) console.log(callName, "is an async function declaration");
-                    else console.log(callName, "is a function declaration");
                     declaration = valueDeclaration;
                 } else if (ts.isVariableDeclaration(valueDeclaration)) {
-                    console.log(callName, "is a variable statement");
-                    // const declarationList = valueDeclaration.;
-                    // const variableDeclaration = declarationList.declarations[0];
                     const initializer = valueDeclaration.initializer;
-                    // console.log("----->", initializer?.getFullText())
-                    // console.log("----->", initializer?.kind);
                     if (initializer && (ts.isFunctionExpression(initializer) || ts.isArrowFunction(initializer))) {
                         declaration = initializer;
                     }
                 } 
-                // else {
-                //     throw new Error(`Resolved declaration for ${callName} is neither a FunctionDeclaration, FunctionExpression, or ArrowFunction`);
-                // }
+
                 if (!declaration) {
                     throw new Error(`Resolved declaration for ${callName} is neither a FunctionDeclaration, FunctionExpression, or ArrowFunction`);
                 }
-                // console.log(valueDeclaration?.getFullText());
                 parameters = [...declaration.parameters]
                 const returnType = checker?.getReturnTypeOfSignature(signature);
 
-                // const parameters = valueDeclaration.parameters
                 const forwardedArgs = parameters.map(param => {
-                    // check for spread operator
-                    // if (param.dotDotDotToken) {
-                    //     return factory.createSpreadElement(factory.createIdentifier(param.name.getText()))
-                    // }
                     return factory.createIdentifier(param.name.getText())
                 })
                 const typeParams = declaration.typeParameters;
@@ -209,7 +190,6 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                     packageMap.set(child.name, moduleSpecifier);
                 })
                 importNodes.set(moduleSpecifier, importDeclarationObj!);
-                console.log(`${moduleSpecifier}: {namedImport: ${importDeclarationObj?.namedImport}, namedBindings: ${JSON.stringify(importDeclarationObj?.namedBindings)}}`);
             }
 
             return { addImport, checkImport, checkSymbols, getImport, getRunFunction } as const

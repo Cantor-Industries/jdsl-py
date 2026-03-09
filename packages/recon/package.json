@@ -11,15 +11,18 @@
   "license": "Apache-2.0",
   "type": "module",
   "dependencies": {
+    "@effect/platform": "^0.94.5",
+    "@effect/platform-bun": "^0.87.1",
+    "@jdsl/recon-gen": "^0.1.0",
     "effect": "^3.19.16"
   },
   "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
+    ".": "./src/types.ts"
+  },
+  "bin": {
+    "recon": "./src/index.ts"
   },
   "files": [
-    "dist"
+    "src"
   ]
 }

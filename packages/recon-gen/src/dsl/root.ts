@@ -72,7 +72,7 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
             const rootList: Root[] = [];
 
             const buildRoot = (name?: string) => {
-                const root = new Root("Root", "./dist/");
+                const root = new Root("Root", "./recon/");
                 root.name = name ?? "Root";
                 root.name = root.name === "root" ? "Root" : root.name;
                 const importClause: ImportClause = {
