@@ -1,8 +1,9 @@
+import path, { dirname } from "path";
 import ts, { factory } from "typescript";
 import { Effect } from "effect";
 import { createRelativeImportPath, type Dependency, type ImportClause, type ImportSpecifier, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
 import { Action } from "./action.ts";
-import { VFS } from "../lsp/vfs.ts";
+import { normalize, VFS } from "../lsp/vfs.ts";
 import { generateFactoryCode } from "../factorycodegen.ts";
 import { Sequence } from "./sequence.ts";
 import { Selector } from "./selector.ts";
@@ -28,7 +29,7 @@ export class Root extends NodeCreator {
             const importClause: ImportClause = {
                 namedImport: undefined,
                 namedBindings: [namedBinding],
-            }      
+            }
             this.addImport(relativePath, importClause);
             this.addLayerDependency(uppercaseFirstLetter(this.childName));
 
@@ -99,7 +100,10 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
                     if (paramType && ts.isTypeReferenceNode(paramType)) {
                         const name = paramType.getText();
                         const localImport = reconEnv.getImport(name);
-                        curRoot.addImport(localImport.moduleSpecifier, localImport.importClause)
+                        const from = normalize(curRoot.path());
+                        const to = normalize(localImport.moduleSpecifier);
+                        const relativePath = path.relative(dirname(from), to);
+                        curRoot.addImport(relativePath, localImport.importClause)
                     }
                 })
                 vfs.set(curRoot.path(), curRoot.print());

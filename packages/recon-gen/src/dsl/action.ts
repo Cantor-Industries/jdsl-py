@@ -1,8 +1,9 @@
 import ts, { factory, type Node } from "typescript";
-import { createRelativeImportPath, getEscapedText, NodeCreator, type ImportClause } from "./node.ts";
+import path, { dirname } from "path";
+import { getEscapedText, NodeCreator, type ImportClause } from "./node.ts";
 import { Effect } from "effect/index";
 import { Tools } from "./transform.ts";
-import { VFS } from "../lsp/vfs.ts";
+import { normalize, VFS } from "../lsp/vfs.ts";
 import { ReconLanguageServer } from "../lsp/lsp.ts";
 import { generateFactoryCode } from "../factorycodegen.ts";
 import { ReconEnvBuilder } from "../lsp/env.ts";
@@ -94,7 +95,9 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                     }
                     addImport("effect", importClause);
                     const localImports = reconEnv.getImport(callName);
-                    addImport(localImports.moduleSpecifier, localImports.importClause);
+                    const actionPath = normalize(action().path());
+                    const relativePath = path.relative(path.dirname(actionPath), localImports.moduleSpecifier);
+                    addImport(relativePath, localImports.importClause);
                     action().addError();
 
                     const args = skill.get("args");
@@ -134,7 +137,10 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                 }
                 const actionImports = reconEnv.checkSymbols(run);
                 for (const [moduleSpecifier, importClause] of actionImports) {
-                    addImport(moduleSpecifier, importClause)
+                    const from = normalize(action().path());
+                    const to = normalize(moduleSpecifier);
+                    const relativePath = path.relative(dirname(from), to);
+                    addImport(relativePath, importClause)
                 }
                 action().addRunFunction(run);
                 action().addLayerBody();

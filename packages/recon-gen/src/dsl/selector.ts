@@ -1,7 +1,8 @@
+import path, { dirname } from "path";
 import ts, { factory } from "typescript";
 import { Effect } from "effect"
 import { createLayerDependency, type Dependency, type ImportClause, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
-import { VFS } from "../lsp/vfs.ts";
+import { normalize, VFS } from "../lsp/vfs.ts";
 import { Action } from "./action.ts";
 import { Sequence } from "./sequence.ts";
 import { ReconLanguageServer } from "src/lsp/lsp.ts";
@@ -78,7 +79,10 @@ export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
                     if (paramType && ts.isTypeReferenceNode(paramType)) {
                         const name = paramType.getText();
                         const localImport = reconEnv.getImport(name);
-                        selector.addImport(localImport.moduleSpecifier, localImport.importClause)
+                        const from = normalize(selector.path());
+                        const to = normalize(localImport.moduleSpecifier);
+                        const relativePath = path.relative(dirname(from), to);
+                        selector.addImport(relativePath, localImport.importClause)
                     }
                 })
 

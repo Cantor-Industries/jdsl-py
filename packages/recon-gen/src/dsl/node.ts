@@ -1,8 +1,9 @@
-import { posix } from "path"
+import path, { dirname, posix } from "path"
 import ts, { type Node, factory } from "typescript";
 import { Sequence } from "./sequence.ts";
 import { Action } from "./action.ts";
 import { Selector } from "./selector.ts";
+import { normalize } from "src/lsp/vfs.ts";
 
 export interface Dependency {
 	name: string;
@@ -34,7 +35,7 @@ export class NodeCreator {
 	private sourceFile: ts.SourceFile;
 	private importList: Map<string, ts.ImportDeclaration>;
 	private context: (ts.VariableStatement | ts.ClassDeclaration)[];
-	protected layer: (ts.VariableStatement | ts.ClassDeclaration)[];
+	protected layer: (ts.VariableStatement | ts.ClassDeclaration | ts.ExpressionStatement)[];
 	protected layerDependencies: ts.VariableStatement[];
 	protected layerBody: ts.Statement[];
 	private namespace: ts.ModuleDeclaration[];
@@ -73,8 +74,7 @@ export class NodeCreator {
 	protected addChild(child: Action | Sequence | Selector, pipeable?: boolean): void {
 		console.log("Inside", this.name, "adding", child.name, "as a child")
 		this.childName = child.name;
-		const relativePath = createRelativeImportPath(this.path(), child.path());
-		// class names imports must start with an uppercase letter
+		const relativePath = path.relative(dirname(normalize(this.path())), normalize(child.path())); 
 		const namedBinding: ImportSpecifier = isFirstLetterLoweCase(this.childName) ?
 			{ propertyName: this.childName, name: uppercaseFirstLetter(this.childName), isType: false } : { propertyName: undefined, name: this.childName, isType: false }
 		const importClause: ImportClause = {
