@@ -1,9 +1,8 @@
-import path, { dirname } from "path";
 import ts, { factory } from "typescript";
 import { Effect } from "effect";
 import { createRelativeImportPath, type Dependency, type ImportClause, type ImportSpecifier, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
 import { Action } from "./action.ts";
-import { normalize, VFS } from "../lsp/vfs.ts";
+import { VFS } from "../lsp/vfs.ts";
 import { generateFactoryCode } from "../factorycodegen.ts";
 import { Sequence } from "./sequence.ts";
 import { Selector } from "./selector.ts";
@@ -100,9 +99,7 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
                     if (paramType && ts.isTypeReferenceNode(paramType)) {
                         const name = paramType.getText();
                         const localImport = reconEnv.getImport(name);
-                        const from = normalize(curRoot.path());
-                        const to = normalize(localImport.moduleSpecifier);
-                        const relativePath = path.relative(dirname(from), to);
+                        const relativePath = createRelativeImportPath(curRoot.path(), localImport.moduleSpecifier); 
                         curRoot.addImport(relativePath, localImport.importClause)
                     }
                 })

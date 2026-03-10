@@ -1,4 +1,4 @@
-import path, { dirname, posix } from "path"
+import path, { dirname } from "path"
 import ts, { type Node, factory } from "typescript";
 import { Sequence } from "./sequence.ts";
 import { Action } from "./action.ts";
@@ -74,7 +74,7 @@ export class NodeCreator {
 	protected addChild(child: Action | Sequence | Selector, pipeable?: boolean): void {
 		console.log("Inside", this.name, "adding", child.name, "as a child")
 		this.childName = child.name;
-		const relativePath = path.relative(dirname(normalize(this.path())), normalize(child.path())); 
+		const relativePath = createRelativeImportPath(this.path(), child.path()); 
 		const namedBinding: ImportSpecifier = isFirstLetterLoweCase(this.childName) ?
 			{ propertyName: this.childName, name: uppercaseFirstLetter(this.childName), isType: false } : { propertyName: undefined, name: this.childName, isType: false }
 		const importClause: ImportClause = {
@@ -341,12 +341,12 @@ export function createRelativeImportPath(from: string, to: string): string {
 	if (!to.startsWith(".")) {
 		return to
 	}
-	const fromPath = ts.sys.resolvePath(from);
-	const toPath = ts.sys.resolvePath(to);
-	// console.log(fromPath, "=>", toPath)
 
-	const fromDir = posix.dirname(fromPath);
-	let relativePath = posix.relative(fromDir, toPath);
+	const fromPath = normalize(from);
+	const toPath = normalize(to);
+	const fromDir = dirname(fromPath);
+
+	let relativePath = path.relative(fromDir, toPath);
 
 	if (!relativePath.startsWith(".")) {
 		relativePath = "./" + relativePath;

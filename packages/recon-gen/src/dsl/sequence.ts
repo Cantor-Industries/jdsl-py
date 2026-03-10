@@ -1,8 +1,7 @@
-import path, { dirname } from "path";
 import ts, { factory } from "typescript";
 import { Effect } from "effect"
-import { createLayerDependency, type Dependency, type ImportClause, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
-import { normalize, VFS } from "../lsp/vfs.ts";
+import { createLayerDependency, createRelativeImportPath, type Dependency, type ImportClause, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
+import { VFS } from "../lsp/vfs.ts";
 import { Action } from "./action.ts";
 import { Selector } from "./selector.ts";
 import { ReconLanguageServer } from "../lsp/lsp.ts";
@@ -79,9 +78,7 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
                     if (paramType && ts.isTypeReferenceNode(paramType)) {
                         const name = paramType.getText();
                         const localImport = reconEnv.getImport(name);
-                        const from = normalize(sequence.path());
-                        const to = normalize(localImport.moduleSpecifier);
-                        const relativePath = path.relative(dirname(from), to);
+                        const relativePath = createRelativeImportPath(sequence.path(), localImport.moduleSpecifier); 
                         sequence.addImport(relativePath, localImport.importClause)
                     }
                 })

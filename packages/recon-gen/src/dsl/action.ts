@@ -1,6 +1,5 @@
 import ts, { factory, type Node } from "typescript";
-import path, { dirname } from "path";
-import { getEscapedText, NodeCreator, type ImportClause } from "./node.ts";
+import { createRelativeImportPath, getEscapedText, NodeCreator, type ImportClause } from "./node.ts";
 import { Effect } from "effect/index";
 import { Tools } from "./transform.ts";
 import { normalize, VFS } from "../lsp/vfs.ts";
@@ -96,7 +95,7 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                     addImport("effect", importClause);
                     const localImports = reconEnv.getImport(callName);
                     const actionPath = normalize(action().path());
-                    const relativePath = path.relative(path.dirname(actionPath), localImports.moduleSpecifier);
+                    const relativePath = createRelativeImportPath(action().path(), localImports.moduleSpecifier); 
                     addImport(relativePath, localImports.importClause);
                     action().addError();
 
@@ -139,7 +138,7 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                 for (const [moduleSpecifier, importClause] of actionImports) {
                     const from = normalize(action().path());
                     const to = normalize(moduleSpecifier);
-                    const relativePath = path.relative(dirname(from), to);
+                    const relativePath = createRelativeImportPath(action().path(), moduleSpecifier); 
                     addImport(relativePath, importClause)
                 }
                 action().addRunFunction(run);

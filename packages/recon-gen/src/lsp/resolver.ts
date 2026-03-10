@@ -61,10 +61,14 @@ export class ImportResolver extends Effect.Service<ImportResolver>()(
             }
 
             const resolveModuleSpecifier = (node: ts.ImportDeclaration, checker: ts.TypeChecker) => {
-                const declarations = extractImportDeclarations(node, checker);
-                const declaration = declarations[0];
-                const declPath = declaration?.getSourceFile().fileName ?? node.moduleSpecifier.getText();
-                return declPath;
+                const moduleSpecifier = getEscapedText(node.moduleSpecifier);
+                if (moduleSpecifier.startsWith("./") || moduleSpecifier.startsWith("../")) {
+                    const declarations = extractImportDeclarations(node, checker);
+                    const declaration = declarations[0];
+                    const declPath = declaration?.getSourceFile().fileName ?? node.moduleSpecifier.getText();
+                    return declPath;
+                }
+                return moduleSpecifier;
             }
             const resolveImportedSymbols = (node: ts.ImportDeclaration, checker: ts.TypeChecker) => {
                 const declarations = extractImportDeclarations(node, checker);
@@ -90,50 +94,70 @@ export class ImportResolver extends Effect.Service<ImportResolver>()(
                 const program = languageServer.getProgram();
                 const checker = program?.getTypeChecker();
 
+                const extractImportFromDeclaration = (node: ts.ImportDeclaration, moduleSpecifier: string) => {
+                    const importClause = node.importClause;
+                    const namedImport = importClause?.name;
+                    const namedBindings = importClause?.namedBindings;
+                    const bindings: ImportSpecifier[] = [];
+
+                    if (!namedBindings) {
+                        return;
+                    }
+
+                    if (ts.isNamespaceImport(namedBindings)) {
+                        bindings.push({ propertyName: "*", name: namedBindings.name.text, isType: false })
+                    }
+
+                    if (ts.isNamedImportBindings(namedBindings)) {
+                        namedBindings.forEachChild(child => {
+                            if (ts.isImportSpecifier(child)) {
+                                const propertyName = child.propertyName;
+                                const name = child.name
+                                bindings.push({ propertyName: propertyName?.text, name: name.text, isType: child.isTypeOnly })
+                            }
+                        })
+                    }
+
+                    const importDeclarationObj = {
+                        [moduleSpecifier]: {
+                            namedImport: namedImport?.text,
+                            namedBindings: bindings,
+                            node: node,
+                            phaseModifier: importClause?.phaseModifier ? true : false
+                        }
+                    }
+                    return importDeclarationObj;
+                }
+
                 if (!checker) {
                     throw new Error("LanguageServer Failed on Checker");
                 }
                 const packageName = getEscapedText(node.moduleSpecifier);
                 let moduleSpecifier: string;
+                let importNodes: ts.ImportDeclaration[] = [];
 
                 if (packageName.startsWith("./") || packageName.startsWith("../")) {
+                    importNodes = resolveImportedSymbols(node, checker);
                     moduleSpecifier = resolveModuleSpecifier(node, checker);
                 } else {
                     moduleSpecifier = packageName;
                 }
 
-                const importClause = node.importClause;
-                const namedImport = importClause?.name;
-                const namedBindings = importClause?.namedBindings;
-                const bindings: ImportSpecifier[] = [];
-
-                if (!namedBindings) {
+                const importDeclarationObj = extractImportFromDeclaration(node, moduleSpecifier);
+                if (!importDeclarationObj) {
                     return;
                 }
-
-                if (ts.isNamespaceImport(namedBindings)) {
-                    bindings.push({ propertyName: "*", name: namedBindings.name.text, isType: false })
-                }
-
-                if (ts.isNamedImportBindings(namedBindings)) {
-                    namedBindings.forEachChild(child => {
-                        if (ts.isImportSpecifier(child)) {
-                            const propertyName = child.propertyName;
-                            const name = child.name
-                            bindings.push({ propertyName: propertyName?.text, name: name.text, isType: child.isTypeOnly })
-                        }
-                    })
-                }
-
-                const importDeclarationObj = {
-                    [moduleSpecifier]: {
-                        namedImport: namedImport?.text,
-                        namedBindings: bindings,
-                        node: node,
-                        phaseModifier: importClause?.phaseModifier ? true : false
-                    }
-                }
+                console.log(`Discovered Imports: ${moduleSpecifier}: ${importDeclarationObj[moduleSpecifier]?.namedBindings[0]?.name}, ${importDeclarationObj[moduleSpecifier]?.namedBindings[1]?.name}`)
                 reconEnv.addImport(importDeclarationObj);
+
+                importNodes.forEach(importedNode => {
+                    const importedModuleSpecifier = resolveModuleSpecifier(importedNode, checker)
+                    const declarationObj = extractImportFromDeclaration(importedNode, importedModuleSpecifier);
+                    if (declarationObj) {
+                        console.log(`Extracted Imports: ${importedModuleSpecifier}: ${declarationObj[moduleSpecifier]?.namedBindings[0]?.name}, ${declarationObj[moduleSpecifier]?.namedBindings[1]?.name}`)
+                        reconEnv.addImport(declarationObj);
+                    }
+                });
             }
             return { extractSymbolAlias, resolveImport } as const;
         })
