@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 import { Effect, } from "effect";
-// import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { Tools, Transform } from "./dsl/transform.ts";
 import { VFS } from "./lsp/vfs.ts";
 import { ReconLanguageServer } from "./lsp/lsp.ts";

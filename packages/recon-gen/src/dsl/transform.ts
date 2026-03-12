@@ -8,6 +8,7 @@ import { normalize, VFS } from "../lsp/vfs.ts";
 import { Sequence, SequenceBuilder } from "./sequence.ts";
 import { Selector, SelectorBuilder } from "./selector.ts";
 import { ReconResolver } from "../lsp/resolver.ts";
+import { ReconRunner } from "./runner.ts";
 
 export class Tools extends Effect.Service<Tools>()(
     "Tools",
@@ -65,6 +66,7 @@ export class Skills extends Effect.Service<Skills>()(
             const actionBuilder = yield* ActionBuilder;
             const sequenceBuilder = yield* SequenceBuilder;
             const selectorBuilder = yield* SelectorBuilder;
+            const reconRunner = yield* ReconRunner;
 
             const skillVisitor = (node: Node): Action | Root | Sequence | Selector => {
                 const skill: Map<string, Node> = new Map();
@@ -97,6 +99,7 @@ export class Skills extends Effect.Service<Skills>()(
                                 return rootBuilder.root();
                             }
                             rootBuilder.addChild(child);
+                            reconRunner.addChild(rootBuilder.root());
                             console.log("Finished exploring Root");
                             return rootBuilder.root();
                         }
@@ -160,7 +163,7 @@ export class Skills extends Effect.Service<Skills>()(
             }
             return { init } as const;
         }),
-        dependencies: [ActionBuilder.Default, RootBuilder.Default, SequenceBuilder.Default, SelectorBuilder.Default]
+        dependencies: [ActionBuilder.Default, RootBuilder.Default, SequenceBuilder.Default, SelectorBuilder.Default, ReconRunner.Default]
     }
 ) { }
 
