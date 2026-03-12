@@ -147,14 +147,12 @@ export class ImportResolver extends Effect.Service<ImportResolver>()(
                 if (!importDeclarationObj) {
                     return;
                 }
-                console.log(`Discovered Imports: ${moduleSpecifier}: ${importDeclarationObj[moduleSpecifier]?.namedBindings[0]?.name}, ${importDeclarationObj[moduleSpecifier]?.namedBindings[1]?.name}`)
                 reconEnv.addImport(importDeclarationObj);
 
                 importNodes.forEach(importedNode => {
                     const importedModuleSpecifier = resolveModuleSpecifier(importedNode, checker)
                     const declarationObj = extractImportFromDeclaration(importedNode, importedModuleSpecifier);
                     if (declarationObj) {
-                        console.log(`Extracted Imports: ${importedModuleSpecifier}: ${declarationObj[moduleSpecifier]?.namedBindings[0]?.name}, ${declarationObj[moduleSpecifier]?.namedBindings[1]?.name}`)
                         reconEnv.addImport(declarationObj);
                     }
                 });

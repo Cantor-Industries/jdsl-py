@@ -321,7 +321,7 @@ const createImport = (moduleSpecifier: string, importClause: ImportClause): ts.I
 			))
 		}
 	}
-	const namedImportsNode = namedImports.length !=0 ? factory.createNamedImports(namedImports) : undefined;
+	const namedImportsNode = namedImports.length != 0 ? factory.createNamedImports(namedImports) : undefined;
 	const imports = factory.createImportDeclaration(
 		undefined,
 		factory.createImportClause(
@@ -338,21 +338,20 @@ const createImport = (moduleSpecifier: string, importClause: ImportClause): ts.I
 
 export function createRelativeImportPath(from: string, to: string): string {
 	// a better way to detect node & workspace imports can be implemented
-	if (!to.startsWith(".")) {
-		return to
+	if (to.startsWith(".") || to.startsWith("/")) {
+		const fromPath = normalize(from);
+		const toPath = normalize(to);
+		const fromDir = dirname(fromPath);
+
+		let relativePath = path.relative(fromDir, toPath);
+
+		if (!relativePath.startsWith(".")) {
+			relativePath = "./" + relativePath;
+		}
+		return relativePath;
+	} else {
+		return to;
 	}
-
-	const fromPath = normalize(from);
-	const toPath = normalize(to);
-	const fromDir = dirname(fromPath);
-
-	let relativePath = path.relative(fromDir, toPath);
-
-	if (!relativePath.startsWith(".")) {
-		relativePath = "./" + relativePath;
-	}
-
-	return relativePath;
 }
 
 export const createLayer = (layerName: string, dependencies: ts.VariableStatement[], body: ts.Statement[], ...other: ts.VariableStatement[]) => {

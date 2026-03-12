@@ -67,6 +67,7 @@ export class Skills extends Effect.Service<Skills>()(
             const sequenceBuilder = yield* SequenceBuilder;
             const selectorBuilder = yield* SelectorBuilder;
             const reconRunner = yield* ReconRunner;
+            let runnerInitialized = false;
 
             const skillVisitor = (node: Node): Action | Root | Sequence | Selector => {
                 const skill: Map<string, Node> = new Map();
@@ -99,7 +100,13 @@ export class Skills extends Effect.Service<Skills>()(
                                 return rootBuilder.root();
                             }
                             rootBuilder.addChild(child);
-                            reconRunner.addChild(rootBuilder.root());
+                            if (runnerInitialized) {
+                                reconRunner.addChild(rootBuilder.root());
+                            } else {
+                                reconRunner.buildRunner();
+                                reconRunner.addChild(rootBuilder.root());
+                                runnerInitialized = true;
+                            }
                             console.log("Finished exploring Root");
                             return rootBuilder.root();
                         }

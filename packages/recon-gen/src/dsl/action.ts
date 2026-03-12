@@ -2,7 +2,7 @@ import ts, { factory, type Node } from "typescript";
 import { createRelativeImportPath, getEscapedText, NodeCreator, type ImportClause } from "./node.ts";
 import { Effect } from "effect/index";
 import { Tools } from "./transform.ts";
-import { normalize, VFS } from "../lsp/vfs.ts";
+import {  VFS } from "../lsp/vfs.ts";
 import { ReconLanguageServer } from "../lsp/lsp.ts";
 import { generateFactoryCode } from "../factorycodegen.ts";
 import { ReconEnvBuilder } from "../lsp/env.ts";
@@ -94,8 +94,7 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                     }
                     addImport("effect", importClause);
                     const localImports = reconEnv.getImport(callName);
-                    const actionPath = normalize(action().path());
-                    const relativePath = createRelativeImportPath(action().path(), localImports.moduleSpecifier); 
+                    const relativePath = createRelativeImportPath(action().path(), localImports.moduleSpecifier);
                     addImport(relativePath, localImports.importClause);
                     action().addError();
 
@@ -126,7 +125,6 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                 throw new Error("Action Map Empty");
             }
             const addImport = (packageName: string, importClause: ImportClause) => {
-
                 action().addImport(packageName, importClause)
             }
             const addLayer = () => {
@@ -136,8 +134,6 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                 }
                 const actionImports = reconEnv.checkSymbols(run);
                 for (const [moduleSpecifier, importClause] of actionImports) {
-                    const from = normalize(action().path());
-                    const to = normalize(moduleSpecifier);
                     const relativePath = createRelativeImportPath(action().path(), moduleSpecifier); 
                     addImport(relativePath, importClause)
                 }

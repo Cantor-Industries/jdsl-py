@@ -71,10 +71,8 @@ export class ReconRunner extends Effect.Service<ReconRunner>()(
                 vfs.set(runner.path(), runner.print());
                 languageServer.getSyntacticDiagnostics(runner.path());
             }
-
-            buildRunner();
-
-            return { addChild } as const;
+            
+            return { addChild, buildRunner } as const;
         })
     }
 ) { }
