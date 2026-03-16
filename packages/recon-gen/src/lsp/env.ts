@@ -144,7 +144,7 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                     hasAsyncModifier(declaration) ? [factory.createModifier(ts.SyntaxKind.AsyncKeyword)] : undefined, // isAsync?
                     declaration.typeParameters,
                     declaration.parameters,
-                    declaration.type,
+                    undefined, //declaration.type,
                     factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
                     callExpression
                 );

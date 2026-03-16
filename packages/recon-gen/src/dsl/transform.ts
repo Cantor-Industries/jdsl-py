@@ -22,13 +22,22 @@ export class Tools extends Effect.Service<Tools>()(
                         const key = child.name;
                         const value = child.initializer;
                         if (ts.isArrowFunction(value)) {
-                            tools.set(key.getText(), value);
+                            const arrowFunction = factory.updateArrowFunction(
+                                value,
+                                value.modifiers,
+                                value.typeParameters,
+                                value.parameters,
+                                undefined,
+                                factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+                                value.body
+                            )
+                            tools.set(key.getText(), arrowFunction);
                         } else if (ts.isFunctionExpression(value)) {
                             const arrowFunction = factory.createArrowFunction(
                                 value.modifiers,
                                 value.typeParameters,
                                 value.parameters,
-                                value.type,
+                                undefined,
                                 factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
                                 value.body ?? factory.createBlock([], true)
                             );
