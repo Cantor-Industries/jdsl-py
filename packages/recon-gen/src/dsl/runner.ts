@@ -2,7 +2,7 @@ import ts, { factory } from "typescript";
 import { Effect } from "effect";
 import { ReconLanguageServer } from "src/lsp/lsp.ts";
 import { VFS } from "src/lsp/vfs.ts";
-import { createRelativeImportPath, NodeCreator, type Dependency, type ImportClause, type ImportSpecifier } from "./node.ts";
+import { createRelativeImportPath, NodeCreator, type ImportClause } from "./node.ts";
 import type { Root } from "./root.ts";
 
 export class Runner extends NodeCreator {

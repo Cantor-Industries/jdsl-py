@@ -2,28 +2,17 @@
 import { Effect } from "effect";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 
-import { Tools, Transform } from "@jdsl/recon-gen/transform";
-import { VFS } from "@jdsl/recon-gen/vfs";
-import { ReconEnvBuilder } from "@jdsl/recon-gen/env";
-import { ReconLanguageServer } from "@jdsl/recon-gen/lsp";
-import { ReconInitializer } from "@jdsl/recon-gen/initializer";
+import { ReconCli } from "./cli.ts";
 
 const main = Effect.gen(function* () {
-    yield* ReconInitializer.init;
+    const cli = yield* ReconCli;
+    yield* cli.run(Bun.argv.slice(2));
 }).pipe(
-    Effect.provide(ReconInitializer.Default),
-    Effect.provide(Transform.Default),
-    Effect.provide(ReconEnvBuilder.Default),
-    Effect.provide(ReconLanguageServer.Default),
-    Effect.provide(VFS.Default),
-    Effect.provide(Tools.Default),
-    Effect.catchAll(e => Effect.sync(() => {
-        console.error(e.msg);
-    })),
+    Effect.provide(ReconCli.Default),
 )
 
 BunRuntime.runMain(
     main.pipe(
         Effect.provide(BunContext.layer)
-    )
+    ) as Effect.Effect<void, never, never>
 );
