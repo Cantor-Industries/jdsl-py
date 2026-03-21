@@ -25,5 +25,8 @@
   },
   "files": [
     "src"
-  ]
+  ],
+  "devDependencies": {
+    "@effect/language-service": "^0.80.0"
+  }
 }
