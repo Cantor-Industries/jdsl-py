@@ -3,28 +3,37 @@ import { Effect } from "effect";
 export interface Content {
     type: "text" | "image",
     text: string
-}
+};
 
 export interface Message {
     role: "user" | "assistant" | "system";
-    content: Content[]
-}
+    content: string | Content[]
+};
+
+export interface Context {
+    system?: string ;
+    message?: Message;
+};
 
 export class ContextWindow extends Effect.Service<ContextWindow>()(
     "ContextWindow",
     {
         effect: Effect.gen(function* () {
-            const systemInstructions: string[] = [];
-            const messages: Message[] = []
+            const window: Context[] = [];
 
-            const addSystemInstruction = (instruction: string) => Effect.sync(() => systemInstructions.push(instruction));
-            const addMessage = (message: Message) => Effect.sync(() => messages.push(message));
+            const push = (context: Context) => Effect.sync(() => window.push(context));
+            const pop = () => Effect.sync(() => window.pop());
 
             const join = () => Effect.sync(() => {
-                const system = systemInstructions.join("\n");
-                return {systemInstructions: system, messages: messages};
+                const system: string[] = []
+                const messages: Message[] = []
+                window.forEach(value => {
+                    if (value.system) system.push(value.system);
+                    if (value.message) messages.push(value.message)
+                })
+                return {systemInstructions: system.join("\n"), messages: messages};
             })
-            return { addSystemInstruction, addMessage, join } as const;
+            return { join, push, pop } as const;
         })
     }
 ) { }

@@ -1,11 +1,7 @@
 import { Effect } from "effect";
 import { generateText as generateTextAiSdk, streamText as streamTextAiSdk } from "ai";
-import { BunRuntime, BunContext } from "@effect/platform-bun";
 
 import { AiModel } from "./src/aiModel.ts";
-import { ModelsDev } from "./src/models/models-dev.ts";
-import { AiModelConfig } from "./src/config.ts";
-import { AiProvider } from "./src/providers.ts";
 
 export class LanguageModel extends Effect.Service<LanguageModel>()(
     "LanguageModel",
@@ -43,21 +39,3 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
         })
     }
 ) { }
-
-const program = Effect.gen(function* () {
-    const languageModel = yield* LanguageModel;
-    const modelProvider = yield* AiProvider;
-
-    yield* modelProvider.chooseProvider("openai");
-    yield* modelProvider.chooseModel("gpt-5.3-codex");
-    const response = yield* languageModel.generateText("Who released the song What is love and in what year as part of what album. Respond in less than 20 words");
-    console.log(response.text)
-}).pipe(
-    Effect.provide(LanguageModel.Default),
-    Effect.provide(AiModel.Default),
-    Effect.provide(AiModelConfig.Default),
-    Effect.provide(AiProvider.Default),
-    Effect.provide(ModelsDev.Default)
-)
-
-BunRuntime.runMain(program.pipe(Effect.provide(BunContext.layer)))
