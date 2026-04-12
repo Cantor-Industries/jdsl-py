@@ -15,7 +15,7 @@
     "@effect/platform-bun": "^0.87.1",
     "@jdsl/recon-gen": "^0.1.0",
     "commander": "^14.0.3",
-    "effect": "^3.19.16"
+    "effect": "^3.21.0"
   },
   "exports": {
     ".": "./src/types.ts"
