@@ -1,6 +1,6 @@
 import ts, { factory } from "typescript";
 import { Effect } from "effect"
-import { createLayerDependency, createRelativeImportPath, type Dependency, type ImportClause, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
+import { createLayerDependency, createRelativeImportPath, type Dependency, type ImportClause, lowercaseFirstLetter, NodeCreator, type PluginBody, uppercaseFirstLetter } from "./node.ts";
 import { VFS } from "../lsp/vfs.ts";
 import { Action } from "./action.ts";
 import { Selector } from "./selector.ts";
@@ -24,11 +24,11 @@ export class Sequence extends NodeCreator {
     }
 
     override addLayer(): void {
-        this.layer = createSequenceLayer(this.name, this.layerBody, this.dependencies);
+        this.layer = createSequenceLayer(this.name, this.layerBody, this.dependencies, this.serviceDependencies, this.pluginDependencies);
     }
 
     override addLayerBody(): void {
-        this.layerBody = createSequenceLayerBody(this.dependencies);
+        this.layerBody = createSequenceLayerBody(this.dependencies, this.pluginBody);
     }
 
     override addLayerDependency(dependencyName: string): void {
@@ -78,7 +78,7 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
                     if (paramType && ts.isTypeReferenceNode(paramType)) {
                         const name = paramType.getText();
                         const localImport = reconEnv.getImport(name);
-                        const relativePath = createRelativeImportPath(sequence.path(), localImport.moduleSpecifier); 
+                        const relativePath = createRelativeImportPath(sequence.path(), localImport.moduleSpecifier);
                         sequence.addImport(relativePath, localImport.importClause)
                     }
                 })
@@ -111,20 +111,10 @@ export class SequenceBuilder extends Effect.Service<SequenceBuilder>()(
     }
 ) { }
 
-const createSequenceLayer = (layerName: string, body: ts.Statement[], dependencies: Dependency[]) => {
-    const serviceElements: ts.Expression[] = [];
-    const services = factory.createArrayLiteralExpression(serviceElements);
+const createSequenceLayer = (layerName: string, body: ts.Statement[], dependencies: Dependency[], serviceDependencies: ts.PropertyAccessExpression[], pluginDependencies: ts.VariableStatement[]) => {
     const dependencyNames = dependencies.map(dep => dep.name);
-    const layerDependencies = dependencyNames.map(dep => createLayerDependency(dep))
-
-    dependencyNames.forEach(depName => {
-        serviceElements.push(
-            factory.createPropertyAccessExpression(
-                factory.createIdentifier(depName),
-                factory.createIdentifier("Default")
-            )
-        )
-    })
+    const layerDependencies = dependencyNames.map(dep => createLayerDependency(dep));
+    const services = factory.createArrayLiteralExpression(serviceDependencies);
 
     const layer = [
         factory.createClassDeclaration(
@@ -167,7 +157,7 @@ const createSequenceLayer = (layerName: string, body: ts.Statement[], dependenci
                                                 [],
                                                 undefined,
                                                 factory.createBlock(
-                                                    [...layerDependencies, ...body],
+                                                    [...layerDependencies, ...pluginDependencies, ...body],
                                                     true
                                                 )
                                             )]
@@ -191,7 +181,7 @@ const createSequenceLayer = (layerName: string, body: ts.Statement[], dependenci
     return layer;
 }
 
-const createSequenceLayerBody = (dependencies: Dependency[]) => {
+const createSequenceLayerBody = (dependencies: Dependency[], pluginBody: PluginBody[]) => {
     if (!dependencies || dependencies.length === 0) {
         throw new Error("Dependencies Array Cannot be Zero");
     }
@@ -227,6 +217,17 @@ const createSequenceLayerBody = (dependencies: Dependency[]) => {
         updateBody.push(statement)
 
     }
+
+    const before: ts.ExpressionStatement[] = [];
+    const after: ts.ExpressionStatement[] = [];
+    pluginBody.forEach(expression => {
+        if (expression.position === "before") {
+            before.push(expression.expression);
+        } else if (expression.position === "after") {
+            after.push(expression.expression);
+        }
+    });
+    updateBody.push(...after);
     updateBody.push(factory.createReturnStatement(factory.createIdentifier("step_" + (childCount - 1))))
 
     const sequenceBody = [
@@ -257,7 +258,7 @@ const createSequenceLayerBody = (dependencies: Dependency[]) => {
                                 [],
                                 undefined,
                                 factory.createBlock(
-                                    [...updateBody],
+                                    [ ...before, ...updateBody ],
                                     true
                                 )
                             )]

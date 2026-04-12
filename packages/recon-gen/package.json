@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "dependencies": {
     "code-block-writer": "^13.0.3",
-    "effect": "^3.19.16",
+    "effect": "^3.21.0",
     "typescript": "^5.9.3"
   },
   "devDependencies": {

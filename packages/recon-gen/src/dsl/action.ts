@@ -1,8 +1,8 @@
 import ts, { factory, type Node } from "typescript";
-import { createRelativeImportPath, getEscapedText, NodeCreator, type ImportClause } from "./node.ts";
+import { createRelativeImportPath, getEscapedText, NodeCreator, type ImportClause, type PluginBody } from "./node.ts";
 import { Effect } from "effect/index";
 import { Tools } from "./transform.ts";
-import {  VFS } from "../lsp/vfs.ts";
+import { VFS } from "../lsp/vfs.ts";
 import { ReconLanguageServer } from "../lsp/lsp.ts";
 import { generateFactoryCode } from "../factorycodegen.ts";
 import { ReconEnvBuilder } from "../lsp/env.ts";
@@ -28,7 +28,11 @@ export class Action extends NodeCreator {
     }
 
     override addLayerBody(): void {
-        this.layerBody = createActonLayerBody(this.runFunction[0]!, this.callParameters, this.declarationParameters);
+        this.layerBody = createActonLayerBody(this.runFunction[0]!, this.callParameters, this.declarationParameters, this.pluginBody);
+    }
+
+    override addLayer(): void {
+        this.layer = createActionLayer(this.name, this.layerDependencies, this.layerBody, this.serviceDependencies, this.pluginDependencies);
     }
 };
 
@@ -118,6 +122,25 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                 currentAction = action;
                 actions.set(name, action);
             }
+            const addPluginDependency = (dependencyName: string) => {
+                const currentAction = action();
+                currentAction.addPluginDependency(dependencyName);
+                vfs.set(currentAction.path(), currentAction.print());
+                languageServer.getSyntacticDiagnostics(currentAction.path());
+            }
+            const addPluginBody = (body: PluginBody[]) => {
+                const currentAction = action();
+                currentAction.addPluginBody(body);
+                currentAction.addLayerBody();
+                vfs.set(currentAction.path(), currentAction.print());
+                languageServer.getSyntacticDiagnostics(currentAction.path());
+            }
+            const addServiceDependency = (dependencyName: string) => {
+                const currentAction = action();
+                currentAction.addServiceDependency(dependencyName);
+                vfs.set(currentAction.path(), currentAction.print());
+                languageServer.getSyntacticDiagnostics(currentAction.path());
+            }
             const action = () => {
                 if (currentAction) {
                     return currentAction;
@@ -125,25 +148,30 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                 throw new Error("Action Map Empty");
             }
             const addImport = (packageName: string, importClause: ImportClause) => {
-                action().addImport(packageName, importClause)
+                const currentAction = action();
+                console.log("Current Action:", currentAction.name);
+                currentAction.addImport(packageName, importClause);
+                vfs.set(currentAction.path(), currentAction.print());
+                languageServer.getSyntacticDiagnostics(currentAction.path());
             }
             const addLayer = () => {
-                const run = toolService.tools.get(action().name.replace("Action", ""));
+                const currentAction = action();
+                const run = toolService.tools.get(currentAction.name.replace("Action", ""));
                 if (!run) {
                     throw new Error(` ${currentAction?.name} missing matching agent function)`)
                 }
                 const actionImports = reconEnv.checkSymbols(run);
                 for (const [moduleSpecifier, importClause] of actionImports) {
-                    const relativePath = createRelativeImportPath(action().path(), moduleSpecifier); 
+                    const relativePath = createRelativeImportPath(currentAction.path(), moduleSpecifier);
                     addImport(relativePath, importClause)
                 }
-                action().addRunFunction(run);
-                action().addLayerBody();
+                currentAction.addRunFunction(run);
+                currentAction.addLayerBody();
             }
             const addArgs = (args: ts.ArrayLiteralExpression) => {
                 action().addArgs(args);
             }
-            return { action, buildAction } as const;
+            return { action, addImport, addPluginBody, addPluginDependency, addServiceDependency, buildAction } as const;
         }),
     }
 ) { }
@@ -304,8 +332,17 @@ const createArrowFunction = (layerName: string, agentFunction: ts.ArrowFunction)
     return { runFunction, declarationParameters, callParameters };
 }
 
-const createActonLayerBody = (actionFunction: ts.VariableStatement, callParameters: (ts.Identifier | ts.SpreadElement)[], declarationParameters: ts.ParameterDeclaration[]) => {
+const createActonLayerBody = (actionFunction: ts.VariableStatement, callParameters: (ts.Identifier | ts.SpreadElement)[], declarationParameters: ts.ParameterDeclaration[], pluginBody: PluginBody[]) => {
+    const before: ts.ExpressionStatement[] = [];
+    const after: ts.ExpressionStatement[] = [];
 
+    pluginBody.forEach(expression => {
+        if (expression.position === "before") {
+            before.push(expression.expression);
+        } else if (expression.position === "after") {
+            after.push(expression.expression);
+        }
+    });
     const actionLayerBody = [
         actionFunction,
         factory.createVariableStatement(
@@ -335,15 +372,31 @@ const createActonLayerBody = (actionFunction: ts.VariableStatement, callParamete
                                 [],
                                 undefined,
                                 factory.createBlock(
-                                    [factory.createReturnStatement(factory.createBinaryExpression(
-                                        factory.createIdentifier("yield"),
-                                        factory.createToken(ts.SyntaxKind.AsteriskToken),
-                                        factory.createCallExpression(
-                                            factory.createIdentifier("run"),
+                                    [
+                                        ...before,
+                                        factory.createVariableStatement(
                                             undefined,
-                                            callParameters
-                                        )
-                                    ))],
+                                            factory.createVariableDeclarationList(
+                                                [factory.createVariableDeclaration(
+                                                    factory.createIdentifier("result"),
+                                                    undefined,
+                                                    undefined,
+                                                    factory.createBinaryExpression(
+                                                        factory.createIdentifier("yield"),
+                                                        factory.createToken(ts.SyntaxKind.AsteriskToken),
+                                                        factory.createCallExpression(
+                                                            factory.createIdentifier("run"),
+                                                            undefined,
+                                                            callParameters
+                                                        )
+                                                    )
+                                                )],
+                                                ts.NodeFlags.Const
+                                            )
+                                        ),
+                                        ...after,
+                                        factory.createReturnStatement(factory.createIdentifier("result"))
+                                    ],
                                     true
                                 )
                             )]
@@ -365,7 +418,74 @@ const createActonLayerBody = (actionFunction: ts.VariableStatement, callParamete
                 factory.createIdentifier("const"),
                 undefined
             )
-        ))
+        )),
     ]
     return actionLayerBody as ts.Statement[];
+}
+
+const createActionLayer = (layerName: string, dependencies: ts.VariableStatement[], body: ts.Statement[], serviceDependencies: ts.PropertyAccessExpression[], pluginDependencies: ts.VariableStatement[]) => {
+    const services = factory.createArrayLiteralExpression(serviceDependencies);
+
+    const layer = [
+        factory.createClassDeclaration(
+            [factory.createToken(ts.SyntaxKind.ExportKeyword)],
+            factory.createIdentifier(layerName),
+            undefined,
+            [factory.createHeritageClause(
+                ts.SyntaxKind.ExtendsKeyword,
+                [factory.createExpressionWithTypeArguments(
+                    factory.createCallExpression(
+                        factory.createCallExpression(
+                            factory.createPropertyAccessExpression(
+                                factory.createIdentifier("Effect"),
+                                factory.createIdentifier("Service")
+                            ),
+                            [factory.createTypeReferenceNode(
+                                factory.createIdentifier(layerName),
+                                undefined
+                            )],
+                            []
+                        ),
+                        undefined,
+                        [
+                            factory.createStringLiteral(layerName),
+                            factory.createObjectLiteralExpression(
+                                [factory.createPropertyAssignment(
+                                    factory.createIdentifier("effect"),
+                                    factory.createCallExpression(
+                                        factory.createPropertyAccessExpression(
+                                            factory.createIdentifier("Effect"),
+                                            factory.createIdentifier("gen")
+                                        ),
+                                        undefined,
+                                        [factory.createFunctionExpression(
+                                            undefined,
+                                            factory.createToken(ts.SyntaxKind.AsteriskToken),
+                                            undefined,
+                                            undefined,
+                                            [],
+                                            undefined,
+                                            factory.createBlock(
+                                                [...dependencies, ...pluginDependencies, ...body],
+                                                true
+                                            )
+                                        )]
+                                    )
+                                ),
+                                factory.createPropertyAssignment(
+                                    factory.createIdentifier("dependencies"),
+                                    services,
+                                )
+                                ],
+                                true
+                            )
+                        ]
+                    ),
+                    undefined
+                )]
+            )],
+            []
+        ),
+    ];
+    return layer;
 }

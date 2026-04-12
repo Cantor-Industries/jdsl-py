@@ -29,6 +29,11 @@ export interface ImportDeclaration {
 	[moduleSpecifier: string]: ImportClause
 }
 
+export interface PluginBody {
+	position: "before" | "after" | "interleaved";
+	expression: ts.ExpressionStatement;
+}
+
 export class NodeCreator {
 	public name: string;
 	protected basePath: string
@@ -37,6 +42,9 @@ export class NodeCreator {
 	private context: (ts.VariableStatement | ts.ClassDeclaration)[];
 	protected layer: (ts.VariableStatement | ts.ClassDeclaration | ts.ExpressionStatement)[];
 	protected layerDependencies: ts.VariableStatement[];
+	protected pluginDependencies: ts.VariableStatement[];
+	protected pluginBody: PluginBody[];
+	protected serviceDependencies: ts.PropertyAccessExpression[];
 	protected layerBody: ts.Statement[];
 	private namespace: ts.ModuleDeclaration[];
 	private taggedError: (ts.VariableStatement | ts.ClassDeclaration)[];
@@ -55,6 +63,9 @@ export class NodeCreator {
 		this.context = [];
 		this.layer = [];
 		this.layerDependencies = [];
+		this.pluginDependencies = [];
+		this.pluginBody = [];
+		this.serviceDependencies = [];
 		this.layerBody = [];
 		this.namespace = [];
 		this.taggedError = [];
@@ -74,7 +85,7 @@ export class NodeCreator {
 	protected addChild(child: Action | Sequence | Selector, pipeable?: boolean): void {
 		console.log("Inside", this.name, "adding", child.name, "as a child")
 		this.childName = child.name;
-		const relativePath = createRelativeImportPath(this.path(), child.path()); 
+		const relativePath = createRelativeImportPath(this.path(), child.path());
 		const namedBinding: ImportSpecifier = isFirstLetterLoweCase(this.childName) ?
 			{ propertyName: this.childName, name: uppercaseFirstLetter(this.childName), isType: false } : { propertyName: undefined, name: this.childName, isType: false }
 		const importClause: ImportClause = {
@@ -83,6 +94,7 @@ export class NodeCreator {
 		}
 		this.addImport(relativePath, importClause);
 		this.addLayerDependency(uppercaseFirstLetter(this.childName));
+		this.addServiceDependency(uppercaseFirstLetter(this.childName));
 
 		if (this.firstChild) {
 			this.firstChild = false;
@@ -118,12 +130,27 @@ export class NodeCreator {
 
 	addLayer() {
 		this.addLayerBody();
-		this.layer = createLayer(this.name, this.layerDependencies, this.layerBody);
+		this.layer = createLayer(this.name, this.layerDependencies, this.layerBody, this.pluginBody);
 	}
 
 	addLayerDependency(dependencyName: string) {
 		const dependency = createLayerDependency(dependencyName);
 		this.layerDependencies.push(dependency);
+	}
+
+	addPluginDependency(dependencyName: string) {
+		const dependency = createLayerDependency(dependencyName);
+		this.pluginDependencies.push(dependency);
+	}
+
+	addPluginBody(body: PluginBody[]) {
+		this.pluginBody.push(...body);
+		// console.log(this.pluginBody);
+	}
+
+	addServiceDependency(dependencyName: string) {
+		const service = createServiceDependency(dependencyName);
+		this.serviceDependencies.push(service);
 	}
 
 	addLayerBody() {
@@ -150,7 +177,6 @@ export class NodeCreator {
 	}
 
 	update() {
-		this.layer = createLayer(this.name, this.layerDependencies, this.layerBody);
 		this.sourceFile = ts.createSourceFile(this.name + ".ts", this.compile(), ts.ScriptTarget.Latest, true);
 	}
 
@@ -305,6 +331,14 @@ export const createLayerDependency = (dependencyName: string) => {
 	return dep;
 }
 
+export const createServiceDependency = (dependencyName: string) => {
+	const expression = factory.createPropertyAccessExpression(
+		factory.createIdentifier(dependencyName),
+		factory.createIdentifier("Default")
+	);
+	return expression;
+}
+
 const createImport = (moduleSpecifier: string, importClause: ImportClause): ts.ImportDeclaration => {
 	const namedImports = [];
 	const namedBindings = importClause.namedBindings;
@@ -354,7 +388,7 @@ export function createRelativeImportPath(from: string, to: string): string {
 	}
 }
 
-export const createLayer = (layerName: string, dependencies: ts.VariableStatement[], body: ts.Statement[], ...other: ts.VariableStatement[]) => {
+export const createLayer = (layerName: string, dependencies: ts.VariableStatement[], body: ts.Statement[], pluginBody: PluginBody[]) => {
 	const layer = [
 		factory.createClassDeclaration(
 			[factory.createToken(ts.SyntaxKind.ExportKeyword)],
@@ -410,7 +444,6 @@ export const createLayer = (layerName: string, dependencies: ts.VariableStatemen
 			[]
 		)
 		,
-		...other,
 	];
 	return layer;
 }

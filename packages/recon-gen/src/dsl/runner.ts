@@ -14,7 +14,7 @@ export class Runner extends NodeCreator {
     }
 
     override addLayer(): void {
-        this.layer = createRunnerLayer(this.name, this.layerBody, this.dependencyNames);
+        this.layer = createRunnerLayer(this.name, this.layerBody, this.dependencyNames, this.serviceDependencies);
     }
     override addLayerBody(): void {
         this.layerBody = createRunnerLayerBody(this.dependencyNames);
@@ -22,7 +22,6 @@ export class Runner extends NodeCreator {
 
     override addLayerDependency(dependencyName: string): void {
         const dependency = createLayerDependency(dependencyName);
-        // this.layerDependencies.push(dependency);
         this.dependencyNames.push(dependencyName);
     }
 }
@@ -71,8 +70,18 @@ export class ReconRunner extends Effect.Service<ReconRunner>()(
                 vfs.set(runner.path(), runner.print());
                 languageServer.getSyntacticDiagnostics(runner.path());
             }
-            
-            return { addChild, buildRunner } as const;
+            const addImport = (moduleSpecifier: string, importClause: ImportClause) => {
+                runner.addImport(moduleSpecifier, importClause);
+                vfs.set(runner.path(), runner.print());
+                languageServer.getSyntacticDiagnostics(runner.path());
+            }
+            const addServiceDependency = (dependencyName: string) => {
+                runner.addServiceDependency(dependencyName);
+                vfs.set(runner.path(), runner.print());
+                languageServer.getSyntacticDiagnostics(runner.path());
+            }
+
+            return { addChild, addImport, addServiceDependency, buildRunner } as const;
         })
     }
 ) { }
@@ -97,7 +106,7 @@ const createLayerDependency = (dependencyName: string) => {
     return dep;
 }
 
-const createRunnerLayer = (layerName: string, body: ts.Statement[], dependencyNames: string[]) => {
+const createRunnerLayer = (layerName: string, body: ts.Statement[], dependencyNames: string[], serviceDependencies: ts.PropertyAccessExpression[]) => {
     const serviceElements: ts.Expression[] = [];
     const services = factory.createArrayLiteralExpression(serviceElements);
     const layerDependencies = dependencyNames.map(dep => createLayerDependency(dep))
@@ -108,6 +117,17 @@ const createRunnerLayer = (layerName: string, body: ts.Statement[], dependencyNa
                 factory.createIdentifier(depName),
                 factory.createIdentifier("Default")
             )
+        )
+    })
+
+    const serviceDependenciesList = serviceDependencies.map(service => {
+        return factory.createCallExpression(
+            factory.createPropertyAccessExpression(
+                factory.createIdentifier("Effect"),
+                factory.createIdentifier("provide")
+            ),
+            undefined,
+            [service],
         )
     })
 
@@ -216,17 +236,20 @@ const createRunnerLayer = (layerName: string, body: ts.Statement[], dependencyNa
                             factory.createIdentifier("pipe")
                         ),
                         undefined,
-                        [factory.createCallExpression(
-                            factory.createPropertyAccessExpression(
-                                factory.createIdentifier("Effect"),
-                                factory.createIdentifier("provide")
+                        [
+                            factory.createCallExpression(
+                                factory.createPropertyAccessExpression(
+                                    factory.createIdentifier("Effect"),
+                                    factory.createIdentifier("provide")
+                                ),
+                                undefined,
+                                [factory.createPropertyAccessExpression(
+                                    factory.createIdentifier("runner"),
+                                    factory.createIdentifier("Default")
+                                )],
                             ),
-                            undefined,
-                            [factory.createPropertyAccessExpression(
-                                factory.createIdentifier("runner"),
-                                factory.createIdentifier("Default")
-                            )]
-                        )]
+                            ...serviceDependenciesList
+                        ]
                     )
                 )],
                 ts.NodeFlags.Const
@@ -262,6 +285,7 @@ const createRunnerLayer = (layerName: string, body: ts.Statement[], dependencyNa
 }
 
 const createRunnerLayerBody = (dependencyNames: string[]) => {
+    
     const layerBody = [
         factory.createVariableStatement(
             undefined,

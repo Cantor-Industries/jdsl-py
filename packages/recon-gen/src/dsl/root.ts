@@ -1,6 +1,6 @@
 import ts, { factory } from "typescript";
 import { Effect } from "effect";
-import { createRelativeImportPath, type Dependency, type ImportClause, type ImportSpecifier, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
+import { createRelativeImportPath, type Dependency, type ImportClause, type ImportSpecifier, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, type PluginBody, uppercaseFirstLetter } from "./node.ts";
 import { Action } from "./action.ts";
 import { VFS } from "../lsp/vfs.ts";
 import { generateFactoryCode } from "../factorycodegen.ts";
@@ -49,16 +49,17 @@ export class Root extends NodeCreator {
     }
 
     override addLayerBody(): void {
-        this.layerBody = createRootLayerBody(this.name, this.args, this.dependencies);
+        this.layerBody = createRootLayerBody(this.name, this.args, this.dependencies, this.pluginBody);
     }
 
     override addLayerDependency(dependencyName: string): void {
         super.addLayerDependency(dependencyName);
         this.dependencyName = dependencyName;
+        this.addServiceDependency(dependencyName);
     }
 
     override addLayer(): void {
-        this.layer = createRootLayer(this.name, this.layerDependencies, this.layerBody, this.dependencyName);
+        this.layer = createRootLayer(this.name, this.layerDependencies, this.layerBody, this.serviceDependencies, this.pluginDependencies);
     }
 }
 
@@ -99,10 +100,34 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
                     if (paramType && ts.isTypeReferenceNode(paramType)) {
                         const name = paramType.getText();
                         const localImport = reconEnv.getImport(name);
-                        const relativePath = createRelativeImportPath(curRoot.path(), localImport.moduleSpecifier); 
+                        const relativePath = createRelativeImportPath(curRoot.path(), localImport.moduleSpecifier);
                         curRoot.addImport(relativePath, localImport.importClause)
                     }
                 })
+                vfs.set(curRoot.path(), curRoot.print());
+                languageServer.getSyntacticDiagnostics(curRoot.path());
+            }
+            const addImport = (moduleSpecifier: string, importClause: ImportClause) => {
+                const curRoot = root();
+                curRoot.addImport(moduleSpecifier, importClause);
+                vfs.set(curRoot.path(), curRoot.print());
+                languageServer.getSyntacticDiagnostics(curRoot.path());
+            }
+            const addPluginDependency = (dependencyName: string) => {
+                const curRoot = root();
+                curRoot.addPluginDependency(dependencyName);
+                vfs.set(curRoot.path(), curRoot.print());
+                languageServer.getSyntacticDiagnostics(curRoot.path());
+            }
+            const addPluginBody = (body: PluginBody[]) => {
+                const curRoot = root();
+                curRoot.addPluginBody(body);
+                vfs.set(curRoot.path(), curRoot.print());
+                languageServer.getSyntacticDiagnostics(curRoot.path());
+            }
+            const addServiceDependency = (dependencyName: string) => {
+                const curRoot = root();
+                curRoot.addServiceDependency(dependencyName);
                 vfs.set(curRoot.path(), curRoot.print());
                 languageServer.getSyntacticDiagnostics(curRoot.path());
             }
@@ -114,19 +139,13 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
                 }
                 throw new Error("No Root Node Defined yet");
             }
-            return { root, buildRoot, addChild } as const;
+            return { root, buildRoot, addChild, addImport, addPluginBody, addPluginDependency, addServiceDependency } as const;
         })
     }
 ) { }
 
-const createRootLayer = (layerName: string, dependencies: ts.VariableStatement[], body: ts.Statement[], dependencyName: string) => {
-    const services = factory.createArrayLiteralExpression(
-        [
-            factory.createPropertyAccessExpression(
-                factory.createIdentifier(dependencyName),
-                factory.createIdentifier("Default")
-            )]
-    );
+const createRootLayer = (layerName: string, dependencies: ts.VariableStatement[], body: ts.Statement[], serviceDependencies: ts.PropertyAccessExpression[], pluginDependencies: ts.VariableStatement[]) => {
+    const services = factory.createArrayLiteralExpression(serviceDependencies);
 
     const layer = [
         factory.createClassDeclaration(
@@ -168,7 +187,7 @@ const createRootLayer = (layerName: string, dependencies: ts.VariableStatement[]
                                             [],
                                             undefined,
                                             factory.createBlock(
-                                                [...dependencies, ...body],
+                                                [...dependencies, ...pluginDependencies, ...body],
                                                 true
                                             )
                                         )]
@@ -192,7 +211,7 @@ const createRootLayer = (layerName: string, dependencies: ts.VariableStatement[]
     return layer;
 }
 
-const createRootLayerBody = (layerName: string, args: ts.ArrayLiteralExpression, dependencies: Dependency[]) => {
+const createRootLayerBody = (layerName: string, args: ts.ArrayLiteralExpression, dependencies: Dependency[], pluginBody: PluginBody[]) => {
     const dependencyName = dependencies.map(dep => dep.name)[0];
     const callParameters = dependencies.map(dep => dep.callParameters)[0];
     const declarationParameters = dependencies.map(dep => dep.declarationParameters)[0];
@@ -207,6 +226,16 @@ const createRootLayerBody = (layerName: string, args: ts.ArrayLiteralExpression,
     } else {
         values
     }
+    const before: ts.ExpressionStatement[] = [];
+    const after: ts.ExpressionStatement[] = [];
+    
+    pluginBody.forEach(expression => {
+        if (expression.position === "before") {
+            before.push(expression.expression);
+        } else if (expression.position === "after") {
+            after.push(expression.expression);
+        }
+    });
 
     const rootBody = [
         factory.createVariableStatement(
@@ -237,6 +266,7 @@ const createRootLayerBody = (layerName: string, args: ts.ArrayLiteralExpression,
                                 undefined,
                                 factory.createBlock(
                                     [
+                                        ...before,
                                         factory.createVariableStatement(
                                             undefined,
                                             factory.createVariableDeclarationList(
@@ -318,10 +348,13 @@ const createRootLayerBody = (layerName: string, args: ts.ArrayLiteralExpression,
                                                 true
                                             ),
                                             factory.createBlock(
-                                                [factory.createReturnStatement(factory.createPropertyAccessExpression(
-                                                    factory.createIdentifier("updateOrFail"),
-                                                    factory.createIdentifier("right")
-                                                ))],
+                                                [
+                                                    ...after,
+                                                    factory.createReturnStatement(factory.createPropertyAccessExpression(
+                                                        factory.createIdentifier("updateOrFail"),
+                                                        factory.createIdentifier("right")
+                                                    ))
+                                                ],
                                                 true
                                             )
                                         ),

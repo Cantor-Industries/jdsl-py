@@ -1,6 +1,6 @@
 import ts, { factory } from "typescript";
 import { Effect } from "effect"
-import { createLayerDependency, createRelativeImportPath, type Dependency, type ImportClause, lowercaseFirstLetter, NodeCreator, uppercaseFirstLetter } from "./node.ts";
+import { createLayerDependency, createRelativeImportPath, type Dependency, type ImportClause, lowercaseFirstLetter, NodeCreator, type PluginBody, uppercaseFirstLetter } from "./node.ts";
 import { VFS } from "../lsp/vfs.ts";
 import { Action } from "./action.ts";
 import { Sequence } from "./sequence.ts";
@@ -24,11 +24,11 @@ export class Selector extends NodeCreator {
     }
 
     override addLayer(): void {
-        this.layer = createSelectorLayer(this.name, this.layerBody, this.dependencies);
+        this.layer = createSelectorLayer(this.name, this.layerBody, this.dependencies, this.serviceDependencies, this.pluginDependencies);
     }
 
     override addLayerBody(): void {
-        this.layerBody = createSelectorLayerBody(this.dependencies);
+        this.layerBody = createSelectorLayerBody(this.dependencies, this.pluginBody);
     }
 
     override addLayerDependency(dependencyName: string): void {
@@ -78,7 +78,7 @@ export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
                     if (paramType && ts.isTypeReferenceNode(paramType)) {
                         const name = paramType.getText();
                         const localImport = reconEnv.getImport(name);
-                        const relativePath = createRelativeImportPath(selector.path(), localImport.moduleSpecifier); 
+                        const relativePath = createRelativeImportPath(selector.path(), localImport.moduleSpecifier);
                         selector.addImport(relativePath, localImport.importClause)
                     }
                 })
@@ -111,20 +111,10 @@ export class SelectorBuilder extends Effect.Service<SelectorBuilder>()(
     }
 ) { }
 
-const createSelectorLayer = (layerName: string, body: ts.Statement[], dependencies: Dependency[]) => {
-    const serviceElements: ts.Expression[] = [];
-    const services = factory.createArrayLiteralExpression(serviceElements);
+const createSelectorLayer = (layerName: string, body: ts.Statement[], dependencies: Dependency[], serviceDependencies: ts.PropertyAccessExpression[], pluginDependencies: ts.VariableStatement[]) => {
     const dependencyNames = dependencies.map(dep => dep.name);
-    const layerDependencies = dependencyNames.map(dep => createLayerDependency(dep))
-
-    dependencyNames.forEach(depName => {
-        serviceElements.push(
-            factory.createPropertyAccessExpression(
-                factory.createIdentifier(depName),
-                factory.createIdentifier("Default")
-            )
-        )
-    })
+    const layerDependencies = dependencyNames.map(dep => createLayerDependency(dep));
+    const services = factory.createArrayLiteralExpression(serviceDependencies);
 
     const layer = [
         factory.createClassDeclaration(
@@ -167,7 +157,7 @@ const createSelectorLayer = (layerName: string, body: ts.Statement[], dependenci
                                                 [],
                                                 undefined,
                                                 factory.createBlock(
-                                                    [...layerDependencies, ...body],
+                                                    [...layerDependencies, ...pluginDependencies, ...body],
                                                     true
                                                 )
                                             )]
@@ -191,7 +181,7 @@ const createSelectorLayer = (layerName: string, body: ts.Statement[], dependenci
     return layer;
 }
 
-const createSelectorLayerBody = (dependencies: Dependency[]) => {
+const createSelectorLayerBody = (dependencies: Dependency[], pluginBody: PluginBody[]) => {
     if (dependencies.length === 0) {
         throw new Error("Dependencies Array Cannot be Zero");
     }
@@ -211,6 +201,16 @@ const createSelectorLayerBody = (dependencies: Dependency[]) => {
         effects.push(effect)
     }
 
+    const before: ts.ExpressionStatement[] = [];
+    const after: ts.ExpressionStatement[] = [];
+    pluginBody.forEach(expression => {
+        if (expression.position === "before") {
+            before.push(expression.expression);
+        } else if (expression.position === "after") {
+            after.push(expression.expression);
+        }
+    });
+
     const updateBody = [
         factory.createVariableStatement(
             undefined,
@@ -227,18 +227,31 @@ const createSelectorLayerBody = (dependencies: Dependency[]) => {
                 ts.NodeFlags.Const
             )
         ),
-        factory.createReturnStatement(factory.createBinaryExpression(
-            factory.createIdentifier("yield"),
-            factory.createToken(ts.SyntaxKind.AsteriskToken),
-            factory.createCallExpression(
-                factory.createPropertyAccessExpression(
-                    factory.createIdentifier("Effect"),
-                    factory.createIdentifier("firstSuccessOf")
-                ),
-                undefined,
-                [factory.createIdentifier("effects")]
+        factory.createVariableStatement(
+            undefined,
+            factory.createVariableDeclarationList(
+                [factory.createVariableDeclaration(
+                    factory.createIdentifier("result"),
+                    undefined,
+                    undefined,
+                    factory.createBinaryExpression(
+                        factory.createIdentifier("yield"),
+                        factory.createToken(ts.SyntaxKind.AsteriskToken),
+                        factory.createCallExpression(
+                            factory.createPropertyAccessExpression(
+                                factory.createIdentifier("Effect"),
+                                factory.createIdentifier("firstSuccessOf")
+                            ),
+                            undefined,
+                            [factory.createIdentifier("effects")]
+                        )
+                    )
+                )],
+                ts.NodeFlags.Const
             )
-        ))
+        ),
+        ...after,
+        factory.createReturnStatement(factory.createIdentifier("result"))
     ];
 
     const selectorBody = [
@@ -269,7 +282,7 @@ const createSelectorLayerBody = (dependencies: Dependency[]) => {
                                 [],
                                 undefined,
                                 factory.createBlock(
-                                    [...updateBody],
+                                    [...before, ...updateBody],
                                     true
                                 )
                             )]

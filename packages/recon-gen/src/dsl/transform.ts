@@ -9,6 +9,7 @@ import { Sequence, SequenceBuilder } from "./sequence.ts";
 import { Selector, SelectorBuilder } from "./selector.ts";
 import { ReconResolver } from "../lsp/resolver.ts";
 import { ReconRunner } from "./runner.ts";
+import { ContextBuilder } from "./context.ts";
 
 export class Tools extends Effect.Service<Tools>()(
     "Tools",
@@ -75,19 +76,19 @@ export class Skills extends Effect.Service<Skills>()(
             const actionBuilder = yield* ActionBuilder;
             const sequenceBuilder = yield* SequenceBuilder;
             const selectorBuilder = yield* SelectorBuilder;
+            const contextBuilder = yield* ContextBuilder;
             const reconRunner = yield* ReconRunner;
             let runnerInitialized = false;
 
             const skillVisitor = (node: Node): Action | Root | Sequence | Selector => {
                 const skill: Map<string, Node> = new Map();
-                for (const child of node.getChildAt(1).getChildren()) {
+                node.forEachChild(child => {
                     if (ts.isPropertyAssignment(child)) {
                         const key = child.name;
                         const value = child.initializer;
                         skill.set(getEscapedText(key), value);
                     }
-                }
-
+                })
                 for (const [key, value] of skill) {
                     if (key == "type") {
                         const valueName = getEscapedText(value);
@@ -105,6 +106,22 @@ export class Skills extends Effect.Service<Skills>()(
                                 rootBuilder.buildRoot();
                             }
                             const child = skillVisitor(childNode);
+
+                            const context = skill.get("context");
+                            if (context) {
+                                const importStatement = contextBuilder.createImport();
+                                rootBuilder.addImport(importStatement.moduleSpecifier, importStatement.importClause);
+                                rootBuilder.addPluginDependency("ContextWindow");
+                                if (!contextBuilder.isInitialized) {
+                                    reconRunner.addImport(importStatement.moduleSpecifier, importStatement.importClause);
+                                    reconRunner.addServiceDependency("ContextWindow");
+                                }
+                                if (ts.isObjectLiteralExpression(context)) {
+                                    const body = contextBuilder.createBody(context);
+                                    rootBuilder.addPluginBody(body);
+                                }
+                            }
+
                             if (child instanceof Root) {
                                 return rootBuilder.root();
                             }
@@ -127,6 +144,22 @@ export class Skills extends Effect.Service<Skills>()(
                             selectorBuilder.buildSelector();
                             const selector = selectorBuilder.selector();
                             console.log("Starting to explore", selector.name);
+
+                            const context = skill.get("context");
+                            if (context) {
+                                const importStatement = contextBuilder.createImport();
+                                selector.addImport(importStatement.moduleSpecifier, importStatement.importClause);
+                                selector.addPluginDependency("ContextWindow");
+                                if (!contextBuilder.isInitialized) {
+                                    reconRunner.addImport(importStatement.moduleSpecifier, importStatement.importClause);
+                                    reconRunner.addServiceDependency("ContextWindow");
+                                }
+                                if (ts.isObjectLiteralExpression(context)) {
+                                    const body = contextBuilder.createBody(context);
+                                    selector.addPluginBody(body);
+                                }
+                            }
+
                             childNodes.forEachChild(childNode => {
                                 const child = skillVisitor(childNode);
                                 if (!(child instanceof Root)) {
@@ -145,6 +178,22 @@ export class Skills extends Effect.Service<Skills>()(
                             sequenceBuilder.buildSequence();
                             const sequence = sequenceBuilder.sequence();
                             console.log("Starting to explore", sequence.name);
+
+                            const context = skill.get("context");
+                            if (context) {
+                                const importStatement = contextBuilder.createImport();
+                                sequence.addImport(importStatement.moduleSpecifier, importStatement.importClause);
+                                sequence.addPluginDependency("ContextWindow");
+                                if (!contextBuilder.isInitialized) {
+                                    reconRunner.addImport(importStatement.moduleSpecifier, importStatement.importClause);
+                                    reconRunner.addServiceDependency("ContextWindow");
+                                }
+                                if (ts.isObjectLiteralExpression(context)) {
+                                    const body = contextBuilder.createBody(context);
+                                    sequence.addPluginBody(body);
+                                }
+                            }
+
                             childNodes.forEachChild(childNode => {
                                 const child = skillVisitor(childNode);
                                 if (!(child instanceof Root)) {
@@ -157,6 +206,22 @@ export class Skills extends Effect.Service<Skills>()(
                         else if (valueName === "action") {
                             actionBuilder.buildAction(skill);
                             console.log("Starting to explore", actionBuilder.action().name);
+
+                            const context = skill.get("context");
+                            if (context) {
+                                const importStatement = contextBuilder.createImport();
+                                actionBuilder.addImport(importStatement.moduleSpecifier, importStatement.importClause);
+                                actionBuilder.addPluginDependency("ContextWindow");
+                                if (!contextBuilder.isInitialized) {
+                                    reconRunner.addImport(importStatement.moduleSpecifier, importStatement.importClause);
+                                    reconRunner.addServiceDependency("ContextWindow");
+                                }
+                                if (ts.isObjectLiteralExpression(context)) {
+                                    const body = contextBuilder.createBody(context);
+                                    actionBuilder.addPluginBody(body);
+                                }
+                            }
+
                             console.log("Finished exploring", actionBuilder.action().name);
                             return actionBuilder.action();
                         }
@@ -179,7 +244,7 @@ export class Skills extends Effect.Service<Skills>()(
             }
             return { init } as const;
         }),
-        dependencies: [ActionBuilder.Default, RootBuilder.Default, SequenceBuilder.Default, SelectorBuilder.Default, ReconRunner.Default]
+        dependencies: [ActionBuilder.Default, RootBuilder.Default, SequenceBuilder.Default, SelectorBuilder.Default, ReconRunner.Default, ContextBuilder.Default]
     }
 ) { }
 
