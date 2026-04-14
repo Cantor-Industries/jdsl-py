@@ -8,7 +8,6 @@ import { normalize, VFS } from "../lsp/vfs.ts";
 import { Sequence, SequenceBuilder } from "./sequence.ts";
 import { Selector, SelectorBuilder } from "./selector.ts";
 import { ReconResolver } from "../lsp/resolver.ts";
-import { ReconRunner } from "./runner.ts";
 import { ContextBuilder } from "./context.ts";
 
 export class Tools extends Effect.Service<Tools>()(
@@ -77,8 +76,6 @@ export class Skills extends Effect.Service<Skills>()(
             const sequenceBuilder = yield* SequenceBuilder;
             const selectorBuilder = yield* SelectorBuilder;
             const contextBuilder = yield* ContextBuilder;
-            const reconRunner = yield* ReconRunner;
-            let runnerInitialized = false;
 
             const skillVisitor = (node: Node): Action | Root | Sequence | Selector => {
                 const skill: Map<string, Node> = new Map();
@@ -112,10 +109,6 @@ export class Skills extends Effect.Service<Skills>()(
                                 const importStatement = contextBuilder.createImport();
                                 rootBuilder.addImport(importStatement.moduleSpecifier, importStatement.importClause);
                                 rootBuilder.addPluginDependency("ContextWindow");
-                                if (!contextBuilder.isInitialized) {
-                                    reconRunner.addImport(importStatement.moduleSpecifier, importStatement.importClause);
-                                    reconRunner.addServiceDependency("ContextWindow");
-                                }
                                 if (ts.isObjectLiteralExpression(context)) {
                                     const body = contextBuilder.createBody(context);
                                     rootBuilder.addPluginBody(body);
@@ -126,13 +119,6 @@ export class Skills extends Effect.Service<Skills>()(
                                 return rootBuilder.root();
                             }
                             rootBuilder.addChild(child);
-                            if (runnerInitialized) {
-                                reconRunner.addChild(rootBuilder.root());
-                            } else {
-                                reconRunner.buildRunner();
-                                reconRunner.addChild(rootBuilder.root());
-                                runnerInitialized = true;
-                            }
                             console.log("Finished exploring Root");
                             return rootBuilder.root();
                         }
@@ -150,10 +136,6 @@ export class Skills extends Effect.Service<Skills>()(
                                 const importStatement = contextBuilder.createImport();
                                 selector.addImport(importStatement.moduleSpecifier, importStatement.importClause);
                                 selector.addPluginDependency("ContextWindow");
-                                if (!contextBuilder.isInitialized) {
-                                    reconRunner.addImport(importStatement.moduleSpecifier, importStatement.importClause);
-                                    reconRunner.addServiceDependency("ContextWindow");
-                                }
                                 if (ts.isObjectLiteralExpression(context)) {
                                     const body = contextBuilder.createBody(context);
                                     selector.addPluginBody(body);
@@ -184,10 +166,6 @@ export class Skills extends Effect.Service<Skills>()(
                                 const importStatement = contextBuilder.createImport();
                                 sequence.addImport(importStatement.moduleSpecifier, importStatement.importClause);
                                 sequence.addPluginDependency("ContextWindow");
-                                if (!contextBuilder.isInitialized) {
-                                    reconRunner.addImport(importStatement.moduleSpecifier, importStatement.importClause);
-                                    reconRunner.addServiceDependency("ContextWindow");
-                                }
                                 if (ts.isObjectLiteralExpression(context)) {
                                     const body = contextBuilder.createBody(context);
                                     sequence.addPluginBody(body);
@@ -212,10 +190,6 @@ export class Skills extends Effect.Service<Skills>()(
                                 const importStatement = contextBuilder.createImport();
                                 actionBuilder.addImport(importStatement.moduleSpecifier, importStatement.importClause);
                                 actionBuilder.addPluginDependency("ContextWindow");
-                                if (!contextBuilder.isInitialized) {
-                                    reconRunner.addImport(importStatement.moduleSpecifier, importStatement.importClause);
-                                    reconRunner.addServiceDependency("ContextWindow");
-                                }
                                 if (ts.isObjectLiteralExpression(context)) {
                                     const body = contextBuilder.createBody(context);
                                     actionBuilder.addPluginBody(body);
@@ -244,7 +218,7 @@ export class Skills extends Effect.Service<Skills>()(
             }
             return { init } as const;
         }),
-        dependencies: [ActionBuilder.Default, RootBuilder.Default, SequenceBuilder.Default, SelectorBuilder.Default, ReconRunner.Default, ContextBuilder.Default]
+        dependencies: [ActionBuilder.Default, RootBuilder.Default, SequenceBuilder.Default, SelectorBuilder.Default, ContextBuilder.Default]
     }
 ) { }
 
