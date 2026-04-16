@@ -15,7 +15,8 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
                 const fromAsync = (prompt: string) => Effect.tryPromise(async () => {
                     const response = await generateTextAiSdk({
                         model: model,
-                        prompt: prompt
+                        prompt: prompt,
+                        maxRetries: 5,
                     })
                     return response
                 })
@@ -28,7 +29,8 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
                 const fromAsync = (prompt: string) => Effect.tryPromise(async () => {
                     const response = await streamTextAiSdk({
                         model: model,
-                        prompt: prompt
+                        prompt: prompt,
+                        maxRetries: 5
                     })
                     return response
                 })
