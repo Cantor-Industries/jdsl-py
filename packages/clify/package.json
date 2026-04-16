@@ -1,0 +1,19 @@
+{
+  "name": "@jdsl/clify",
+  "version": "0.1.0",
+  "description": "",
+  "keywords": [],
+  "author": "Machar Kook",
+  "license": "Apache-2.0",
+  "type": "module",
+  "files": ["src"],
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "effect": "^3.21.0"
+  }
+}
