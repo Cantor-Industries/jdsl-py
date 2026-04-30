@@ -38,9 +38,9 @@ export class NodeCreator {
 	public name: string;
 	protected basePath: string
 	private sourceFile: ts.SourceFile;
-	private importList: Map<string, ts.ImportDeclaration>;
+	private importList: Map<string, ImportClause>;
 	private context: (ts.VariableStatement | ts.ClassDeclaration)[];
-	protected layer: (ts.VariableStatement | ts.ClassDeclaration | ts.ExpressionStatement)[];
+	protected layer: (ts.VariableStatement | ts.ClassDeclaration | ts.ExpressionStatement | ts.Statement)[];
 	protected layerDependencies: ts.VariableStatement[];
 	protected pluginDependencies: ts.VariableStatement[];
 	protected pluginBody: PluginBody[];
@@ -78,8 +78,27 @@ export class NodeCreator {
 	}
 
 	addImport(moduleSpecifier: string, importClause: ImportClause) {
-		const imports = createImport(moduleSpecifier, importClause);
-		this.importList.set(moduleSpecifier, imports);
+		if (this.importList.has(moduleSpecifier)) {
+			const clause = this.importList.get(moduleSpecifier)!;
+			if (!clause.namedImport && importClause.namedImport) {
+				clause.namedImport = importClause.namedImport;
+			}
+			importClause.namedBindings.forEach(binding => {
+				let exists: boolean = false;
+				clause.namedBindings.forEach(value => {
+					if (binding.name === value.name) {
+						exists = true;
+						return;
+					}
+				})
+				if (!exists) {
+					clause.namedBindings.push(binding);
+				}
+			})
+			this.importList.set(moduleSpecifier, clause);
+		} else {
+			this.importList.set(moduleSpecifier, importClause);
+		}
 	}
 
 	protected addChild(child: Action | Sequence | Selector, pipeable?: boolean): void {
@@ -164,7 +183,12 @@ export class NodeCreator {
 	private compile() {
 		this.addLayer();
 		const imports: ts.ImportDeclaration[] = [];
-		this.importList.forEach(imprt => imports.push(imprt));
+		this.importList.entries().forEach(value => {
+			const [moduleSpecifier, importClause] = value;
+			const imprt = createImport(moduleSpecifier, importClause);
+			imports.push(imprt);
+		})
+		// this.importList.forEach(imprt => imports.push(imprt));
 		const nodes = factory.createNodeArray([
 			...imports,
 			...this.context,
