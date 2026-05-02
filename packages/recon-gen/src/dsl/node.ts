@@ -42,7 +42,8 @@ export class NodeCreator {
 	private context: (ts.VariableStatement | ts.ClassDeclaration)[];
 	protected layer: (ts.VariableStatement | ts.ClassDeclaration | ts.ExpressionStatement | ts.Statement)[];
 	protected layerDependencies: ts.VariableStatement[];
-	protected pluginDependencies: ts.VariableStatement[];
+	public pluginDependencies: ts.VariableStatement[];
+	public pluginNames: string[];
 	protected pluginBody: PluginBody[];
 	protected serviceDependencies: ts.PropertyAccessExpression[];
 	protected layerBody: ts.Statement[];
@@ -64,6 +65,7 @@ export class NodeCreator {
 		this.layer = [];
 		this.layerDependencies = [];
 		this.pluginDependencies = [];
+		this.pluginNames = [];
 		this.pluginBody = [];
 		this.serviceDependencies = [];
 		this.layerBody = [];
@@ -160,11 +162,11 @@ export class NodeCreator {
 	addPluginDependency(dependencyName: string) {
 		const dependency = createLayerDependency(dependencyName);
 		this.pluginDependencies.push(dependency);
+		this.pluginNames.push(dependencyName);
 	}
 
 	addPluginBody(body: PluginBody[]) {
 		this.pluginBody.push(...body);
-		// console.log(this.pluginBody);
 	}
 
 	addServiceDependency(dependencyName: string) {
@@ -188,7 +190,6 @@ export class NodeCreator {
 			const imprt = createImport(moduleSpecifier, importClause);
 			imports.push(imprt);
 		})
-		// this.importList.forEach(imprt => imports.push(imprt));
 		const nodes = factory.createNodeArray([
 			...imports,
 			...this.context,

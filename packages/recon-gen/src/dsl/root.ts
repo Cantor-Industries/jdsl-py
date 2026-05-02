@@ -1,5 +1,6 @@
 import ts, { factory } from "typescript";
 import { Effect } from "effect";
+import { Clify } from "@jdsl/clify";
 import { createRelativeImportPath, type Dependency, type ImportClause, type ImportSpecifier, isFirstLetterLoweCase, lowercaseFirstLetter, NodeCreator, type PluginBody, uppercaseFirstLetter } from "./node.ts";
 import { Action } from "./action.ts";
 import { VFS } from "../lsp/vfs.ts";
@@ -9,12 +10,32 @@ import { Selector } from "./selector.ts";
 import { ReconLanguageServer } from "../lsp/lsp.ts";
 import { ReconEnvBuilder } from "src/lsp/env.ts";
 
+interface RootLayer {
+    layerDependencies: ts.VariableStatement[];
+    serviceDependencies: ts.PropertyAccessExpression[];
+    pluginDependencies: ts.VariableStatement[];
+    layerBody: ts.Statement[];
+}
+
 export class Root extends NodeCreator {
     private dependencyName: string;
+    private programBody: ts.Statement[];
+    public programFunction: ts.ArrowFunction;
+    public programOptions: ts.VariableStatement[];
+    public programCommand: ts.VariableStatement[];
+    public programCli: (ts.VariableStatement | ts.ExpressionStatement)[];
+    private programDependencies: ts.VariableStatement[];
+
     constructor(name: string, basePath?: string) {
         super(name, basePath);
         this.dependencyName = "";
         this.args = factory.createArrayLiteralExpression();
+        this.programBody = [];
+        this.programDependencies = [];
+        this.programFunction = createProgramFunction(this.name, this.args, this.callParameters, this.declarationParameters);
+        this.programOptions = [];
+        this.programCommand = [];
+        this.programCli = [];
     }
 
     override addChild(child: Action | Sequence | Selector, pipeable?: boolean): void {
@@ -59,7 +80,23 @@ export class Root extends NodeCreator {
     }
 
     override addLayer(): void {
-        this.layer = createRootLayer(this.name, this.layerDependencies, this.layerBody, this.serviceDependencies, this.pluginDependencies);
+        const rootLayer: RootLayer = { layerDependencies: this.layerDependencies, layerBody: this.layerBody, serviceDependencies: this.serviceDependencies, pluginDependencies: this.pluginDependencies };
+        this.layer = createRootLayer(this.name, rootLayer, this.programBody);
+    }
+
+    addProgramBody() {
+        const body = createProgramBody(this.programFunction, this.programOptions, this.programCommand, this.programCli);
+        this.programBody.push(body);
+    }
+
+    addProgramFunction() {
+        this.programFunction = createProgramFunction(this.name, this.args, this.callParameters, this.declarationParameters);
+    }
+
+    addCli(command: ts.VariableStatement[], options: ts.VariableStatement[], cli: (ts.VariableStatement | ts.ExpressionStatement)[]) {
+        options.forEach(option => this.programOptions.push(option));
+        command.forEach(cmd => this.programCommand.push(cmd));
+        cli.forEach(item => this.programCli.push(item));
     }
 }
 
@@ -70,6 +107,7 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
             const vfs = yield* VFS;
             const languageServer = yield* ReconLanguageServer;
             const reconEnv = yield* ReconEnvBuilder;
+            const clify = yield* Clify;
             const rootList: Root[] = [];
 
             const buildRoot = (name?: string) => {
@@ -104,6 +142,13 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
                         curRoot.addImport(relativePath, localImport.importClause)
                     }
                 })
+                curRoot.addProgramFunction()
+                const clifyCli = clify.createCli(curRoot.name, curRoot.programFunction, curRoot.pluginNames);
+                for (const [moduleSpecifier, importClause] of Object.entries(clifyCli.imports)) {
+                    curRoot.addImport(moduleSpecifier, importClause);
+                }
+                curRoot.addCli(clifyCli.command, clifyCli.options, clifyCli.cli);
+                curRoot.addProgramBody();
                 vfs.set(curRoot.path(), curRoot.print());
                 languageServer.getSyntacticDiagnostics(curRoot.path());
             }
@@ -118,6 +163,9 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
                 curRoot.addPluginDependency(dependencyName);
                 vfs.set(curRoot.path(), curRoot.print());
                 languageServer.getSyntacticDiagnostics(curRoot.path());
+            }
+            const addPluginName = (pluginName: string) => {
+                root().pluginNames.push(pluginName);
             }
             const addPluginBody = (body: PluginBody[]) => {
                 const curRoot = root();
@@ -139,14 +187,14 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
                 }
                 throw new Error("No Root Node Defined yet");
             }
-            return { root, buildRoot, addChild, addImport, addPluginBody, addPluginDependency, addServiceDependency } as const;
-        })
+            return { root, buildRoot, addChild, addImport, addPluginBody, addPluginDependency, addPluginName, addServiceDependency } as const;
+        }),
+        dependencies: [Clify.Default]
     }
 ) { }
 
-const createRootLayer = (layerName: string, dependencies: ts.VariableStatement[], body: ts.Statement[], serviceDependencies: ts.PropertyAccessExpression[], pluginDependencies: ts.VariableStatement[]) => {
-    const services = factory.createArrayLiteralExpression(serviceDependencies);
-
+const createRootLayer = (layerName: string, rootLayer: RootLayer, programBody: ts.Statement[]) => {
+    const services = factory.createArrayLiteralExpression(rootLayer.serviceDependencies);
     const layer = [
         factory.createClassDeclaration(
             [factory.createToken(ts.SyntaxKind.ExportKeyword)],
@@ -187,7 +235,7 @@ const createRootLayer = (layerName: string, dependencies: ts.VariableStatement[]
                                             [],
                                             undefined,
                                             factory.createBlock(
-                                                [...dependencies, ...pluginDependencies, ...body],
+                                                [...rootLayer.layerDependencies, ...rootLayer.pluginDependencies, ...rootLayer.layerBody],
                                                 true
                                             )
                                         )]
@@ -207,6 +255,7 @@ const createRootLayer = (layerName: string, dependencies: ts.VariableStatement[]
             )],
             []
         ),
+        ...programBody
     ];
     return layer;
 }
@@ -228,7 +277,7 @@ const createRootLayerBody = (layerName: string, args: ts.ArrayLiteralExpression,
     }
     const before: ts.ExpressionStatement[] = [];
     const after: ts.ExpressionStatement[] = [];
-    
+
     pluginBody.forEach(expression => {
         if (expression.position === "before") {
             before.push(expression.expression);
@@ -384,3 +433,101 @@ const createRootLayerBody = (layerName: string, args: ts.ArrayLiteralExpression,
     ];
     return rootBody;
 }
+
+const createProgramFunction = (layerName: string, args: ts.ArrayLiteralExpression, callParameters: (ts.Identifier | ts.SpreadElement)[], declarationParameters: ts.ParameterDeclaration[]) => {
+    let argsProvided = false;
+
+    if (args.elements.length != 0) {
+        argsProvided = true;
+    }
+    const programFunction = factory.createArrowFunction(
+        undefined,
+        undefined,
+        argsProvided ? [] : declarationParameters,
+        undefined,
+        factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+        factory.createCallExpression(
+            factory.createPropertyAccessExpression(
+                factory.createIdentifier("Effect"),
+                factory.createIdentifier("gen")
+            ),
+            undefined,
+            [factory.createFunctionExpression(
+                undefined,
+                factory.createToken(ts.SyntaxKind.AsteriskToken),
+                undefined,
+                undefined,
+                [],
+                undefined,
+                factory.createBlock(
+                    [
+                        factory.createVariableStatement(
+                            undefined,
+                            factory.createVariableDeclarationList(
+                                [factory.createVariableDeclaration(
+                                    factory.createIdentifier("runner"),
+                                    undefined,
+                                    undefined,
+                                    factory.createYieldExpression(
+                                        factory.createToken(ts.SyntaxKind.AsteriskToken),
+                                        factory.createIdentifier(layerName)
+                                    )
+                                )],
+                                ts.NodeFlags.Const
+                            )
+                        ),
+                        factory.createReturnStatement(factory.createYieldExpression(
+                            factory.createToken(ts.SyntaxKind.AsteriskToken),
+                            factory.createCallExpression(
+                                factory.createPropertyAccessExpression(
+                                    factory.createIdentifier("runner"),
+                                    factory.createIdentifier("update")
+                                ),
+                                undefined,
+                                argsProvided ? [] : callParameters
+                            )
+                        ))
+                    ],
+                    true
+                )
+            )]
+        )
+    )
+    return programFunction;
+}
+
+const createProgramBody = (programFunction: ts.ArrowFunction, programOptions: ts.VariableStatement[], programCommands: ts.VariableStatement[], programCli: (ts.VariableStatement | ts.ExpressionStatement)[]) => {
+
+    const programBody = factory.createIfStatement(
+        factory.createPropertyAccessExpression(
+            factory.createMetaProperty(
+                ts.SyntaxKind.ImportKeyword,
+                factory.createIdentifier("meta")
+            ),
+            factory.createIdentifier("main")
+        ),
+        factory.createBlock(
+            [
+                factory.createVariableStatement(
+                    undefined,
+                    factory.createVariableDeclarationList(
+                        [factory.createVariableDeclaration(
+                            factory.createIdentifier("program"),
+                            undefined,
+                            undefined,
+                            programFunction
+                        )],
+                        ts.NodeFlags.Const
+                    )
+                ),
+                ...programOptions,
+                ...programCommands,
+                ...programCli
+            ],
+            true
+        ),
+        undefined
+    )
+    return programBody;
+}
+

@@ -135,7 +135,9 @@ export class Skills extends Effect.Service<Skills>()(
                             if (context) {
                                 const importStatement = contextBuilder.createImport();
                                 selector.addImport(importStatement.moduleSpecifier, importStatement.importClause);
+                                rootBuilder.addImport(importStatement.moduleSpecifier, importStatement.importClause);
                                 selector.addPluginDependency("ContextWindow");
+                                rootBuilder.addPluginName("ContextWindow");
                                 if (ts.isObjectLiteralExpression(context)) {
                                     const body = contextBuilder.createBody(context);
                                     selector.addPluginBody(body);
@@ -166,6 +168,8 @@ export class Skills extends Effect.Service<Skills>()(
                                 const importStatement = contextBuilder.createImport();
                                 sequence.addImport(importStatement.moduleSpecifier, importStatement.importClause);
                                 sequence.addPluginDependency("ContextWindow");
+                                rootBuilder.addPluginName("ContextWindow");
+                                rootBuilder.addImport(importStatement.moduleSpecifier, importStatement.importClause);
                                 if (ts.isObjectLiteralExpression(context)) {
                                     const body = contextBuilder.createBody(context);
                                     sequence.addPluginBody(body);
@@ -189,6 +193,8 @@ export class Skills extends Effect.Service<Skills>()(
                             if (context) {
                                 const importStatement = contextBuilder.createImport();
                                 actionBuilder.addImport(importStatement.moduleSpecifier, importStatement.importClause);
+                                rootBuilder.addImport(importStatement.moduleSpecifier, importStatement.importClause);
+                                rootBuilder.addPluginName("ContextWindow");
                                 actionBuilder.addPluginDependency("ContextWindow");
                                 if (ts.isObjectLiteralExpression(context)) {
                                     const body = contextBuilder.createBody(context);
