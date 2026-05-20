@@ -60,8 +60,8 @@ export class Clify extends Effect.Service<Clify>()(
                 const command = createCommandAST(name, optionsNameList, hasOptionalParameter);
                 imports["@effect/cli"] = {namedBindings: [{ name: "CliConfig", isType: false}, { name: "Command", isType: false }, { name: "Options", isType: false }]};
 
-                const cli = createCliAST(name, "bun", pluginNames);
-                imports["@effect/platform-bun"] = { namedBindings: [{name: "BunContext", isType: false}, {name: "BunRuntime", isType: false}]};
+                const cli = createCliAST(name, "deno", pluginNames);
+                imports["@effect/platform-node"] = { namedBindings: [{name: "NodeContext", isType: false}, {name: "NodeRuntime", isType: false}]};
 
                 return { cli, imports, options, command } as const
             };
