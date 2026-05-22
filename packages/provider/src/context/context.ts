@@ -1,18 +1,9 @@
 import { Effect } from "effect";
-
-export interface Content {
-    type: "text" | "image",
-    text: string
-};
-
-export interface Message {
-    role: "user" | "assistant" | "system";
-    content: string | Content[]
-};
+import { type ModelMessage } from "ai";
 
 export interface Context {
     system?: string ;
-    message?: Message;
+    message?: ModelMessage;
 };
 
 export class ContextWindow extends Effect.Service<ContextWindow>()(
@@ -26,7 +17,7 @@ export class ContextWindow extends Effect.Service<ContextWindow>()(
 
             const join = () => Effect.sync(() => {
                 const system: string[] = []
-                const messages: Message[] = []
+                const messages: ModelMessage[] = []
                 window.forEach(value => {
                     if (value.system) system.push(value.system);
                     if (value.message) messages.push(value.message)

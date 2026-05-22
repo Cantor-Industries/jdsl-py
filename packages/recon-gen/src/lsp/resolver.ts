@@ -162,6 +162,17 @@ export class ImportResolver extends Effect.Service<ImportResolver>()(
     }
 ) { }
 
+export class GlobalResolver extends Effect.Service<GlobalResolver>()(
+    "GlobalResolver",
+    {
+        effect: Effect.gen(function* () {
+            const glbl = "";
+
+            return { glbl } as const;
+        })
+    }
+){}
+
 export class ReconResolver extends Effect.Service<ReconResolver>()(
     "ReconResolver",
     {

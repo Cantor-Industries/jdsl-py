@@ -20,16 +20,17 @@ export class AiModel extends Effect.Service<AiModel>()(
             const getModel = () => Effect.gen(function*() {
                 const config = yield* modelConfig.getConfig();
                 const provider = yield* modelProvider.getProvider();
+                const model = yield* modelProvider.getModelName();
 
                 switch (provider) {
                     case "anthropic":
-                        return createAnthropic(config)(yield* modelProvider.getModelName());
+                        return createAnthropic(config) (model);
 
                     case "google":
-                        return createGoogleGenerativeAI(config) (yield* modelProvider.getModelName());
+                        return createGoogleGenerativeAI(config) (model);
 
                     case "openai":
-                        return createOpenAI(config) (yield* modelProvider.getModelName());
+                        return createOpenAI(config) (model);
 
                     default:
                         return yield* new AiError({msg: `${provider} not supported yet`});
