@@ -25,7 +25,8 @@ export class AiProvider extends Effect.Service<AiProvider>()(
                 if (!modelList.includes(name)) {
                     return yield* new AiProviderError({msg: `${getProvider()} does not have a model ${name}`});
                 }
-                modelName = name
+                //remember to update provider if not automatically chosen
+                modelName = name;
             })
 
             const getProvider = () => Effect.succeed(provider);

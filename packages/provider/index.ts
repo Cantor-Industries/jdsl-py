@@ -10,11 +10,12 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
             const aiModel = yield* AiModel;
             const contextWindow = yield* ContextWindow;
 
-            const generateText = (text: string) => Effect.gen(function* () {
+            const generateText = (prompt: string) => Effect.gen(function* () {
                 const model = yield* aiModel.getModel();
+                contextWindow.push({message: {role: "user", content: prompt}});
                 const window = yield* contextWindow.join();
 
-                const fromAsync = (prompt: string) => Effect.tryPromise(async () => {
+                const fromAsync = () => Effect.tryPromise(async () => {
                     const response = await generateTextAiSdk({
                         model: model,
                         system: window.systemInstructions,
@@ -23,7 +24,9 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
                     })
                     return response
                 })
-                return yield* fromAsync(text)
+                const {content, text, reasoning, reasoningText, finishReason, usage, totalUsage} = yield* fromAsync();
+                yield* contextWindow.pop();
+                return {content, text, reasoning, reasoningText, finishReason, usage, totalUsage};
             })
 
             const streamText = (text: string) => Effect.gen(function* () {
@@ -37,6 +40,8 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
                     })
                     return response
                 })
+                const { textStream } = yield* fromAsync(text);
+                const reader = textStream.getReader();
                 return yield* fromAsync(text)
             })
 
