@@ -1,8 +1,8 @@
 import { Data, Effect } from "effect";
 import { generateText as generateTextAiSdk, streamText as streamTextAiSdk } from "ai";
-import { ContextWindow } from "src/context/context.ts";
+import { ContextWindow } from "./src/context/context.ts";
 import { AiModel } from "./src/aiModel.ts";
-import { AiProvider } from "src/providers.ts";
+import { AiProvider } from "./src/providers.ts";
 
 export class LanguageModelError extends Data.TaggedError("LanguageModelError")<{ msg: string }> { }
 export class LanguageModel extends Effect.Service<LanguageModel>()(
@@ -58,6 +58,5 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
 
             return { generateText, streamText, chooseModel, chooseProvider } as const
         }),
-        dependencies: [AiModel.Default, AiProvider.Default],
     }
 ) { }
