@@ -1,5 +1,5 @@
 import ts, { factory, type Node, type SourceFile } from "typescript";
-import { getEscapedText } from "./node.ts";
+import { getEscapedText, type ImportClause, type PluginBody } from "./node.ts";
 import { Root, RootBuilder } from "./root.ts";
 import { Action, ActionBuilder } from "./action.ts";
 import { Effect } from "effect";
@@ -9,6 +9,7 @@ import { Sequence, SequenceBuilder } from "./sequence.ts";
 import { Selector, SelectorBuilder } from "./selector.ts";
 import { ReconResolver } from "../lsp/resolver.ts";
 import { ContextBuilder } from "./context.ts";
+import { ModelBuilder } from "./model.ts";
 
 export class Tools extends Effect.Service<Tools>()(
     "Tools",
@@ -76,6 +77,7 @@ export class Skills extends Effect.Service<Skills>()(
             const sequenceBuilder = yield* SequenceBuilder;
             const selectorBuilder = yield* SelectorBuilder;
             const contextBuilder = yield* ContextBuilder;
+            const modelBuilder = yield* ModelBuilder;
 
             const skillVisitor = (node: Node): Action | Root | Sequence | Selector => {
                 const skill: Map<string, Node> = new Map();
@@ -103,6 +105,24 @@ export class Skills extends Effect.Service<Skills>()(
                                 rootBuilder.buildRoot();
                             }
                             const child = skillVisitor(childNode);
+
+                            const model = skill.get("model");
+                            if (model) {
+                                const { imports, pluginNames } = modelBuilder.createImports();
+                                imports.forEach(imprt => {
+                                    rootBuilder.addImport(imprt.specifier, imprt.clause);
+                                })
+                                rootBuilder.addPluginDependency("LanguageModel");
+                                pluginNames.forEach(name => {
+                                    rootBuilder.addPluginName(name);
+                                })
+                                // Makes sure LanguageModel is always provided before ContextWindow. Patches bug that will be fixed with future plugin architecture refactor.
+                                rootBuilder.root().pluginNames.splice(0, 0, "LanguageModel");
+                                if (ts.isStringLiteral(model)) {
+                                    const body: PluginBody[] = modelBuilder.createBody(model);
+                                    rootBuilder.addPluginBody(body);
+                                }
+                            }
 
                             const context = skill.get("context");
                             if (context) {
@@ -224,7 +244,7 @@ export class Skills extends Effect.Service<Skills>()(
             }
             return { init } as const;
         }),
-        dependencies: [ActionBuilder.Default, RootBuilder.Default, SequenceBuilder.Default, SelectorBuilder.Default, ContextBuilder.Default]
+        dependencies: [ActionBuilder.Default, RootBuilder.Default, SequenceBuilder.Default, SelectorBuilder.Default, ContextBuilder.Default, ModelBuilder.Default]
     }
 ) { }
 
