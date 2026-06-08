@@ -3,6 +3,7 @@ import { Data, Effect } from "effect";
 import { createGoogleGenerativeAI, type GoogleGenerativeAIProvider } from "@ai-sdk/google";
 import { createOpenAI, type OpenAIProvider } from "@ai-sdk/openai";
 import { createAnthropic, type AnthropicProvider } from "@ai-sdk/anthropic";
+import { createDeepSeek, type DeepSeekProvider } from "@ai-sdk/deepseek";
 
 import { AiModelConfig } from "./config.ts";
 import { AiProvider } from "./providers.ts";
@@ -25,6 +26,9 @@ export class AiModel extends Effect.Service<AiModel>()(
                 switch (provider) {
                     case "anthropic":
                         return createAnthropic(config) (model);
+
+                    case "deepseek":
+                        return createDeepSeek(config)(model);
 
                     case "google":
                         return createGoogleGenerativeAI(config) (model);
