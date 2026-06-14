@@ -1,5 +1,5 @@
 {
-  "name": "@jdsl/recon-gen",
+  "name": "@jdsl/jdsl-gen",
   "version": "0.1.0",
   "type": "module",
   "private": false,

@@ -1,11 +1,11 @@
 import { Command } from "commander";
 import { Effect } from "effect";
 
-import { Tools, Transform } from "@jdsl/recon-gen/transform";
-import { VFS } from "@jdsl/recon-gen/vfs";
-import { ReconEnvBuilder } from "@jdsl/recon-gen/env";
-import { ReconLanguageServer } from "@jdsl/recon-gen/lsp";
-import { ReconInitializer } from "@jdsl/recon-gen/initializer";
+import { Tools, Transform } from "@jdsl/jdsl-gen/transform";
+import { VFS } from "../../jsdl-gen/src/lsp/vfs.ts";
+import { ReconEnvBuilder } from "../../jsdl-gen/src/lsp/env.ts";
+import { ReconLanguageServer } from "../../jsdl-gen/src/lsp/lsp.ts";
+import { ReconInitializer } from "../../jsdl-gen/src/initializer.ts";
 
 const runRecon = Effect.gen(function* () {
 	yield* ReconInitializer.init;

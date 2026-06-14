@@ -1,5 +1,5 @@
 {
-  "name": "@jdsl/recon",
+  "name": "@jdsl/jdsl",
   "version": "0.1.0",
   "description": "",
   "scripts": {
@@ -13,7 +13,7 @@
   "dependencies": {
     "@effect/platform": "^0.94.5",
     "@effect/platform-bun": "^0.87.1",
-    "@jdsl/recon-gen": "^0.1.0",
+    "@jdsl/jdsl-gen": "^0.1.0",
     "commander": "^14.0.3",
     "effect": "^3.21.0"
   },
@@ -21,7 +21,7 @@
     ".": "./src/types.ts"
   },
   "bin": {
-    "recon": "./src/index.ts"
+    "jdsl": "./src/index.ts"
   },
   "files": [
     "src"
