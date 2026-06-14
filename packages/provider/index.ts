@@ -17,6 +17,7 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
                 const model = yield* aiModel.getModel();
                 contextWindow.push({ message: { role: "user", content: prompt } });
                 const window = yield* contextWindow.join();
+                window.messages.push({role: "user", content: prompt})
                 // TO-DO: Add specific error msg or add cause property
                 const fromAsync = () => Effect.tryPromise({
                     try: async () => {
