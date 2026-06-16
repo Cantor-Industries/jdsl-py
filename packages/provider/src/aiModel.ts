@@ -8,8 +8,12 @@ import { createDeepSeek, type DeepSeekProvider } from "@ai-sdk/deepseek";
 import { AiModelConfig } from "./config.ts";
 import { AiProvider } from "./providers.ts";
 
-export class AiError extends Data.TaggedError("AiError")<{msg: string}>{};
-export type AiModelProvider = AnthropicProvider | GoogleGenerativeAIProvider | OpenAIProvider;
+export class AiError extends Data.TaggedError("AiError")<{ msg: string }> { };
+export type AiModelProvider =
+    AnthropicProvider |
+    DeepSeekProvider |
+    GoogleGenerativeAIProvider |
+    OpenAIProvider;
 
 export class AiModel extends Effect.Service<AiModel>()(
     "AiModel",
