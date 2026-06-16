@@ -72,6 +72,10 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
                 return config[currentProvider] ?? {}
             })
 
+            const listConfig = () => Effect.gen(function* () {
+                return config;
+            })
+
             const configResult = yield* Effect.either(openConfig(configPath));
             if (Either.isLeft(configResult)) {
                 yield* saveConfig({});
@@ -80,7 +84,7 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
                 config = configResult.right;
             }
 
-            return { getConfig, saveConfig } as const;
+            return { getConfig, listConfig, saveConfig } as const;
         })
     }
 ) { }
