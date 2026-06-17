@@ -56,7 +56,7 @@ export class AiModel extends Effect.Service<AiModel>()(
                     case "zhipu":
                         return createZhipu(config)(model);
 
-                    case "z.ai":
+                    case "zai":
                         return createZhipu({
                             baseURL: 'https://api.z.ai/api/paas/v4',
                             apiKey: config.apiKey
