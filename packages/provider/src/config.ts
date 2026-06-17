@@ -5,7 +5,7 @@ import { Either, Effect, Schema } from "effect";
 import { FileSystem, Path } from "@effect/platform";
 import { AiProvider } from "./providers.ts";
 
-export const ProvidersList = Schema.Literal("anthropic", "deepseek", "google", "nvidia", "openai", "recon");
+export const ProvidersList = Schema.Literal("anthropic", "deepseek", "google", "nvidia", "openai", "recon", "zhiphu", "z.ai");
 export type Providers = typeof ProvidersList.Type;
 
 const ProviderConfig = Schema.Struct({
@@ -19,10 +19,12 @@ const ConfigSchema = Schema.Struct({
     "google": Schema.optional(ProviderConfig),
     "nvidia": Schema.optional(ProviderConfig),
     "openai": Schema.optional(ProviderConfig),
-    "recon": Schema.optional(ProviderConfig)
+    "recon": Schema.optional(ProviderConfig),
+    "zhiphu": Schema.optional(ProviderConfig),
+    "z.ai": Schema.optional(ProviderConfig),
 })
 
-interface Config extends Schema.Schema.Type<typeof ConfigSchema> {}
+interface Config extends Schema.Schema.Type<typeof ConfigSchema> { }
 
 export class AiModelConfig extends Effect.Service<AiModelConfig>()(
     "AiModelConfig",
@@ -31,7 +33,7 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
             const fs = yield* FileSystem.FileSystem;
             const path = yield* Path.Path;
             const provider = yield* AiProvider;
-            
+
             let config: Config;
 
             const home = homedir();
@@ -46,7 +48,7 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
                 return config as Config;
             })
 
-            const saveConfig = (cfg: Config) => Effect.gen(function*() {
+            const saveConfig = (cfg: Config) => Effect.gen(function* () {
                 const oldConfig = yield* Effect.either(openConfig(configPath));
                 let newConfig: Config;
 
@@ -54,7 +56,7 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
                     newConfig = {};
                 } else {
                     const encodedConfig = yield* Schema.encode(ConfigSchema)(cfg);
-                    newConfig = {...oldConfig.right, ...encodedConfig };
+                    newConfig = { ...oldConfig.right, ...encodedConfig };
                 }
                 config = newConfig;
                 const jsonString = JSON.stringify(newConfig, null, 2);
@@ -62,13 +64,13 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
                 const dirPath = dirname(configPath);
                 const dirExists = yield* fs.exists(dirPath);
                 if (!dirExists) {
-                    yield* fs.makeDirectory(dirPath, {recursive: true});
+                    yield* fs.makeDirectory(dirPath, { recursive: true });
                 }
 
-                yield* fs.writeFileString(configPath, jsonString, );
+                yield* fs.writeFileString(configPath, jsonString,);
             })
 
-            const getConfig = () => Effect.gen(function*() {
+            const getConfig = () => Effect.gen(function* () {
                 const currentProvider = yield* provider.getProvider()
                 return config[currentProvider] ?? {}
             })

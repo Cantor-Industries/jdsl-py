@@ -4,6 +4,7 @@ import { createGoogleGenerativeAI, type GoogleGenerativeAIProvider } from "@ai-s
 import { createOpenAI, type OpenAIProvider } from "@ai-sdk/openai";
 import { createAnthropic, type AnthropicProvider } from "@ai-sdk/anthropic";
 import { createDeepSeek, type DeepSeekProvider } from "@ai-sdk/deepseek";
+import { createZhipu, type ZhipuProvider } from "zhipu-ai-provider";
 import { createOpenAICompatible, type OpenAICompatibleProvider } from "@ai-sdk/openai-compatible";
 
 import { AiModelConfig } from "./config.ts";
@@ -15,7 +16,8 @@ export type AiModelProvider =
     DeepSeekProvider |
     GoogleGenerativeAIProvider |
     OpenAIProvider |
-    OpenAICompatibleProvider;
+    OpenAICompatibleProvider |
+    ZhipuProvider;
 
 export class AiModel extends Effect.Service<AiModel>()(
     "AiModel",
@@ -50,6 +52,15 @@ export class AiModel extends Effect.Service<AiModel>()(
 
                     case "openai":
                         return createOpenAI(config)(model);
+
+                    case "zhiphu":
+                        return createZhipu(config)(model);
+
+                    case "z.ai":
+                        return createZhipu({
+                            baseURL: 'https://api.z.ai/api/paas/v4',
+                            apiKey: config.apiKey
+                        })(model);
 
                     default:
                         return yield* new AiError({ msg: `${provider} not supported yet` });
