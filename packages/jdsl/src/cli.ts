@@ -1,68 +1,41 @@
-import { Command } from "commander";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
+import { AiModelConfig } from "@jdsl/provider/config";
 
-import { Tools, Transform } from "@jdsl/jdsl-gen/transform";
-import { VFS } from "@jdsl/jdsl-gen/vfs";
-import { ReconEnvBuilder } from "@jdsl/jdsl-gen/env";
-import { ReconLanguageServer } from "@jdsl/jdsl-gen/lsp";
-import { ReconInitializer } from "@jdsl/jdsl-gen/initializer";
+interface ChoiceOptions {
+	choice: string;
+	provider: Option.Option<string>;
+	auth: Option.Option<string>;
+	apiKey: Option.Option<string>
+}
 
-const runRecon = Effect.gen(function* () {
-	yield* ReconInitializer.init;
-}).pipe(
-	Effect.provide(ReconInitializer.Default),
-	Effect.provide(Transform.Default),
-	Effect.provide(ReconEnvBuilder.Default),
-	Effect.provide(ReconLanguageServer.Default),
-	Effect.provide(VFS.Default),
-	Effect.provide(Tools.Default),
-	Effect.catchAll((e) =>
-		Effect.sync(() => {
-			if (typeof e === "object" && e !== null && "msg" in e) {
-				console.error(String(e.msg));
-				return;
+export class JdslConfig extends Effect.Service<JdslConfig>()("jdsl/config", {
+	accessors: true,
+	effect: Effect.gen(function* () {
+		const config = yield* AiModelConfig;
+		const choice = ({ apiKey, auth, choice, provider }: ChoiceOptions) => Effect.gen(function* () {
+			const providerName = Option.match(provider, {
+				onNone: () => undefined,
+				onSome: (name) => name
+			})
+
+			const apiKeyName = Option.match(apiKey, {
+				onNone: () => undefined,
+				onSome: (name) => name
+			})
+
+			const authName = Option.match(auth, {
+				onNone: () => undefined,
+				onSome: (name) => name
+			})
+
+			if (choice === "list") {
+				console.log(yield* config.listConfig());
+			} else if (choice === "add") {
+				console.log(providerName, apiKeyName, authName);
+				
+				yield* config.saveConfig({[providerName!]: {apiKey: apiKeyName}});
 			}
-
-			console.error(String(e));
-		}),
-	),
-);
-
-export class ReconCli extends Effect.Service<ReconCli>()("recon/Cli", {
-	sync: () => ({
-		run: (argv: ReadonlyArray<string>) =>
-			Effect.gen(function* () {
-
-				const program = new Command()
-					.name("recon")
-					.description("Recon command line interface");
-
-				program
-					.command("run")
-					.description("Run recon")
-					.action(() => {
-					});
-
-				program
-					.command("help")
-					.description("Recon help utility")
-					.action(() => program.outputHelp())
-
-				if (argv.length === 0) {
-					yield* runRecon
-					return;
-				}
-
-				yield* Effect.tryPromise({
-					try: () => program.parseAsync([...argv], { from: "user" }),
-					catch: (cause) => cause,
-				}).pipe(
-					Effect.catchAll((cause) =>
-						Effect.sync(() => {
-							console.error(String(cause));
-						}),
-					),
-				);
-			}),
+		})
+		return { choice } as const;
 	}),
 }) { }

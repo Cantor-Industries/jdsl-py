@@ -1,6 +1,6 @@
 import ts, { factory } from "typescript";
 import { Effect } from "effect";
-import { type ImportClause, type ImportDeclaration } from "./node.ts";
+import { type ImportClause } from "./node.ts";
 
 
 export class ModelBuilder extends Effect.Service<ModelBuilder>()(
