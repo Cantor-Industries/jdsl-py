@@ -53,7 +53,7 @@ export class AiModel extends Effect.Service<AiModel>()(
                     case "openai":
                         return createOpenAI(config)(model);
 
-                    case "zhiphu":
+                    case "zhipu":
                         return createZhipu(config)(model);
 
                     case "z.ai":
