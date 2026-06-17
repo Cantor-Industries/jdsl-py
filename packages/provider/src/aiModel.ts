@@ -43,7 +43,7 @@ export class AiModel extends Effect.Service<AiModel>()(
 
                     case "nvidia":
                         return createOpenAICompatible({
-                            baseURL: "https://integrate.api.nvidia.com/v1", 
+                            baseURL: "https://integrate.api.nvidia.com/v1",
                             name: "nim",
                             headers: {
                                 Authorization: `Bearer ${config.apiKey}`
@@ -62,6 +62,19 @@ export class AiModel extends Effect.Service<AiModel>()(
                             apiKey: config.apiKey
                         })(model);
 
+                    case "zai-coding-plan":
+                        return createOpenAICompatible({
+                            baseURL: "https://api.z.ai/api/coding/paas/v4",
+                            name: "zai-coding-plan",
+                            apiKey: config.apiKey
+                        })(model);
+
+                    case "zhipuai-coding-plan":
+                        return createOpenAICompatible({
+                            baseURL: "https://open.bigmodel.cn/api/coding/paas/v4",
+                            name: "zai-coding-plan",
+                            apiKey: config.apiKey
+                        })(model);
                     default:
                         return yield* new AiError({ msg: `${provider} not supported yet` });
                 }

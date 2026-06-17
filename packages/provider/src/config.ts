@@ -5,7 +5,7 @@ import { Either, Effect, Schema } from "effect";
 import { FileSystem, Path } from "@effect/platform";
 import { AiProvider } from "./providers.ts";
 
-export const ProvidersList = Schema.Literal("anthropic", "deepseek", "google", "nvidia", "openai", "recon", "zhipuai", "zai");
+export const ProvidersList = Schema.Literal("anthropic", "deepseek", "google", "nvidia", "openai", "recon", "zhipuai", "zai", "zai-coding-plan", "zhipuai-coding-plan");
 export type Providers = typeof ProvidersList.Type;
 
 const ProviderConfig = Schema.Struct({
@@ -22,6 +22,8 @@ const ConfigSchema = Schema.Struct({
     "recon": Schema.optional(ProviderConfig),
     "zhipuai": Schema.optional(ProviderConfig),
     "zai": Schema.optional(ProviderConfig),
+    "zai-coding-plan": Schema.optional(ProviderConfig),
+    "zhipuai-coding-plan": Schema.optional(ProviderConfig),
 })
 
 interface Config extends Schema.Schema.Type<typeof ConfigSchema> { }
