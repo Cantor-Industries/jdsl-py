@@ -54,7 +54,7 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                     throw new Error("Action must have a call attribute");
                 }
                 const callName = getEscapedText(call);
-                if (toolService.tools.get(callName)) {
+                if (toolService.has(callName)) {
                     const actionName = getEscapedText(call) + "Action";
                     if (actions.has(actionName)) {
                         console.log(getEscapedText(call) + "Action already exists, exiting");
@@ -84,7 +84,7 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                     action().update();
                     vfs.set(action().path(), action().print());
                     languageServer.getSyntacticDiagnostics(action().path());
-                } else if (reconEnv.checkImport(callName)) {
+                } else if (reconEnv.has(callName)) {
                     const actionName = callName + "Action";
                     const runFunction = reconEnv.getRunFunction(callName);
                     toolService.tools.set(callName, runFunction);

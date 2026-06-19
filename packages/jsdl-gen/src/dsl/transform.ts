@@ -63,7 +63,8 @@ export class Tools extends Effect.Service<Tools>()(
                 nodes.forEach(node => toolWalker(node));
                 return tools;
             }
-            return { init, tools } as const;
+            const has = (name: string) => tools.has(name);
+            return { init, has, tools } as const;
         })
     }
 ) { }

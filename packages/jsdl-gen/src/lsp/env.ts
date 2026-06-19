@@ -19,7 +19,7 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                 }
                 ts.forEachChild(node, child => collectIdentifiers(child, out))
             }
-            const checkImport = (name: string) => {
+            const has = (name: string) => {
                 const namedBinding = packageMap.get(name);
                 if (!namedBinding) {
                     console.log("Could not resolve", name)
@@ -45,7 +45,7 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
             }
 
             const getImportNode = (name: string) => {
-                if (!checkImport(name)) {
+                if (!has(name)) {
                     throw new Error(`${name} import not found/invalid`)
                 }
                 const namedBinding = packageMap.get(name);
@@ -192,7 +192,7 @@ export class ReconEnvBuilder extends Effect.Service<ReconEnvBuilder>()(
                 importNodes.set(moduleSpecifier, importDeclarationObj!);
             }
 
-            return { addImport, checkImport, checkSymbols, getImport, getRunFunction } as const
+            return { addImport, has, checkSymbols, getImport, getRunFunction } as const
         })
         
     }
