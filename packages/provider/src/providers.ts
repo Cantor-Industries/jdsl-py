@@ -23,7 +23,7 @@ export class AiProvider extends Effect.Service<AiProvider>()(
             const chooseModel = (name: string) => Effect.gen(function* () {
                 const modelList = yield* listModels();
                 if (!modelList.includes(name)) {
-                    return yield* new NoSuchModelError({name: name, msg: `${getProvider()} does not have a model ${name}`})
+                    return yield* new NoSuchModelError({name: name, msg: `${yield* getProvider()} does not have a model called ${name}`})
                 }
                 //remember to update provider if not automatically chosen
                 modelName = name;
