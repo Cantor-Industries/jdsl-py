@@ -13,6 +13,12 @@ const ProviderConfig = Schema.Struct({
     authToken: Schema.optional(Schema.String)
 })
 
+// const ProviderConfig = Schema.Array(
+//     Schema.Struct({
+//         apiKey: Schema.optional(Schema.String),
+//         authToken: Schema.optional(Schema.String)
+//     }))
+
 const ConfigSchema = Schema.Struct({
     "anthropic": Schema.optional(ProviderConfig),
     "deepseek": Schema.optional(ProviderConfig),

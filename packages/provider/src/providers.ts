@@ -2,8 +2,8 @@ import { Data, Effect, Either } from "effect";
 import type { Providers } from "./config.ts";
 import { ModelsDev } from "./models/models-dev.ts";
 import type { Model } from "./models/modelSchema.ts";
+import { NoSuchModelError, NoSuchProviderError } from "./types.ts";
 
-export class AiProviderError extends Data.TaggedError("AiProviderError")<{ msg: string}> { }
 export class AiProvider extends Effect.Service<AiProvider>()(
     "AiProvider",
     {
@@ -15,7 +15,7 @@ export class AiProvider extends Effect.Service<AiProvider>()(
             const chooseProvider = (name: Providers) => Effect.gen(function*() {
                 const providers = yield* modelsDev.listProviders();
                 if (!providers.includes(name)) {
-                    return yield* new AiProviderError({msg: `${name} is not a supported provider`});
+                    return yield* new NoSuchProviderError({name: name, msg: `${name} is not a supported provider`});
                 }
                 provider = name;
             })
@@ -23,7 +23,7 @@ export class AiProvider extends Effect.Service<AiProvider>()(
             const chooseModel = (name: string) => Effect.gen(function* () {
                 const modelList = yield* listModels();
                 if (!modelList.includes(name)) {
-                    return yield* new AiProviderError({msg: `${getProvider()} does not have a model ${name}`});
+                    return yield* new NoSuchModelError({name: name, msg: `${getProvider()} does not have a model ${name}`})
                 }
                 //remember to update provider if not automatically chosen
                 modelName = name;
@@ -41,7 +41,7 @@ export class AiProvider extends Effect.Service<AiProvider>()(
                 const modelSpecs = results.models[modelName];
 
                 if (!modelSpecs) {
-                    return yield* new AiProviderError({msg: `${provider} does not have a model named ${modelName}.`});
+                    return yield* new NoSuchModelError({name: modelName, msg: `${getProvider()} does not have a model ${modelName}`})
                 }
                 return modelSpecs as Model;
             })

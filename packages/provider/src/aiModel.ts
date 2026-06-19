@@ -9,8 +9,9 @@ import { createOpenAICompatible, type OpenAICompatibleProvider } from "@ai-sdk/o
 
 import { AiModelConfig } from "./config.ts";
 import { AiProvider } from "./providers.ts";
+import { NoSuchProviderError } from "./types.ts";
 
-export class AiError extends Data.TaggedError("AiError")<{ msg: string }> { };
+// export class AiModelError extends Data.TaggedError("AiModelError")<{ msg: string }> { };
 export type AiModelProvider =
     AnthropicProvider |
     DeepSeekProvider |
@@ -76,7 +77,7 @@ export class AiModel extends Effect.Service<AiModel>()(
                             apiKey: config.apiKey
                         })(model);
                     default:
-                        return yield* new AiError({ msg: `${provider} not supported yet` });
+                        return yield* new NoSuchProviderError({name: provider, msg: `${provider} not supported yet`});
                 }
             });
 
