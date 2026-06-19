@@ -448,48 +448,100 @@ const createProgramFunction = (layerName: string, args: ts.ArrayLiteralExpressio
         factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
         factory.createCallExpression(
             factory.createPropertyAccessExpression(
-                factory.createIdentifier("Effect"),
-                factory.createIdentifier("gen")
+                factory.createCallExpression(
+                    factory.createPropertyAccessExpression(
+                        factory.createIdentifier("Effect"),
+                        factory.createIdentifier("gen")
+                    ),
+                    undefined,
+                    [factory.createFunctionExpression(
+                        undefined,
+                        factory.createToken(ts.SyntaxKind.AsteriskToken),
+                        undefined,
+                        undefined,
+                        [],
+                        undefined,
+                        factory.createBlock(
+                            [
+                                factory.createVariableStatement(
+                                    undefined,
+                                    factory.createVariableDeclarationList(
+                                        [factory.createVariableDeclaration(
+                                            factory.createIdentifier("runner"),
+                                            undefined,
+                                            undefined,
+                                            factory.createYieldExpression(
+                                                factory.createToken(ts.SyntaxKind.AsteriskToken),
+                                                factory.createIdentifier(layerName)
+                                            )
+                                        )],
+                                        ts.NodeFlags.Const
+                                    )
+                                ),
+                                factory.createReturnStatement(factory.createYieldExpression(
+                                    factory.createToken(ts.SyntaxKind.AsteriskToken),
+                                    factory.createCallExpression(
+                                        factory.createPropertyAccessExpression(
+                                            factory.createIdentifier("runner"),
+                                            factory.createIdentifier("update")
+                                        ),
+                                        undefined,
+                                        argsProvided ? [] : callParameters
+                                    )
+                                ))
+                            ],
+                            true
+                        )
+                    )]
+                ),
+                factory.createIdentifier("pipe")
             ),
             undefined,
-            [factory.createFunctionExpression(
+            [factory.createCallExpression(
+                factory.createPropertyAccessExpression(
+                    factory.createIdentifier("Effect"),
+                    factory.createIdentifier("catchAll")
+                ),
                 undefined,
-                factory.createToken(ts.SyntaxKind.AsteriskToken),
-                undefined,
-                undefined,
-                [],
-                undefined,
-                factory.createBlock(
-                    [
-                        factory.createVariableStatement(
-                            undefined,
-                            factory.createVariableDeclarationList(
-                                [factory.createVariableDeclaration(
-                                    factory.createIdentifier("runner"),
-                                    undefined,
-                                    undefined,
-                                    factory.createYieldExpression(
-                                        factory.createToken(ts.SyntaxKind.AsteriskToken),
-                                        factory.createIdentifier(layerName)
-                                    )
-                                )],
-                                ts.NodeFlags.Const
-                            )
+                [factory.createArrowFunction(
+                    undefined,
+                    undefined,
+                    [factory.createParameterDeclaration(
+                        undefined,
+                        undefined,
+                        factory.createIdentifier("e"),
+                        undefined,
+                        undefined,
+                        undefined
+                    )],
+                    undefined,
+                    factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+                    factory.createCallExpression(
+                        factory.createPropertyAccessExpression(
+                            factory.createIdentifier("Effect"),
+                            factory.createIdentifier("sync")
                         ),
-                        factory.createReturnStatement(factory.createYieldExpression(
-                            factory.createToken(ts.SyntaxKind.AsteriskToken),
+                        undefined,
+                        [factory.createArrowFunction(
+                            undefined,
+                            undefined,
+                            [],
+                            undefined,
+                            factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
                             factory.createCallExpression(
                                 factory.createPropertyAccessExpression(
-                                    factory.createIdentifier("runner"),
-                                    factory.createIdentifier("update")
+                                    factory.createIdentifier("console"),
+                                    factory.createIdentifier("error")
                                 ),
                                 undefined,
-                                argsProvided ? [] : callParameters
+                                [factory.createPropertyAccessExpression(
+                                    factory.createIdentifier("e"),
+                                    factory.createIdentifier("msg")
+                                )]
                             )
-                        ))
-                    ],
-                    true
-                )
+                        )]
+                    )
+                )]
             )]
         )
     )
