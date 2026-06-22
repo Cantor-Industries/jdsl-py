@@ -119,7 +119,6 @@ export class RootBuilder extends Effect.Service<RootBuilder>()(
                     namedBindings: [
                         { name: "Data", isType: false },
                         { name: "Effect", isType: false },
-                        { name: "Either", isType: false },
                     ]
                 }
                 root.addImport("effect", importClause);
@@ -316,95 +315,17 @@ const createRootLayerBody = (layerName: string, args: ts.ArrayLiteralExpression,
                                 factory.createBlock(
                                     [
                                         ...before,
-                                        factory.createVariableStatement(
-                                            undefined,
-                                            factory.createVariableDeclarationList(
-                                                [factory.createVariableDeclaration(
-                                                    factory.createIdentifier("updateOrFail"),
+                                        factory.createReturnStatement(
+                                            factory.createYieldExpression(
+                                                factory.createToken(ts.SyntaxKind.AsteriskToken),
+                                                factory.createCallExpression(
+                                                    factory.createPropertyAccessExpression(
+                                                        factory.createIdentifier(lowercaseFirstLetter(dependencyName!)),
+                                                        factory.createIdentifier("update")
+                                                    ),
                                                     undefined,
-                                                    undefined,
-                                                    factory.createYieldExpression(
-                                                        factory.createToken(ts.SyntaxKind.AsteriskToken),
-                                                        factory.createCallExpression(
-                                                            factory.createPropertyAccessExpression(
-                                                                factory.createIdentifier("Effect"),
-                                                                factory.createIdentifier("either")
-                                                            ),
-                                                            undefined,
-                                                            [factory.createCallExpression(
-                                                                factory.createPropertyAccessExpression(
-                                                                    factory.createIdentifier(lowercaseFirstLetter(dependencyName!)),
-                                                                    factory.createIdentifier("update")
-                                                                ),
-                                                                undefined,
-                                                                argsProvided ? values : callParameters
-                                                            )]
-                                                        )
-                                                    )
-                                                )],
-                                                ts.NodeFlags.Const
-                                            )
-                                        ),
-                                        factory.createIfStatement(
-                                            factory.createCallExpression(
-                                                factory.createPropertyAccessExpression(
-                                                    factory.createIdentifier("Either"),
-                                                    factory.createIdentifier("isLeft")
-                                                ),
-                                                undefined,
-                                                [factory.createIdentifier("updateOrFail")]
-                                            ),
-                                            factory.createBlock(
-                                                [
-                                                    factory.createExpressionStatement(factory.createCallExpression(
-                                                        factory.createPropertyAccessExpression(
-                                                            factory.createIdentifier("console"),
-                                                            factory.createIdentifier("error")
-                                                        ),
-                                                        undefined,
-                                                        [
-                                                            factory.createStringLiteral("Root Failed because:"),
-                                                            factory.createPropertyAccessExpression(
-                                                                factory.createPropertyAccessExpression(
-                                                                    factory.createIdentifier("updateOrFail"),
-                                                                    factory.createIdentifier("left")
-                                                                ),
-                                                                factory.createIdentifier("msg")
-                                                            )
-                                                        ]
-                                                    )),
-                                                    factory.createReturnStatement(factory.createYieldExpression(
-                                                        factory.createToken(ts.SyntaxKind.AsteriskToken),
-                                                        factory.createNewExpression(
-                                                            factory.createIdentifier(layerName + "Error"),
-                                                            undefined,
-                                                            [factory.createObjectLiteralExpression(
-                                                                [factory.createPropertyAssignment(
-                                                                    factory.createIdentifier("msg"),
-                                                                    factory.createPropertyAccessExpression(
-                                                                        factory.createPropertyAccessExpression(
-                                                                            factory.createIdentifier("updateOrFail"),
-                                                                            factory.createIdentifier("left")
-                                                                        ),
-                                                                        factory.createIdentifier("msg")
-                                                                    )
-                                                                )],
-                                                                false
-                                                            )]
-                                                        )
-                                                    ))
-                                                ],
-                                                true
-                                            ),
-                                            factory.createBlock(
-                                                [
-                                                    ...after,
-                                                    factory.createReturnStatement(factory.createPropertyAccessExpression(
-                                                        factory.createIdentifier("updateOrFail"),
-                                                        factory.createIdentifier("right")
-                                                    ))
-                                                ],
-                                                true
+                                                    argsProvided ? values : callParameters
+                                                )
                                             )
                                         ),
                                     ],
