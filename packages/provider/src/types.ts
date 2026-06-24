@@ -50,24 +50,23 @@ export class NoSuchProviderError extends Data.TaggedError("NoSuchProviderError")
 export class RetryError extends Data.TaggedError("RetryError")<AiError> { }
 
 export const mapLanguageModelError = (e: Effect.Effect<GenerateTextResponse | StreamTextResponse, UnknownException, never>) => Effect.mapError(e, (e) => {
-
     if (UnknownLoadAPIKeyError.isInstance(e.cause)) {
-        return new LoadAPIKeyError({ name: e.name, msg: e.message, isRetryable: false });
+        return new LoadAPIKeyError({ name: "LoadAPIKeyError", msg: e.cause.message, isRetryable: false });
     }
     if (UnknownJSONParseError.isInstance(e.cause)) {
-        return new JSONParseError({ name: e.name, msg: e.message, isRetryable: false });
+        return new JSONParseError({ name: "JSONParseError", msg: e.cause.message, isRetryable: false });
     }
     if (UnknownNoSuchModelError.isInstance(e.cause)) {
-        return new NoSuchModelError({ name: e.name, msg: e.message, isRetryable: false });
+        return new NoSuchModelError({ name: "NoSuchModelError", msg: e.cause.message, isRetryable: false });
     }
     if (UnknownNoSuchProviderError.isInstance(e.cause)) {
-        return new NoSuchProviderError({ name: e.name, msg: e.message, isRetryable: false });
+        return new NoSuchProviderError({ name: "NoSuchProviderError", msg: e.cause.message, isRetryable: false });
     }
     if (UnknownRetryError.isInstance(e.cause)) {
-        return new RetryError({ name: e.name, msg: e.message, isRetryable: false });
+        return new RetryError({ name: "RetryError", msg: e.cause.message, isRetryable: false });
     }
     if (UnknownAPICallError.isInstance(e.cause)) {
-        return new APICallError({ name: e.name, msg: e.message, isRetryable: e.cause.isRetryable });
+        return new APICallError({ name: "APICallError", msg: e.cause.message, isRetryable: e.cause.isRetryable });
     }
-    return new APICallError({ name: "apiError", msg: "Forbidden Resource, Authorization Failed", isRetryable: false });
+    return new APICallError({ name: "ApiCallError", msg: "Forbidden Resource, Authorization Failed", isRetryable: false });
 })
