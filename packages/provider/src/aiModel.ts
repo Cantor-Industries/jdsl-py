@@ -77,7 +77,7 @@ export class AiModel extends Effect.Service<AiModel>()(
                             apiKey: config.apiKey
                         })(model);
                     default:
-                        return yield* new NoSuchProviderError({name: provider, msg: `${provider} not supported yet`});
+                        return yield* new NoSuchProviderError({name: provider, msg: `${provider} not supported yet`, isRetryable: false});
                 }
             });
 

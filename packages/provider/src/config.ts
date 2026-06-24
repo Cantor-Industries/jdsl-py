@@ -4,6 +4,7 @@ import { dirname } from "path";
 import { Either, Effect, Schema } from "effect";
 import { FileSystem, Path } from "@effect/platform";
 import { AiProvider } from "./providers.ts";
+import { LoadAPIKeyError } from "./types.ts";
 
 export const ProvidersList = Schema.Literal("anthropic", "deepseek", "google", "nvidia", "openai", "recon", "zhipuai", "zai", "zai-coding-plan", "zhipuai-coding-plan");
 export type Providers = typeof ProvidersList.Type;
@@ -79,8 +80,9 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
             })
 
             const getConfig = () => Effect.gen(function* () {
-                const currentProvider = yield* provider.getProvider()
-                return config[currentProvider] ?? {}
+                const currentProvider = yield* provider.getProvider();
+                const cfg = config[currentProvider];
+                return cfg ? cfg : yield* new LoadAPIKeyError({name: "config", msg: `${currentProvider} apiKey/auth is missing`, isRetryable: false})
             })
 
             const listConfig = () => Effect.gen(function* () {

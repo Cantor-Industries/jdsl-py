@@ -14,7 +14,6 @@ const CacheMetadataSchema = Schema.Struct({
     modified: Schema.Date,
     created: Schema.Date
 })
-interface CacheMetadata extends Schema.Schema.Type<typeof CacheMetadataSchema> { }
 
 export class ModelsDevError extends Data.TaggedError("ModelsDevError")<{ msg: string, error?: unknown }> { }
 export class HttpError extends Data.TaggedError("HttpError")<{ status: number, statusText: string }> { }

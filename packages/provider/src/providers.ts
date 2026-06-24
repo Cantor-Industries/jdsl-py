@@ -1,4 +1,4 @@
-import { Data, Effect, Either } from "effect";
+import { Effect, Either } from "effect";
 import type { Providers } from "./config.ts";
 import { ModelsDev } from "./models/models-dev.ts";
 import type { Model } from "./models/modelSchema.ts";
@@ -15,7 +15,7 @@ export class AiProvider extends Effect.Service<AiProvider>()(
             const chooseProvider = (name: Providers) => Effect.gen(function*() {
                 const providers = yield* modelsDev.listProviders();
                 if (!providers.includes(name)) {
-                    return yield* new NoSuchProviderError({name: name, msg: `${name} is not a supported provider`});
+                    return yield* new NoSuchProviderError({name: name, msg: `${name} is not a supported provider`, isRetryable: false});
                 }
                 provider = name;
             })
@@ -23,7 +23,7 @@ export class AiProvider extends Effect.Service<AiProvider>()(
             const chooseModel = (name: string) => Effect.gen(function* () {
                 const modelList = yield* listModels();
                 if (!modelList.includes(name)) {
-                    return yield* new NoSuchModelError({name: name, msg: `${yield* getProvider()} does not have a model called ${name}`})
+                    return yield* new NoSuchModelError({name: name, msg: `${yield* getProvider()} does not have a model called ${name}`, isRetryable:  false})
                 }
                 //remember to update provider if not automatically chosen
                 modelName = name;
@@ -41,7 +41,7 @@ export class AiProvider extends Effect.Service<AiProvider>()(
                 const modelSpecs = results.models[modelName];
 
                 if (!modelSpecs) {
-                    return yield* new NoSuchModelError({name: modelName, msg: `${getProvider()} does not have a model ${modelName}`})
+                    return yield* new NoSuchModelError({name: modelName, msg: `${getProvider()} does not have a model ${modelName}`, isRetryable: false})
                 }
                 return modelSpecs as Model;
             })

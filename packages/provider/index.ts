@@ -19,36 +19,51 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
                 contextWindow.push({ message: { role: "user", content: prompt } });
                 const window = yield* contextWindow.join();
                 window.messages.push({ role: "user", content: prompt })
-                // TO-DO: Add cause property
+
                 const fromAsync = () => Effect.tryPromise(async () => {
                     const response = await generateTextAiSdk({
                         model: model,
                         system: window.systemInstructions,
                         messages: window.messages,
-                        maxRetries: 5,
+                        maxRetries: 0,
                     })
-                    const { content, text, reasoning, reasoningText, finishReason, usage, totalUsage } = response;
-                    return { content, text, reasoning, reasoningText, finishReason, usage, totalUsage }
-                })
-                const result = fromAsync();
+                    return response;
+                }).pipe(
+                    Effect.map((response) => {
+                        const { content, text, reasoning, reasoningText, finishReason, usage, totalUsage } = response;
+                        return { content, text, reasoning, reasoningText, finishReason, usage, totalUsage } 
+                    }),
+                    mapLanguageModelError
+                )
+                const result = yield* fromAsync();
                 yield* contextWindow.pop();
-                return yield* mapLanguageModelError(result);
+                return result;
             })
 
-            const streamText = (text: string) => Effect.gen(function* () {
+            const streamText = (prompt: string) => Effect.gen(function* () {
                 const model = yield* aiModel.getModel();
-
-                const fromAsync = (prompt: string) => Effect.tryPromise(async () => {
+                contextWindow.push({ message: { role: "user", content: prompt } });
+                const window = yield* contextWindow.join();
+                window.messages.push({ role: "user", content: prompt })
+                // TO-DO: Add cause property
+                const fromAsync = () => Effect.tryPromise(async () => {
                     const response = await streamTextAiSdk({
                         model: model,
-                        prompt: prompt,
-                        maxRetries: 5
+                        system: window.systemInstructions,
+                        prompt: window.messages,
+                        maxRetries: 0
                     })
-                    return response
-                })
-                const { textStream } = yield* fromAsync(text);
-                const reader = textStream.getReader();
-                return yield* fromAsync(text)
+                    return response;
+                }).pipe(
+                    Effect.map((response) => {
+                        const { content, text, textStream, reasoning, reasoningText, finishReason, usage, totalUsage } = response;
+                        return { content, text, textStream, reasoning, reasoningText, finishReason, usage, totalUsage } 
+                    }),
+                    mapLanguageModelError
+                )
+                const result = yield* fromAsync();
+                yield* contextWindow.pop();
+                return result;
             })
 
             const chooseProvider = provider.chooseProvider;
