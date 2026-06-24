@@ -11,7 +11,6 @@ import { AiModelConfig } from "./config.ts";
 import { AiProvider } from "./providers.ts";
 import { NoSuchProviderError } from "./types.ts";
 
-// export class AiModelError extends Data.TaggedError("AiModelError")<{ msg: string }> { };
 export type AiModelProvider =
     AnthropicProvider |
     DeepSeekProvider |
