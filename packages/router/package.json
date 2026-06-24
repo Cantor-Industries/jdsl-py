@@ -1,0 +1,22 @@
+{
+  "name": "@jdsl/router",
+  "version": "0.1.0",
+  "type": "module",
+  "author": "Machar Kook",
+  "private": false,
+  "license": "Apache-2.0",
+  "module": "./src/index.ts",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@effect/cli": "^0.75.2",
+    "@effect/platform": "^0.96.2",
+    "@effect/platform-bun": "^0.90.0",
+    "@effect/platform-node": "^0.107.0",
+    "effect": "3.21.0"
+  }
+}
