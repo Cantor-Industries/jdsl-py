@@ -6,6 +6,7 @@ import { VFS } from "../lsp/vfs.ts";
 import { ReconLanguageServer } from "../lsp/lsp.ts";
 import { generateFactoryCode } from "../factorycodegen.ts";
 import { ReconEnvBuilder } from "../lsp/env.ts";
+// import { BuiltinBuilder } from "src/builtins/builtin.ts";
 
 export class Action extends NodeCreator {
     private runFunction: ts.VariableStatement[];
@@ -44,6 +45,7 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
             const vfs = yield* VFS;
             const languageServer = yield* ReconLanguageServer;
             const reconEnv = yield* ReconEnvBuilder;
+            // const builtins = yield* BuiltinBuilder;
 
             let currentAction: Action | undefined;
             const actions: Map<string, Action> = new Map()
@@ -110,7 +112,24 @@ export class ActionBuilder extends Effect.Service<ActionBuilder>()(
                     action().update();
                     vfs.set(action().path(), action().print());
                     languageServer.getSyntacticDiagnostics(action().path());
-                }
+                } 
+                // else if (builtins.has(callName)) {
+                //     const actionName = callName + "Action";
+                //     const runFunction = builtins.getRunFunction(callName);
+                //     // toolService.tools.set(callName, runFunction);
+                //     addAction(actionName, "./recon/actions/");
+                //     const importClause: ImportClause = {
+                //         phaseModifier: false,
+                //         namedBindings: [
+                //             { name: "Effect", isType: false },
+                //         ]
+                //     }
+                //     addImport("effect", importClause);
+                //     addLayer();
+                //     action().update();
+                //     vfs.set(action().path(), action().print());
+                //     languageServer.getSyntacticDiagnostics(action().path());
+                // }
                 else {
                     throw new Error(`Failed to resolve ${callName}`);
                 }

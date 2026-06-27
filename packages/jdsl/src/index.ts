@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { Console, Effect, Option } from "effect";
+import { Console, Effect } from "effect";
 import { Args, CliConfig, Command, Options } from "@effect/cli";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 
@@ -15,23 +15,23 @@ import { ModelsDev } from "@jdsl/provider/models-dev";
 import { JdslConfig } from "./cli.ts";
 
 if (import.meta.main) {
-    const choice = Args.choice([
-        ["add", "add"],
-        ["list", "list"],
-        ["update", "update"],
-        ["remove", "remove"],
-    ]);
-    const provider = Options.text("provider").pipe(Options.withAlias("p"), Options.optional);
-    const apiKey = Options.text("apiKey").pipe(Options.withAlias("k"), Options.optional);
-    const auth = Options.text("auth").pipe(Options.withAlias("a"), Options.optional);
-    const jdslConfig = Command.make("config", { choice, provider, auth, apiKey }, JdslConfig.choice);
 
-    const jdslRun = Command.make("run", {}, () => Console.log("JDSL RUN COMMAND"));
+    const provider = Options.text("provider").pipe(Options.withAlias("p"));
+    const apiKey = Args.text({name: "apiKey"}).pipe( Args.atLeast(1) );
+    const addConfig = Command.make("add", { provider, apiKey }, JdslConfig.add);
 
-    const jdsl = Command.make("jdsl", {}, () => ReconInitializer.init);
-    const command = jdsl.pipe(
-        Command.withSubcommands([jdslRun, jdslConfig])
+    const listConfig = Command.make("list", {}, JdslConfig.list);
+
+    const jdslConfig = Command.make("config").pipe(
+        Command.withSubcommands([addConfig, listConfig]),
     );
+
+    // const jdslRun = Command.make("run", {}, () => Console.log("JDSL RUN COMMAND"));
+
+    const command = Command.make("jdsl", {}, () => ReconInitializer.init).pipe(
+        Command.withSubcommands([jdslConfig])
+    );
+
     const cli = Command.run(command, {
         name: "JDSL CLI",
         version: "0.1.0",
@@ -50,8 +50,9 @@ if (import.meta.main) {
         Effect.provide(ModelsDev.Default),
         Effect.catchAll((e) =>
             Effect.sync(() => {
+                console.error(e)
                 if (typeof e === "object" && e !== null && "msg" in e) {
-                    console.error(String(e.msg));
+                    console.error(String(e), String(e.msg));
                     return;
                 }
 

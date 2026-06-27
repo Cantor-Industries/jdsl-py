@@ -18,5 +18,11 @@
     "@effect/platform-bun": "^0.90.0",
     "@effect/platform-node": "^0.107.0",
     "effect": "3.21.0"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts",
+    "./error": "./src/types",
+    "./models-dev": "./src/models/models-dev.ts"
   }
 }

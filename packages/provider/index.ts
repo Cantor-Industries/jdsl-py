@@ -3,7 +3,7 @@ import { generateText as generateTextAiSdk, streamText as streamTextAiSdk } from
 import { ContextWindow } from "./src/context/context.ts";
 import { AiModel } from "./src/aiModel.ts";
 import { AiProvider } from "./src/providers.ts";
-import { mapLanguageModelError } from "./src/types.ts";
+import { mapLanguageModelError } from "../router/src/types.ts";
 
 export class LanguageModelError extends Data.TaggedError("LanguageModelError")<{ msg: string }> { }
 export class LanguageModel extends Effect.Service<LanguageModel>()(

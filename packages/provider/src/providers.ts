@@ -1,8 +1,8 @@
 import { Effect, Either } from "effect";
-import type { Providers } from "./config.ts";
-import { ModelsDev } from "./models/models-dev.ts";
-import type { Model } from "./models/modelSchema.ts";
-import { NoSuchModelError, NoSuchProviderError } from "./types.ts";
+import type { Providers } from "../../router/src/config.ts";
+import { ModelsDev } from "../../router/src/models/models-dev.ts";
+import type { Model } from "../../router/src/models/modelSchema.ts";
+import { NoSuchModelError, NoSuchProviderError } from "../../router/src/types.ts";
 
 export class AiProvider extends Effect.Service<AiProvider>()(
     "AiProvider",

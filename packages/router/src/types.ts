@@ -42,14 +42,32 @@ export interface AiError {
     isRetryable: boolean;
 }
 
-export class APICallError extends Data.TaggedError("ApiCallError")<AiError> { }
-export class LoadAPIKeyError extends Data.TaggedError("LoadAPIKeyError")<AiError> { }
-export class JSONParseError extends Data.TaggedError("JSONParseError")<AiError> { }
-export class NoSuchModelError extends Data.TaggedError("NoSuchModelError")<AiError> { }
-export class NoSuchProviderError extends Data.TaggedError("NoSuchProviderError")<AiError> { }
-export class RetryError extends Data.TaggedError("RetryError")<AiError> { }
+export class APICallError extends Data.TaggedError("ApiCallError")<AiError> { };
+export class LoadAPIKeyError extends Data.TaggedError("LoadAPIKeyError")<AiError> { };
+export class JSONParseError extends Data.TaggedError("JSONParseError")<AiError> { };
+export class NoSuchModelError extends Data.TaggedError("NoSuchModelError")<AiError> { };
+export class NoSuchProviderError extends Data.TaggedError("NoSuchProviderError")<AiError> { };
+export class RetryError extends Data.TaggedError("RetryError")<AiError> { };
+export class InvalidApiKeyError extends Data.TaggedError("InvalidApiKeyError")<AiError> { };
+export class InsufficientBalanceError extends Data.TaggedError("InsufficientBalanceError")<AiError> { };
+export class RateLimitError extends Data.TaggedError("RateLimitError")<AiError> { };
+export class ServerError extends Data.TaggedError("ServerError")<AiError> { };
+
 
 export const mapLanguageModelError = (e: Effect.Effect<GenerateTextResponse | StreamTextResponse, UnknownException, never>) => Effect.mapError(e, (e) => {
+    if (UnknownAPICallError.isInstance(e.cause)) {
+        const cause = e.cause;
+        if (cause.statusCode === 400 || cause.statusCode === 401) {
+            return new InvalidApiKeyError({ name: "InvalidApiKeyError", msg: cause.message, isRetryable: cause.isRetryable });
+        } else if (cause.statusCode === 403) {
+            return new InsufficientBalanceError({ name: "InsufficientBalance", msg: cause.message, isRetryable: cause.isRetryable });
+        } else if (cause.statusCode === 429) {
+            return new RateLimitError({ name: "RateLimitError", msg: cause.message, isRetryable: cause.isRetryable });
+        } else if (cause.statusCode === 500) {
+            return new ServerError({ name: "ServerError", msg: cause.message, isRetryable: cause.isRetryable });
+        }
+        return new APICallError({ name: "APICallError", msg: cause.message, isRetryable: cause.isRetryable });
+    }
     if (UnknownLoadAPIKeyError.isInstance(e.cause)) {
         return new LoadAPIKeyError({ name: "LoadAPIKeyError", msg: e.cause.message, isRetryable: false });
     }
@@ -65,8 +83,6 @@ export const mapLanguageModelError = (e: Effect.Effect<GenerateTextResponse | St
     if (UnknownRetryError.isInstance(e.cause)) {
         return new RetryError({ name: "RetryError", msg: e.cause.message, isRetryable: false });
     }
-    if (UnknownAPICallError.isInstance(e.cause)) {
-        return new APICallError({ name: "APICallError", msg: e.cause.message, isRetryable: e.cause.isRetryable });
-    }
-    return new APICallError({ name: "ApiCallError", msg: "Forbidden Resource, Authorization Failed", isRetryable: false });
+
+    return new InvalidApiKeyError({ name: "UnkownCertificateError", msg: "Forbidden Resource, Authorization Failed", isRetryable: false });
 })

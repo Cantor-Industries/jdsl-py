@@ -3,22 +3,15 @@ import { dirname } from "path";
 
 import { Either, Effect, Schema } from "effect";
 import { FileSystem, Path } from "@effect/platform";
-import { AiProvider } from "./providers.ts";
+import { AiProvider } from "../../provider/src/providers.ts";
 import { LoadAPIKeyError } from "./types.ts";
 
 export const ProvidersList = Schema.Literal("anthropic", "deepseek", "google", "nvidia", "openai", "recon", "zhipuai", "zai", "zai-coding-plan", "zhipuai-coding-plan");
 export type Providers = typeof ProvidersList.Type;
 
 const ProviderConfig = Schema.Struct({
-    apiKey: Schema.optional(Schema.String),
-    authToken: Schema.optional(Schema.String)
-})
-
-// const ProviderConfig = Schema.Array(
-//     Schema.Struct({
-//         apiKey: Schema.optional(Schema.String),
-//         authToken: Schema.optional(Schema.String)
-//     }))
+    apiKey: Schema.Array(Schema.String),
+});
 
 const ConfigSchema = Schema.Struct({
     "anthropic": Schema.optional(ProviderConfig),

@@ -1,23 +1,21 @@
-import { Data, Effect } from "effect";
+import { Effect } from "effect";
 
 import { createGoogleGenerativeAI, type GoogleGenerativeAIProvider } from "@ai-sdk/google";
 import { createOpenAI, type OpenAIProvider } from "@ai-sdk/openai";
 import { createAnthropic, type AnthropicProvider } from "@ai-sdk/anthropic";
 import { createDeepSeek, type DeepSeekProvider } from "@ai-sdk/deepseek";
-import { createZhipu, type ZhipuProvider } from "zhipu-ai-provider";
 import { createOpenAICompatible, type OpenAICompatibleProvider } from "@ai-sdk/openai-compatible";
 
-import { AiModelConfig } from "./config.ts";
+import { AiModelConfig } from "../../router/src/config.ts";
 import { AiProvider } from "./providers.ts";
-import { NoSuchProviderError } from "./types.ts";
+import { NoSuchProviderError } from "../../router/src/types.ts";
 
 export type AiModelProvider =
     AnthropicProvider |
     DeepSeekProvider |
     GoogleGenerativeAIProvider |
     OpenAIProvider |
-    OpenAICompatibleProvider |
-    ZhipuProvider;
+    OpenAICompatibleProvider;
 
 export class AiModel extends Effect.Service<AiModel>()(
     "AiModel",
@@ -39,7 +37,7 @@ export class AiModel extends Effect.Service<AiModel>()(
                         return createDeepSeek(config)(model);
 
                     case "google":
-                        return createGoogleGenerativeAI(config)(model);
+                        return createGoogleGenerativeAI({ apiKey: config.apiKey[0] })(model);
 
                     case "nvidia":
                         return createOpenAICompatible({
@@ -54,12 +52,17 @@ export class AiModel extends Effect.Service<AiModel>()(
                         return createOpenAI(config)(model);
 
                     case "zhipuai":
-                        return createZhipu(config)(model);
+                        return createOpenAICompatible({
+                            baseURL: "https://open.bigmodel.cn/api/paas/v4",
+                            name: "zai-coding-plan",
+                            apiKey: config.apiKey[0]
+                        })(model);
 
                     case "zai":
-                        return createZhipu({
-                            baseURL: 'https://api.z.ai/api/paas/v4',
-                            apiKey: config.apiKey
+                        return createOpenAICompatible({
+                            baseURL: "https://api.z.ai/api/paas/v4",
+                            name: "zai-coding-plan",
+                            apiKey: config.apiKey[0]
                         })(model);
 
                     case "zai-coding-plan":
@@ -76,7 +79,7 @@ export class AiModel extends Effect.Service<AiModel>()(
                             apiKey: config.apiKey
                         })(model);
                     default:
-                        return yield* new NoSuchProviderError({name: provider, msg: `${provider} not supported yet`, isRetryable: false});
+                        return yield* new NoSuchProviderError({ name: provider, msg: `${provider} not supported yet`, isRetryable: false });
                 }
             });
 
