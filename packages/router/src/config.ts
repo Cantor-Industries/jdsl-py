@@ -3,7 +3,6 @@ import { dirname } from "path";
 
 import { Either, Effect, Schema } from "effect";
 import { FileSystem, Path } from "@effect/platform";
-import { AiProvider } from "../../provider/src/providers.ts";
 import { LoadAPIKeyError } from "./types.ts";
 
 export const ProvidersList = Schema.Literal("anthropic", "deepseek", "google", "nvidia", "openai", "recon", "zhipuai", "zai", "zai-coding-plan", "zhipuai-coding-plan");
@@ -34,7 +33,6 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
         effect: Effect.gen(function* () {
             const fs = yield* FileSystem.FileSystem;
             const path = yield* Path.Path;
-            const provider = yield* AiProvider;
 
             let config: Config;
 
@@ -72,10 +70,9 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
                 yield* fs.writeFileString(configPath, jsonString,);
             })
 
-            const getConfig = () => Effect.gen(function* () {
-                const currentProvider = yield* provider.getProvider();
-                const cfg = config[currentProvider];
-                return cfg ? cfg : yield* new LoadAPIKeyError({name: "config", msg: `${currentProvider} apiKey/auth is missing`, isRetryable: false})
+            const getConfig = (provider: Providers) => Effect.gen(function* () {
+                const cfg = config[provider];
+                return cfg ? cfg : yield* new LoadAPIKeyError({name: "config", msg: `${provider} apiKey/auth is missing`, isRetryable: false})
             })
 
             const listConfig = () => Effect.gen(function* () {

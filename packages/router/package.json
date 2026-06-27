@@ -1,6 +1,6 @@
 {
   "name": "@jdsl/router",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "author": "Machar Kook",
   "license": "Apache-2.0",
@@ -16,12 +16,13 @@
     "@effect/platform": "^0.96.2",
     "@effect/platform-bun": "^0.90.0",
     "@effect/platform-node": "^0.107.0",
+    "ai": "^7.0.4",
     "effect": "3.21.0"
   },
   "exports": {
     ".": "./src/index.ts",
     "./config": "./src/config.ts",
-    "./error": "./src/types",
+    "./error": "./src/types.ts",
     "./models-dev": "./src/models/models-dev.ts"
   }
 }

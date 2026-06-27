@@ -6,6 +6,7 @@ import { FileSystem, Path } from "@effect/platform";
 import { type ModelProviders, type Provider, ModelsDevSchema } from "./modelSchema.ts";
 import type { Providers } from "../config.ts";
 import { NoSuchModelError } from "../types.ts";
+export { type Model } from "./modelSchema.ts";
 
 export class FetchError extends Data.TaggedError("FetchError")<{ name: string, msg: string, isRetryable: boolean }> { }
 export class CacheError extends Data.TaggedError("CacheError")<{ msg: string }> { }
