@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "type": "module",
   "author": "Machar Kook",
-  "private": false,
   "license": "Apache-2.0",
   "module": "./src/index.ts",
   "devDependencies": {
