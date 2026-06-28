@@ -8,9 +8,9 @@ import { VFS } from "@jdsl/jdsl-gen/vfs";
 import { ReconEnvBuilder } from "@jdsl/jdsl-gen/env";
 import { ReconLanguageServer } from "@jdsl/jdsl-gen/lsp";
 import { ReconInitializer } from "@jdsl/jdsl-gen/initializer";
-import { AiModelConfig } from "@jdsl/provider/config";
+import { AiModelConfig } from "@jdsl/router/config";
 import { AiProvider } from "@jdsl/provider/providers";
-import { ModelsDev } from "@jdsl/provider/models-dev";
+import { ModelsDev } from "@jdsl/router/models-dev";
 
 import { JdslConfig } from "./cli.ts";
 

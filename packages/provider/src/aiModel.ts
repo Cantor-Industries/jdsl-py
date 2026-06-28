@@ -6,9 +6,9 @@ import { createAnthropic, type AnthropicProvider } from "@ai-sdk/anthropic";
 import { createDeepSeek, type DeepSeekProvider } from "@ai-sdk/deepseek";
 import { createOpenAICompatible, type OpenAICompatibleProvider } from "@ai-sdk/openai-compatible";
 
-import { AiModelConfig } from "../../router/src/config.ts";
 import { AiProvider } from "./providers.ts";
-import { NoSuchProviderError } from "../../router/src/types.ts";
+import { NoSuchProviderError } from "@jdsl/router/error";
+import { AiModelConfig } from "@jdsl/router/config";
 
 export type AiModelProvider =
     AnthropicProvider |
@@ -25,16 +25,16 @@ export class AiModel extends Effect.Service<AiModel>()(
             const modelProvider = yield* AiProvider;
 
             const getModel = () => Effect.gen(function* () {
-                const config = yield* modelConfig.getConfig();
                 const provider = yield* modelProvider.getProvider();
                 const model = yield* modelProvider.getModelName();
+                const config = yield* modelConfig.getConfig(provider);
 
                 switch (provider) {
                     case "anthropic":
-                        return createAnthropic(config)(model);
+                        return createAnthropic({ apiKey: config.apiKey[0] })(model);
 
                     case "deepseek":
-                        return createDeepSeek(config)(model);
+                        return createDeepSeek({ apiKey: config.apiKey[0] })(model);
 
                     case "google":
                         return createGoogleGenerativeAI({ apiKey: config.apiKey[0] })(model);
@@ -49,7 +49,7 @@ export class AiModel extends Effect.Service<AiModel>()(
                         })(model);
 
                     case "openai":
-                        return createOpenAI(config)(model);
+                        return createOpenAI({ apiKey: config.apiKey[0] })(model);
 
                     case "zhipuai":
                         return createOpenAICompatible({
@@ -69,14 +69,14 @@ export class AiModel extends Effect.Service<AiModel>()(
                         return createOpenAICompatible({
                             baseURL: "https://api.z.ai/api/coding/paas/v4",
                             name: "zai-coding-plan",
-                            apiKey: config.apiKey
+                            apiKey: config.apiKey[0]
                         })(model);
 
                     case "zhipuai-coding-plan":
                         return createOpenAICompatible({
                             baseURL: "https://open.bigmodel.cn/api/coding/paas/v4",
                             name: "zai-coding-plan",
-                            apiKey: config.apiKey
+                            apiKey: config.apiKey[0]
                         })(model);
                     default:
                         return yield* new NoSuchProviderError({ name: provider, msg: `${provider} not supported yet`, isRetryable: false });

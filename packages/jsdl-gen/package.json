@@ -8,7 +8,7 @@
   "dependencies": {
     "@jdsl/clify": "^0.1.0",
     "code-block-writer": "^13.0.3",
-    "effect": "^3.21.0",
+    "effect": "3.21.0",
     "typescript": "^5.9.3"
   },
   "devDependencies": {

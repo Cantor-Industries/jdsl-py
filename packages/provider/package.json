@@ -1,7 +1,7 @@
 {
   "name": "@jdsl/provider",
-  "version": "0.1.11",
-  "module": "index.ts",
+  "version": "0.1.12",
+  "module": "./src/index.ts",
   "type": "module",
   "devDependencies": {
     "@types/bun": "latest"
@@ -15,12 +15,13 @@
     "@ai-sdk/google": "^3.0.22",
     "@ai-sdk/openai": "^3.0.26",
     "@ai-sdk/openai-compatible": "^2.0.51",
-    "@effect/platform": "^0.96.1",
-    "ai": "^6.0.77",
-    "effect": "^3.21.0"
+    "@effect/platform": "0.96.1",
+    "@jdsl/router": "^0.1.1",
+    "ai": "6.0.77",
+    "effect": "3.21.0"
   },
   "exports": {
-    ".": "./index.ts",
+    ".": "./src/index.ts",
     "./aimodel": "./src/aiModel.ts",
     "./context": "./src/context/context.ts",
     "./providers": "./src/providers.ts"

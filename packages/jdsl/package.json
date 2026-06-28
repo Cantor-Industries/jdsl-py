@@ -16,7 +16,8 @@
     "@effect/platform-bun": "^0.87.1",
     "@jdsl/jdsl-gen": "^0.1.0",
     "@jdsl/provider": "^0.1.5",
-    "effect": "^3.21.0"
+    "@jdsl/router": "^0.1.1",
+    "effect": "3.21.0"
   },
   "exports": {
     ".": "./src/types.ts"

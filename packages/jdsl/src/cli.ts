@@ -1,5 +1,5 @@
 import { Console, Effect, } from "effect";
-import { AiModelConfig } from "@jdsl/provider/config";
+import { AiModelConfig } from "@jdsl/router/config";
 
 interface AddOptions {
 	provider: string;
