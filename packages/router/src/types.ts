@@ -52,6 +52,7 @@ export class InvalidApiKeyError extends Data.TaggedError("InvalidApiKeyError")<A
 export class InsufficientBalanceError extends Data.TaggedError("InsufficientBalanceError")<AiError> { };
 export class RateLimitError extends Data.TaggedError("RateLimitError")<AiError> { };
 export class ServerError extends Data.TaggedError("ServerError")<AiError> { };
+export class ModelUnavailable extends Data.TaggedError("ModelUnavailable")<AiError> { };
 
 
 export const mapLanguageModelError = (e: Effect.Effect<GenerateTextResponse | StreamTextResponse, UnknownException, never>) => Effect.mapError(e, (e) => {
@@ -65,6 +66,8 @@ export const mapLanguageModelError = (e: Effect.Effect<GenerateTextResponse | St
             return new RateLimitError({ name: "RateLimitError", msg: cause.message, isRetryable: cause.isRetryable });
         } else if (cause.statusCode === 500) {
             return new ServerError({ name: "ServerError", msg: cause.message, isRetryable: cause.isRetryable });
+        } else if (cause.statusCode === 503) {
+            return new ModelUnavailable({ name: "ModelUnavailable", msg: cause.message, isRetryable: cause.isRetryable });
         }
         return new APICallError({ name: "APICallError", msg: cause.message, isRetryable: cause.isRetryable });
     }
