@@ -1,7 +1,7 @@
 import { homedir } from "os";
 import { dirname } from "path";
 
-import { Either, Effect, Schema } from "effect";
+import { Effect, Schema } from "effect";
 import { FileSystem, Path } from "@effect/platform";
 import { LoadAPIKeyError } from "./types.ts";
 
@@ -40,26 +40,25 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
             const configFilename = "auth.json";
             const configDir = ".local/share/recon";
             const configPath = path.join(home, configDir, configFilename);
-
+            
             const openConfig = (filePath: string) => Effect.gen(function* () {
                 const configResult = yield* fs.readFileString(filePath);
                 const parsedJsonObj = JSON.parse(configResult);
                 const config = yield* Schema.decode(ConfigSchema)(parsedJsonObj);
                 return config as Config;
-            })
+            });
 
             const saveConfig = (cfg: Config) => Effect.gen(function* () {
-                const oldConfig = yield* Effect.either(openConfig(configPath));
-                let newConfig: Config;
-
-                if (Either.isLeft(oldConfig)) {
-                    newConfig = {};
-                } else {
-                    const encodedConfig = yield* Schema.encode(ConfigSchema)(cfg);
-                    newConfig = { ...oldConfig.right, ...encodedConfig };
+                let newCfg: Config = {};
+                const providers = Object.keys(cfg);
+                for (const provider of providers) {
+                    newCfg = {
+                        ...config, 
+                        [provider]: {apiKey: Array.from(new Set([...config[provider as Providers]?.apiKey ?? [], ...cfg[provider as Providers]!.apiKey]))}
+                    }
                 }
-                config = newConfig;
-                const jsonString = JSON.stringify(newConfig, null, 2);
+                config = newCfg;
+                const jsonString = JSON.stringify(newCfg, null, 2);
 
                 const dirPath = dirname(configPath);
                 const dirExists = yield* fs.exists(dirPath);
@@ -68,24 +67,18 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
                 }
 
                 yield* fs.writeFileString(configPath, jsonString,);
-            })
+            });
 
             const getConfig = (provider: Providers) => Effect.gen(function* () {
                 const cfg = config[provider];
-                return cfg ? cfg : yield* new LoadAPIKeyError({name: "config", msg: `${provider} apiKey/auth is missing`, isRetryable: false})
-            })
+                return cfg ? cfg : yield* new LoadAPIKeyError({name: "AiModelConfig", msg: `${provider} apiKey/auth is missing`, isRetryable: false})
+            });
 
             const listConfig = () => Effect.gen(function* () {
                 return config;
-            })
+            });
 
-            const configResult = yield* Effect.either(openConfig(configPath));
-            if (Either.isLeft(configResult)) {
-                yield* saveConfig({});
-                config = {};
-            } else {
-                config = configResult.right;
-            }
+            config = yield* openConfig(configPath);
 
             return { getConfig, listConfig, saveConfig } as const;
         })
