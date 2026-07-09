@@ -3,7 +3,7 @@ import { dirname } from "path";
 
 import { Effect, Schema } from "effect";
 import { FileSystem, Path } from "@effect/platform";
-import { LoadAPIKeyError } from "./types.ts";
+import { Router } from "./index.ts";
 
 export const ProvidersList = Schema.Literal("anthropic", "deepseek", "google", "nvidia", "openai", "recon", "zhipuai", "zai", "zai-coding-plan", "zhipuai-coding-plan");
 export type Providers = typeof ProvidersList.Type;
@@ -25,7 +25,7 @@ const ConfigSchema = Schema.Struct({
     "zhipuai-coding-plan": Schema.optional(ProviderConfig),
 })
 
-interface Config extends Schema.Schema.Type<typeof ConfigSchema> { }
+export interface Config extends Schema.Schema.Type<typeof ConfigSchema> { }
 
 export class AiModelConfig extends Effect.Service<AiModelConfig>()(
     "AiModelConfig",
@@ -33,6 +33,7 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
         effect: Effect.gen(function* () {
             const fs = yield* FileSystem.FileSystem;
             const path = yield* Path.Path;
+            const router = yield* Router;
 
             let config: Config;
 
@@ -40,7 +41,7 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
             const configFilename = "auth.json";
             const configDir = ".local/share/recon";
             const configPath = path.join(home, configDir, configFilename);
-            
+
             const openConfig = (filePath: string) => Effect.gen(function* () {
                 const configResult = yield* fs.readFileString(filePath);
                 const parsedJsonObj = JSON.parse(configResult);
@@ -53,8 +54,8 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
                 const providers = Object.keys(cfg);
                 for (const provider of providers) {
                     newCfg = {
-                        ...config, 
-                        [provider]: {apiKey: Array.from(new Set([...config[provider as Providers]?.apiKey ?? [], ...cfg[provider as Providers]!.apiKey]))}
+                        ...config,
+                        [provider]: { apiKey: Array.from(new Set([...config[provider as Providers]?.apiKey ?? [], ...cfg[provider as Providers]!.apiKey])) }
                     }
                 }
                 config = newCfg;
@@ -70,8 +71,7 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
             });
 
             const getConfig = (provider: Providers) => Effect.gen(function* () {
-                const cfg = config[provider];
-                return cfg ? cfg : yield* new LoadAPIKeyError({name: "AiModelConfig", msg: `${provider} apiKey/auth is missing`, isRetryable: false})
+                return yield* router.getConfig(provider);
             });
 
             const listConfig = () => Effect.gen(function* () {
@@ -79,6 +79,7 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
             });
 
             config = yield* openConfig(configPath);
+            yield* router.initialize(config);
 
             return { getConfig, listConfig, saveConfig } as const;
         })

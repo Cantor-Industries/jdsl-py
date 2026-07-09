@@ -54,6 +54,7 @@ export class RateLimitError extends Data.TaggedError("RateLimitError")<AiError> 
 export class ServerError extends Data.TaggedError("ServerError")<AiError> { };
 export class ModelUnavailable extends Data.TaggedError("ModelUnavailable")<AiError> { };
 
+export type LanguageModelError = LoadAPIKeyError | NoSuchModelError | NoSuchProviderError | InvalidApiKeyError | InsufficientBalanceError | RateLimitError | ServerError | ModelUnavailable | APICallError | JSONParseError | RetryError
 
 export const mapLanguageModelError = (e: Effect.Effect<GenerateTextResponse | StreamTextResponse, UnknownException, never>) => Effect.mapError(e, (e) => {
     if (UnknownAPICallError.isInstance(e.cause)) {
