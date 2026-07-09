@@ -16,7 +16,7 @@
     "@ai-sdk/openai": "^3.0.26",
     "@ai-sdk/openai-compatible": "^2.0.51",
     "@effect/platform": "0.96.1",
-    "@jdsl/router": "workspace:*",
+    "@jdsl/router": "0.1.3",
     "ai": "6.0.77",
     "effect": "3.21.0"
   },
