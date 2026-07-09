@@ -1,6 +1,6 @@
 {
   "name": "@jdsl/provider",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "module": "./src/index.ts",
   "type": "module",
   "devDependencies": {
@@ -16,7 +16,7 @@
     "@ai-sdk/openai": "^3.0.26",
     "@ai-sdk/openai-compatible": "^2.0.51",
     "@effect/platform": "0.96.1",
-    "@jdsl/router": "^0.1.2",
+    "@jdsl/router": "workspace:*",
     "ai": "6.0.77",
     "effect": "3.21.0"
   },

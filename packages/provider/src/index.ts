@@ -4,8 +4,8 @@ import { ContextWindow } from "./context/context.ts";
 import { AiModel } from "./aiModel.ts";
 import { AiProvider } from "./providers.ts";
 import { mapLanguageModelError } from "@jdsl/router/error";
-
-export class LanguageModelError extends Data.TaggedError("LanguageModelError")<{ msg: string }> { }
+import { Router } from "@jdsl/router";
+// export class LanguageModelError extends Data.TaggedError("LanguageModelError")<{ msg: string }> { }
 export class LanguageModel extends Effect.Service<LanguageModel>()(
     "LanguageModel",
     {
@@ -13,6 +13,7 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
             const aiModel = yield* AiModel;
             const contextWindow = yield* ContextWindow;
             const provider = yield* AiProvider;
+            const modelRouter = yield* Router;
 
             const generateText = (prompt: string) => Effect.gen(function* () {
                 const model = yield* aiModel.getModel();
@@ -33,7 +34,12 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
                         const { content, text, reasoning, reasoningText, finishReason, usage, totalUsage } = response;
                         return { content, text, reasoning, reasoningText, finishReason, usage, totalUsage } 
                     }),
-                    mapLanguageModelError
+                    aiModel.mapGenerateTextError,
+                    modelRouter.tap,
+                    Effect.retry({
+                        until: (e) => e._tag === "LoadAPIKeyError",
+                        times: 5
+                    })
                 )
                 const result = yield* fromAsync();
                 yield* contextWindow.pop();
