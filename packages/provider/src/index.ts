@@ -32,19 +32,20 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
                 }).pipe(
                     Effect.map((response) => {
                         const { content, text, reasoning, reasoningText, finishReason, usage, totalUsage } = response;
-                        return { content, text, reasoning, reasoningText, finishReason, usage, totalUsage } 
+                        return { content, text, reasoning, reasoningText, finishReason, usage, totalUsage }
                     }),
                     aiModel.mapGenerateTextError,
-                    modelRouter.tap,
-                    Effect.retry({
-                        until: (e) => e._tag === "LoadAPIKeyError",
-                        times: 5
-                    })
                 )
                 const result = yield* fromAsync();
                 yield* contextWindow.pop();
                 return result;
-            })
+            }).pipe(
+                modelRouter.tap,
+                Effect.retry({
+                    until: (e) => e._tag === "LoadAPIKeyError",
+                    times: 5
+                })
+            )
 
             const streamText = (prompt: string) => Effect.gen(function* () {
                 const model = yield* aiModel.getModel();
@@ -63,7 +64,7 @@ export class LanguageModel extends Effect.Service<LanguageModel>()(
                 }).pipe(
                     Effect.map((response) => {
                         const { content, text, textStream, reasoning, reasoningText, finishReason, usage, totalUsage } = response;
-                        return { content, text, textStream, reasoning, reasoningText, finishReason, usage, totalUsage } 
+                        return { content, text, textStream, reasoning, reasoningText, finishReason, usage, totalUsage }
                     }),
                     mapLanguageModelError
                 )
