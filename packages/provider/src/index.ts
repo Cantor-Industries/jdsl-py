@@ -1,11 +1,11 @@
-import { Data, Effect } from "effect";
+import { Effect } from "effect";
 import { generateText as generateTextAiSdk, streamText as streamTextAiSdk } from "ai";
 import { ContextWindow } from "./context/context.ts";
 import { AiModel } from "./aiModel.ts";
 import { AiProvider } from "./providers.ts";
 import { mapLanguageModelError } from "@jdsl/router/error";
 import { Router } from "@jdsl/router";
-// export class LanguageModelError extends Data.TaggedError("LanguageModelError")<{ msg: string }> { }
+
 export class LanguageModel extends Effect.Service<LanguageModel>()(
     "LanguageModel",
     {

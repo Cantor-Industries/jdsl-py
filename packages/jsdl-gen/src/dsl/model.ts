@@ -17,7 +17,7 @@ export class ModelBuilder extends Effect.Service<ModelBuilder>()(
 
             const createImports = () => {
                 const imports: {specifier: string, clause: ImportClause}[] = [];
-                const pluginNames = ["LanguageModel", "ContextWindow", "AiModel", "AiModelConfig", "AiProvider", "ModelsDev", ];
+                const pluginNames = ["LanguageModel", "ContextWindow", "AiModel", "AiModelConfig", "AiProvider", "ModelsDev", "RoundRobinRouter"];
                 
                 imports.push({
                     specifier: "@jdsl/provider", clause: {namedBindings: [{name: "LanguageModel", isType: false}]}
@@ -29,15 +29,17 @@ export class ModelBuilder extends Effect.Service<ModelBuilder>()(
                    specifier:  "@jdsl/provider/aimodel", clause: {namedBindings: [{name: "AiModel", isType: false}]}
                 });                
                 imports.push({
-                    specifier:"@jdsl/provider/config", clause: {namedBindings: [{name: "AiModelConfig", isType: false}]}
+                    specifier:"@jdsl/router/config", clause: {namedBindings: [{name: "AiModelConfig", isType: false}]}
                 }); 
                 imports.push({
                     specifier: "@jdsl/provider/providers", clause: {namedBindings: [{name: "AiProvider", isType: false}]}
                 });                
                 imports.push({
-                    specifier: "@jdsl/provider/models-dev", clause: {namedBindings: [{name: "ModelsDev", isType: false}]}
+                    specifier: "@jdsl/router/models-dev", clause: {namedBindings: [{name: "ModelsDev", isType: false}]}
                 });                
-   
+                imports.push({
+                    specifier: "@jdsl/router", clause: {namedBindings: [{name: "RoundRobinRouter", isType: false}]}
+                });    
                 
                 return { imports, pluginNames };
             }

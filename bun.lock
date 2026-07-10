@@ -32,7 +32,7 @@
         "@effect/platform-bun": "^0.87.1",
         "@jdsl/jdsl-gen": "^0.1.0",
         "@jdsl/provider": "^0.1.5",
-        "@jdsl/router": "^0.1.1",
+        "@jdsl/router": "^0.1.2",
         "effect": "3.21.0",
       },
       "devDependencies": {
@@ -54,7 +54,7 @@
     },
     "packages/provider": {
       "name": "@jdsl/provider",
-      "version": "0.1.12",
+      "version": "0.1.13",
       "dependencies": {
         "@ai-sdk/anthropic": "^3.0.38",
         "@ai-sdk/deepseek": "^2.0.35",
@@ -62,7 +62,7 @@
         "@ai-sdk/openai": "^3.0.26",
         "@ai-sdk/openai-compatible": "^2.0.51",
         "@effect/platform": "0.96.1",
-        "@jdsl/router": "^0.1.1",
+        "@jdsl/router": "workspace:*",
         "ai": "6.0.77",
         "effect": "3.21.0",
       },

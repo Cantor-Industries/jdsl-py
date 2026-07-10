@@ -1,5 +1,7 @@
-import { Console, Effect, } from "effect";
+import { Effect, Schema } from "effect";
 import { AiModelConfig } from "@jdsl/router/config";
+import { ProvidersList } from "@jdsl/router/config";
+import { NoSuchProviderError } from "@jdsl/router/error";
 
 interface AddOptions {
 	provider: string;
@@ -12,11 +14,11 @@ export class JdslConfig extends Effect.Service<JdslConfig>()("jdsl/config", {
 		const config = yield* AiModelConfig;
 
 		const add = ({ apiKey, provider }: AddOptions) => Effect.gen(function* () {
-			// yield* Effect.forEach(apiKey, (key) => Effect.gen(function* () {
-			// 	yield* config.saveConfig({ [provider!]: { apiKey: [key] } });
-			// }));
-			console.log(apiKey)
-			yield* config.saveConfig({ [provider!]: { apiKey: apiKey } });
+			if (!Schema.is(ProvidersList)(provider)) {
+				return yield* new NoSuchProviderError({ name: "NoSuchProviderEror", msg: `No provider named: ${provider} is currently supported`, isRetryable: false })
+
+			}
+			yield* config.saveConfig({ [provider]: { apiKey: apiKey } });
 
 			console.log("Api/AuthKey Saved");
 		});
