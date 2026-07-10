@@ -1,7 +1,6 @@
 import { homedir } from "os";
-import { dirname } from "path";
 
-import { Effect, Schema } from "effect";
+import { Effect, Layer, Schema } from "effect";
 import { FileSystem, Path } from "@effect/platform";
 import { Router } from "./index.ts";
 
@@ -61,7 +60,7 @@ export class AiModelConfig extends Effect.Service<AiModelConfig>()(
                 config = newCfg;
                 const jsonString = JSON.stringify(newCfg, null, 2);
 
-                const dirPath = dirname(configPath);
+                const dirPath = path.dirname(configPath);
                 const dirExists = yield* fs.exists(dirPath);
                 if (!dirExists) {
                     yield* fs.makeDirectory(dirPath, { recursive: true });

@@ -61,7 +61,7 @@ export const mapLanguageModelError = (e: Effect.Effect<GenerateTextResponse | St
         const cause = e.cause;
         if (cause.statusCode === 400 || cause.statusCode === 401) {
             return new InvalidApiKeyError({ name: "InvalidApiKeyError", msg: cause.message, isRetryable: cause.isRetryable });
-        } else if (cause.statusCode === 403) {
+        } else if (cause.statusCode === 402 || cause.statusCode === 403) {
             return new InsufficientBalanceError({ name: "InsufficientBalance", msg: cause.message, isRetryable: cause.isRetryable });
         } else if (cause.statusCode === 429) {
             return new RateLimitError({ name: "RateLimitError", msg: cause.message, isRetryable: cause.isRetryable });
