@@ -1,5 +1,9 @@
 # jdsl
 
+<p align="center">
+  <img src="docs/for_respected_human.png" alt="jdsl logo" width="240" />
+</p>
+
 > Declarative **behavior-tree agents** as clean Python combinators, run by a
 > **tree-walking interpreter** over Claude / DeepSeek / OpenAI — with
 > **DSPy-style signatures** on the LLM leaves.
