@@ -91,4 +91,4 @@ prompts against a metric) — the natural next direction now the runtime exists.
 
 ## License
 
-Apache-2.0 · Author: Machar Kook
+O`Saasy · Author: Cantor Industries
