@@ -14,6 +14,9 @@ uv run jdsl run examples/<name>.py -i key=value   # seed blackboard inputs
 | [reason.py](reason.py) | Chain-of-thought: `predict` reasons, a second `predict` reads that reasoning to answer. | yes |
 | [pipeline.py](pipeline.py) | Multi-step: multi-field signature, `check` routing, a second `predict` chained on the first. | yes |
 | [refine.py](refine.py) | Iterative refinement with `repeat`: draft → critique → revise until `check("ok","yes")` passes. | yes |
+| [react.py](react.py) | Agentic `react` leaf: the model chains `@tool` calls (capital → population → arithmetic) via function-calling. | yes |
+| [shop.py](shop.py) | Tool-heavy `react`: search a catalog, compare products, pick the cheapest in stock, chain coupon/shipping/total arithmetic. | yes |
+| [db.py](db.py) | `react` that discovers an unknown DB schema, queries it, then aggregates with a `list[float]` tool (array arg). | yes |
 | [wiki.py](wiki.py) | `ref` wiring across steps: search → model picks a title → fetch. | yes |
 
 Deterministic examples (no `predict`) run without any key. LLM examples read a

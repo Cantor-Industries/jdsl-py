@@ -8,11 +8,12 @@ tree, the model only at predict.
 from __future__ import annotations
 
 import enum
+import inspect
 import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, get_args, get_origin, get_type_hints
 
 from jdsl.context import Ref, RunContext
 
@@ -116,13 +117,24 @@ class Repeat(Node):
 
 @dataclass
 class Check(Node):
-    """Guard leaf: SUCCESS iff blackboard[key] == equals."""
+    """Guard leaf: SUCCESS iff blackboard[key] matches equals. String matches are
+    lenient — case-insensitive, whitespace- and surrounding-punctuation-trimmed —
+    because the value is usually fuzzy model text ("Yes." should match "yes").
+    Non-string values compare with plain ==."""
     key: str
     equals: Any
     context_system: str | None = None
 
     def tick(self, ctx: RunContext) -> Status:
-        return Status.SUCCESS if ctx.blackboard.get(self.key) == self.equals else Status.FAILURE
+        return Status.SUCCESS if self._match(ctx.blackboard.get(self.key)) else Status.FAILURE
+
+    def _match(self, actual: Any) -> bool:
+        if isinstance(actual, str) and isinstance(self.equals, str):
+            return self._norm(actual) == self._norm(self.equals)
+        return actual == self.equals
+
+    @staticmethod
+    def _norm(s: str) -> str: return s.strip().strip(".!?,;:\"'").strip().casefold()
 
 
 @dataclass
@@ -177,6 +189,84 @@ class Predict(Node):
         if not match: return None
         try: return json.loads(match.group(0))
         except json.JSONDecodeError: return None
+
+
+_JSON_TYPES = {str: "string", int: "integer", float: "number", bool: "boolean"}
+
+
+def _json_type(annotation: Any) -> dict[str, Any]:
+    """Map a Python annotation to a JSON-schema fragment. Scalars map directly;
+    list/tuple/set map to an array with an `items` type; anything else -> string."""
+    if annotation in _JSON_TYPES: return {"type": _JSON_TYPES[annotation]}
+    if annotation in (list, tuple, set) or get_origin(annotation) in (list, tuple, set):
+        args = get_args(annotation)
+        item = _JSON_TYPES.get(args[0], "string") if args else "string"
+        return {"type": "array", "items": {"type": item}}
+    return {"type": "string"}
+
+
+def _tool_schema(fn: Callable[..., Any]) -> dict[str, Any]:
+    """A JSON schema for fn's parameters, from its signature/annotations. Args
+    without a default are required; unannotated args default to string. Uses
+    get_type_hints so `from __future__ import annotations` (stringized hints)
+    still resolves to real types."""
+    try: hints = get_type_hints(fn)
+    except Exception: hints = {}  # unresolvable forward refs -> treat all as string
+    props: dict[str, Any] = {}
+    required: list[str] = []
+    for name, p in inspect.signature(fn).parameters.items():
+        if p.kind in (p.VAR_POSITIONAL, p.VAR_KEYWORD): continue
+        props[name] = _json_type(hints.get(name))
+        if p.default is inspect.Parameter.empty: required.append(name)
+    return {"type": "object", "properties": props, "required": required}
+
+
+@dataclass
+class React(Node):
+    """Agentic LLM leaf: the model reasons and calls @tools in a loop (native
+    provider function-calling) until it answers. Reads input fields, runs each
+    tool the model picks, feeds results back, and writes the final answer to the
+    single output field. FAILURE if the model answers empty or `max_steps` is hit
+    without a final answer."""
+    inputs: tuple[str, ...]
+    outputs: tuple[str, ...]
+    tools: list[Any] = field(default_factory=list)
+    instructions: str | None = None
+    max_steps: int = 6
+    context_system: str | None = None
+
+    def tick(self, ctx: RunContext) -> Status:
+        def body() -> Status:
+            model = ctx.require_model()
+            by_name = {t.name: t for t in self.tools}
+            specs = [{"name": t.name, "description": t.description, "parameters": _tool_schema(t.fn)}
+                     for t in self.tools]
+            history: list[dict[str, Any]] = [{"role": "user", "content": self._build_prompt(ctx)}]
+            for _ in range(self.max_steps):
+                turn = model.converse(system=ctx.window.system, messages=history,
+                                      tools=specs, model_id=ctx.model_id)
+                if not turn.tool_calls:
+                    answer = turn.text.strip()
+                    if not answer: return Status.FAILURE
+                    ctx.blackboard[self.outputs[0]] = answer
+                    return Status.SUCCESS
+                history.append({"role": "assistant", "content": turn.text, "tool_calls": turn.tool_calls})
+                for call in turn.tool_calls:
+                    tool = by_name.get(call.name)
+                    result = tool(**call.arguments) if tool else f"error: no tool named {call.name!r}"
+                    history.append({"role": "tool", "tool_call_id": call.id,
+                                    "name": call.name, "content": str(result)})
+            return Status.FAILURE  # ran out of steps without a final answer
+        return self._run_with_context(ctx, body)
+
+    def _build_prompt(self, ctx: RunContext) -> str:
+        lines: list[str] = []
+        if self.instructions: lines.append(self.instructions)
+        if self.inputs:
+            lines.append("Given these inputs:")
+            lines += [f"- {name}: {ctx.blackboard.get(name)!r}" for name in self.inputs]
+        lines.append("Use the available tools as needed, then give your final answer as plain text.")
+        return "\n".join(lines)
 
 
 @dataclass

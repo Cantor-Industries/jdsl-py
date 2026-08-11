@@ -10,21 +10,31 @@ from jdsl import config
 class FakeModel:
     """A ``LanguageModel``-shaped stub. Scripts replies and records calls.
 
-    Pass one or more reply strings; they're returned in order (the last repeats).
-    Inspect ``.calls`` to assert on the system prompt, messages, and model id
-    that a ``predict`` leaf sent.
+    Pass one or more reply strings for ``generate`` (predict); they're returned in
+    order (the last repeats). Pass ``turns=[ModelTurn, ...]`` to script ``converse``
+    (react). Inspect ``.calls`` / ``.converse_calls`` to assert on what was sent.
     """
 
-    def __init__(self, *replies: str) -> None:
+    def __init__(self, *replies: str, turns=None) -> None:
         self.replies = list(replies) or ["{}"]
+        self.turns = list(turns or [])
         self.calls: list[dict] = []
+        self.converse_calls: list[dict] = []
         self._i = 0
+        self._t = 0
 
     def generate(self, *, system, messages, model_id=None) -> str:
         self.calls.append({"system": system, "messages": messages, "model_id": model_id})
         reply = self.replies[min(self._i, len(self.replies) - 1)]
         self._i += 1
         return reply
+
+    def converse(self, *, system, messages, tools, model_id=None):
+        self.converse_calls.append({"system": system, "messages": messages,
+                                    "tools": tools, "model_id": model_id})
+        turn = self.turns[min(self._t, len(self.turns) - 1)]
+        self._t += 1
+        return turn
 
 
 @pytest.fixture

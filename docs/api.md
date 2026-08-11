@@ -3,7 +3,7 @@
 Everything is imported from the top-level package:
 
 ```python
-from jdsl import tool, root, seq, sel, act, check, predict, ref, store
+from jdsl import tool, root, seq, sel, repeat, act, check, predict, react, ref, store
 ```
 
 ## Building blocks
@@ -21,8 +21,10 @@ def search(query: str) -> list[str]: ...
 ```
 
 Usable bare (`@tool`) or with metadata (`@tool(name=…, description=…)`). The
-wrapped object is still directly callable. Metadata is carried for a future
-LLM-tool-use node; today it's documentation.
+wrapped object is still directly callable. The name/description and the function's
+type hints are what [`react`](#reactsignature--toolsinstructionsmax_stepscontext--react)
+exposes to the model for function-calling — so annotate tool params and write a
+clear description.
 
 ### `root(name, *, system=None) -> Root`
 
@@ -94,16 +96,49 @@ store(act(search, ref("query")), "titles")
 
 ### `check(key, equals) -> Check`
 
-Guard leaf: `SUCCESS` iff `blackboard[key] == equals`, else `FAILURE`. Put one
-at the head of a `seq` inside a `sel` to branch on a `predict` output.
+Guard leaf: `SUCCESS` iff `blackboard[key]` matches `equals`, else `FAILURE`. Put
+one at the head of a `seq` inside a `sel` to branch on a `predict` output.
+
+String matches are **lenient** — case-insensitive, and whitespace / surrounding
+punctuation are trimmed — because the value is usually fuzzy model text: `"Yes."`,
+`" YES "` and `"yes"` all match `check("ok", "yes")`. Non-string values (ints,
+etc.) compare with plain `==`, so `check("n", 2)` does not match `"2"`.
 
 ### `predict(signature, *, instructions=None, context=None) -> Predict`
 
 DSPy-style LLM leaf. `signature` is `"in1, in2 -> out1, out2"`. Reads the input
-fields from the blackboard, asks the model for the output fields as JSON, parses
-them (lenient — tolerates surrounding prose), writes them back, and appends the
-raw reply to the context window. Returns `FAILURE` if nothing parseable came
-back. `instructions` prepends task guidance to the prompt.
+fields from the blackboard and writes the outputs back. A **single** output is
+stored as the model's raw reply (no JSON envelope, which otherwise makes the model
+reason about the wrapper); **multiple** outputs are requested as one JSON object
+and parsed leniently (tolerates surrounding prose). Returns `FAILURE` if nothing
+parseable came back. `instructions` prepends task guidance to the prompt. Each
+leaf is stateless — state flows through the blackboard, not the message list.
+
+### `react(signature, *, tools, instructions=None, max_steps=6, context=None) -> React`
+
+Agentic LLM leaf. Where `predict` is one shot with no tools, `react` lets the
+**model** pick and call the given `@tool`s in a loop — native provider
+function-calling (Anthropic `tool_use` / OpenAI `tool_calls`), not text parsing.
+Each tool's JSON schema is derived from its signature: `str`/`int`/`float`/`bool`
+map to their JSON types, `list[T]`/`tuple`/`set` become an `array` (with an
+`items` type from `T`), anything else falls back to `string`; args without a
+default are required. The loop: ask the model → run the tools it
+calls → feed results back → repeat, until it returns a final answer (written to
+the single output field) or `max_steps` is hit (`FAILURE`). `FAILURE` also if the
+final answer is empty.
+
+`signature` must have exactly one output — the answer. An unknown tool name is
+reported back to the model as an observation rather than raising, so it can
+recover.
+
+```python
+@tool
+def population(city: str) -> int:
+    """The population of a city."""
+    ...
+
+react("question -> answer", tools=[capital_of, population, multiply], max_steps=6)
+```
 
 ## Runtime objects
 

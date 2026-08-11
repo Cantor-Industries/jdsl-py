@@ -67,8 +67,9 @@ is loaded automatically.
 | `act(fn, *args)` | Leaf calling a `@tool`; literal args are type-checked. |
 | `ref("key")` | An `act` argument resolved from the blackboard at run time. |
 | `store(act(…), "key")` | Capture an action's return value onto the blackboard. |
-| `check("key", value)` | Guard leaf: succeeds iff `blackboard["key"] == value`. |
+| `check("key", value)` | Guard leaf on `blackboard["key"]`; string matches are case/whitespace-lenient. |
 | `predict("a -> b")` | DSPy-style LLM leaf: reads inputs, writes outputs. |
+| `react("q -> a", tools=[…])` | Agentic leaf: the model calls `@tool`s in a loop (function-calling) until it answers. |
 
 ## Layout
 

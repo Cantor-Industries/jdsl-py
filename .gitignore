@@ -24,3 +24,5 @@ htmlcov/
 .idea/
 .vscode/
 .claude/
+
+VERSION_RELEASE.md

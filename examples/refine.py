@@ -21,9 +21,9 @@ skill = (
                 seq(
                     predict(
                         "draft -> critique, ok",
-                        instructions="Critique the draft in one line. Be a lenient editor: set ok to exactly "
-                                     "'yes' if it is clear and correct (perfection not required); use exactly "
-                                     "'no' only for a concrete, significant flaw.",
+                        instructions="Critique the draft in one line. Be a lenient editor: set ok to 'yes' "
+                                     "if it is clear and correct (perfection not required); use 'no' only for "
+                                     "a concrete, significant flaw.",
                     ),
                     sel(
                         check("ok", "yes"),  # good enough → skip revision

@@ -56,6 +56,22 @@ def test_check_true_and_false_paths():
     assert hit == ["fallback"]  # support check failed, fell through
 
 
+@pytest.mark.parametrize("value", ["yes", "Yes", "YES", " yes ", "yes.", '"yes"', "Yes!"])
+def test_check_matches_fuzzy_model_text(value):
+    # model text varies in case/whitespace/punctuation; check must still match.
+    assert check("ok", "yes").tick(RunContext(blackboard={"ok": value})) is Status.SUCCESS
+
+
+def test_check_still_distinguishes_different_values():
+    assert check("ok", "yes").tick(RunContext(blackboard={"ok": "no"})) is Status.FAILURE
+
+
+def test_check_non_string_compares_exactly():
+    # normalization is string-only; ints and the like stay plain ==.
+    assert check("n", 2).tick(RunContext(blackboard={"n": 2})) is Status.SUCCESS
+    assert check("n", 2).tick(RunContext(blackboard={"n": "2"})) is Status.FAILURE
+
+
 def test_action_return_value_stored():
     ctx = root("S").do(seq(store(act(lambda: 42), "answer"))).run()
     assert ctx.blackboard["answer"] == 42

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any, ParamSpec, TypeVar, overload
 
 from jdsl.context import Ref
-from jdsl.tree import Action, Check, Node, Predict, Repeat, Root, Selector, Sequence
+from jdsl.tree import Action, Check, Node, Predict, React, Repeat, Root, Selector, Sequence
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -18,7 +18,7 @@ R = TypeVar("R")
 @dataclass
 class Tool:
     """Named, still-callable wrapper around a function; carries name/description
-    for a future LLM-tool-use node."""
+    used by react to expose it to the model for function-calling."""
     fn: Callable[..., Any]
     name: str
     description: str = ""
@@ -81,6 +81,18 @@ def predict(signature: str, *, instructions: str | None = None, context: str | N
     """DSPy-style LLM leaf from a signature like "question -> answer"."""
     inputs, outputs = _parse_signature(signature)
     return Predict(inputs=inputs, outputs=outputs, instructions=instructions, context_system=context)
+
+
+def react(signature: str, *, tools: list[Any], instructions: str | None = None,
+          max_steps: int = 6, context: str | None = None) -> React:
+    """Agentic LLM leaf: the model reasons and calls the given @tools in a loop
+    (native function-calling) until it answers. Signature is "inputs -> answer"
+    with a single output field."""
+    inputs, outputs = _parse_signature(signature)
+    if len(outputs) != 1:
+        raise ValueError(f"react signature {signature!r} must have exactly one output (the answer).")
+    return React(inputs=inputs, outputs=outputs, tools=list(tools),
+                 instructions=instructions, max_steps=max_steps, context_system=context)
 
 
 def root(name: str, *, system: str | None = None) -> Root:

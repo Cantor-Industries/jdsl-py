@@ -22,6 +22,22 @@ class Ref:
 
 
 @dataclass
+class ToolCall:
+    """A provider-neutral tool call the model asked for: name + parsed arguments."""
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass
+class ModelTurn:
+    """One provider-neutral assistant turn: free text and/or tool calls. Empty
+    tool_calls means the model is done and `text` is its final answer."""
+    text: str = ""
+    tool_calls: list[ToolCall] = field(default_factory=list)
+
+
+@dataclass
 class ContextWindow:
     """A stack of system fragments, pushed/popped so context is subtree-scoped."""
     _system: list[str] = field(default_factory=list)
