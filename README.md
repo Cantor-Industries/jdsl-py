@@ -39,6 +39,32 @@ ctx = skill.run(message="I was double charged.")
 print(ctx.blackboard["category"])                 # -> "billing"
 ```
 
+…and the model can drive **your** tools. A `react` leaf hands it your `@tool`s and
+lets it pick and chain them (native function-calling):
+
+```python
+from jdsl import tool, root, react
+
+@tool
+def distance_km(origin: str, destination: str) -> int: ...   # your Python
+@tool
+def drive_hours(km: int) -> float: ...
+
+skill = root("Trip").model("deepseek-chat").do(
+    react("request -> answer", tools=[distance_km, drive_hours])
+)
+skill.run(request="Driving Nairobi to Mombasa — how long?")
+```
+
+```
+ > distance_km(origin='Nairobi', destination='Mombasa') -> 485
+ > drive_hours(km=485)                                  -> 6.1
+answer: About 6.1 hours.
+```
+
+Triage steers the model with the tree; `react` lets the model steer your tools.
+Full version: [examples/trip.py](examples/trip.py).
+
 ## Install & run
 
 Requires [uv](https://docs.astral.sh/uv/) and Python ≥ 3.11.
@@ -64,6 +90,8 @@ is loaded automatically.
 | `seq(*children)` | Run in order; fail fast (behavior-tree AND). |
 | `sel(*children)` | Try until one succeeds (behavior-tree OR). |
 | `repeat(child, until=…, max=n)` | Loop `child` until `until` succeeds or `max` passes (retry/refine). |
+| `invert(child)` · `optional(child)` | Decorators: flip a status · fail-soft (a failing step won't abort its `seq`). |
+| `timeout(child, seconds=…)` · `oneshot(child)` | Decorators: bound wall-clock time · run once per run, replay the status. |
 | `act(fn, *args)` | Leaf calling a `@tool`; literal args are type-checked. |
 | `ref("key")` | An `act` argument resolved from the blackboard at run time. |
 | `store(act(…), "key")` | Capture an action's return value onto the blackboard. |
@@ -74,7 +102,7 @@ is loaded automatically.
 ## Layout
 
 ```
-jdsl/        the package — dsl, tree (interpreter), context, provider, router, config, cli
+jdsl/        the package — dsl, tree (interpreter), context, provider, router, render, config, cli
 examples/    runnable skills — see examples/README.md
 test/        pytest suite (no network; LLM leaves use fakes)
 docs/        concepts, API reference, providers

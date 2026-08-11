@@ -9,6 +9,7 @@ from pathlib import Path
 import typer
 
 from jdsl import config
+from jdsl.render import render
 from jdsl.tree import Root
 
 app = typer.Typer(add_completion=False, help="Declarative behavior-tree agents over Claude.")
@@ -65,6 +66,21 @@ def run(
         ctx = skill.run(**seed)
         if ctx.blackboard:
             typer.echo(f"  blackboard: {dict(ctx.blackboard)}")
+        for w in ctx.blackboard.clobbers():
+            typer.secho(f"  ⚠ {w.key!r} overwritten by {w.writer} (was set by another node)",
+                        fg=typer.colors.YELLOW)
+
+
+@app.command("show")
+def show(file: Path = typer.Argument(..., exists=True, readable=True, help="A .py file defining skills.")) -> None:
+    """Print each skill's structure as an ASCII tree (no execution, no model)."""
+    module = _load_module(file)
+    roots = [v for v in vars(module).values() if isinstance(v, Root)]
+    if not roots:
+        typer.secho(f"No skills (root(...)) found in {file}.", fg=typer.colors.YELLOW)
+        raise typer.Exit(1)
+    for skill in roots:
+        typer.echo(render(skill))
 
 
 def _parse_kv(item: str) -> tuple[str, str]:

@@ -4,6 +4,7 @@ Everything is imported from the top-level package:
 
 ```python
 from jdsl import tool, root, seq, sel, repeat, act, check, predict, react, ref, store
+from jdsl import invert, optional, timeout, oneshot, render   # decorators + rendering
 ```
 
 ## Building blocks
@@ -140,15 +141,78 @@ def population(city: str) -> int:
 react("question -> answer", tools=[capital_of, population, multiply], max_steps=6)
 ```
 
+## Decorators
+
+Single-child wrappers that transform a child's status without adding a new
+composite type — "a behaviour wearing a different hat" (the idea is borrowed from
+[py_trees](https://py-trees.readthedocs.io/)).
+
+### `invert(child) -> Invert`
+
+Flip the child's status: `SUCCESS` ↔ `FAILURE`. Handy for negative guards:
+`invert(check("category", "spam"))`.
+
+### `optional(child) -> Optional`
+
+Fail-soft: run the child but always return `SUCCESS`, so a failing step never
+aborts its parent `seq`. This is the clean way to make a sequence step "best
+effort" (py_trees calls it `FailureIsSuccess`).
+
+### `timeout(child, *, seconds=30.0) -> Timeout`
+
+Run the child with a wall-clock bound; `FAILURE` if it overruns. The child runs
+in a worker thread and is *abandoned* on timeout (Python can't kill it), so use
+it for read-only / idempotent work such as an LLM or lookup call.
+
+### `oneshot(child) -> OneShot`
+
+Run the child at most once per run, latching and replaying its status on later
+ticks. Only observable inside a `repeat` loop; state is per-run (a fresh
+`run(...)` starts over).
+
+## Rendering
+
+### `render(node) -> str`
+
+An ASCII-tree rendering of a skill's structure — no execution, no model. Also
+available as `jdsl show <file>` on the CLI.
+
+```
+root 'Triage' [deepseek-chat]
+└─ seq
+   ├─ predict(message -> category)
+   └─ sel
+      ├─ seq
+      │  ├─ check(category == 'billing')
+      │  └─ act(route_to_billing)
+      └─ optional
+         └─ act(escalate)
+```
+
 ## Runtime objects
 
 ### `RunContext`
 
 Returned by `skill.run(...)`. Fields:
 
-- `blackboard: Blackboard` — the shared dict; read your results here.
-- `window: ContextWindow` — accumulated system fragments + messages.
+- `blackboard: Blackboard` — the shared store; read your results here.
+- `window: ContextWindow` — accumulated system fragments.
 - `model`, `model_id` — the model backing this run.
+- `state: dict` — per-run scratch for stateful nodes (e.g. `oneshot`).
+
+### `Blackboard`
+
+A `dict` with **provenance**. Read with normal dict access; every write is
+recorded so you can trace and debug a run:
+
+- `set(key, value, *, writer=…)` — write with attribution (nodes pass their own
+  label as `writer`; plain `bb[key] = v` records `writer="?"`).
+- `activity: list[Write]` — every write, in order (`key`, `value`, `writer`,
+  `previous`, `overwrote`).
+- `who_wrote(key) -> str | None` — the last writer of a key.
+- `clobbers() -> list[Write]` — writes that overwrote a key a **different** writer
+  had set. This catches the silent-clobber bug where two leaves share an output
+  name; `jdsl run` prints a `⚠` for each.
 
 ### `LanguageModel`
 

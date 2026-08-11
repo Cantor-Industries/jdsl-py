@@ -31,6 +31,14 @@ class Node:
 
     def tick(self, ctx: RunContext) -> Status: raise NotImplementedError
 
+    def label(self) -> str:
+        """Short human-readable label for rendering / write provenance."""
+        return type(self).__name__.lower()
+
+    def _children(self) -> list[tuple[str | None, Node]]:
+        """(edge-label, child) pairs for rendering. Leaves return []."""
+        return []
+
     def _run_with_context(self, ctx: RunContext, body: Callable[[], Status]) -> Status:
         if self.context_system is None: return body()
         ctx.window.push_system(self.context_system)
@@ -54,9 +62,13 @@ class Action(Node):
             kwargs = {k: self._resolve(v, ctx) for k, v in self.kwargs.items()}
             result = self.fn(*args, **kwargs)
             if isinstance(result, Status): return result
-            if self.store_as is not None: ctx.blackboard[self.store_as] = result
+            if self.store_as is not None: ctx.blackboard.set(self.store_as, result, writer=self.label())
             return Status.SUCCESS
         return self._run_with_context(ctx, body)
+
+    def label(self) -> str:
+        name = getattr(self.fn, "name", None) or getattr(self.fn, "__name__", "fn")
+        return f"act({name})" + (f" -> {self.store_as}" if self.store_as else "")
 
     @staticmethod
     def _resolve(value: Any, ctx: RunContext) -> Any:
@@ -80,6 +92,9 @@ class Sequence(Node):
             return Status.SUCCESS
         return self._run_with_context(ctx, body)
 
+    def label(self) -> str: return "seq"
+    def _children(self) -> list[tuple[str | None, Node]]: return [(None, c) for c in self.children]
+
 
 @dataclass
 class Selector(Node):
@@ -93,6 +108,9 @@ class Selector(Node):
                 if child.tick(ctx) is Status.SUCCESS: return Status.SUCCESS
             return Status.FAILURE
         return self._run_with_context(ctx, body)
+
+    def label(self) -> str: return "sel"
+    def _children(self) -> list[tuple[str | None, Node]]: return [(None, c) for c in self.children]
 
 
 @dataclass
@@ -114,6 +132,10 @@ class Repeat(Node):
             return Status.SUCCESS if self.until is None else Status.FAILURE
         return self._run_with_context(ctx, body)
 
+    def label(self) -> str: return f"repeat(max={self.max})"
+    def _children(self) -> list[tuple[str | None, Node]]:
+        return [(None, self.child)] + ([("until", self.until)] if self.until is not None else [])
+
 
 @dataclass
 class Check(Node):
@@ -127,6 +149,8 @@ class Check(Node):
 
     def tick(self, ctx: RunContext) -> Status:
         return Status.SUCCESS if self._match(ctx.blackboard.get(self.key)) else Status.FAILURE
+
+    def label(self) -> str: return f"check({self.key} == {self.equals!r})"
 
     def _match(self, actual: Any) -> bool:
         if isinstance(actual, str) and isinstance(self.equals, str):
@@ -160,13 +184,16 @@ class Predict(Node):
             if len(self.outputs) == 1:
                 text = text.strip()
                 if not text: return Status.FAILURE
-                ctx.blackboard[self.outputs[0]] = text
+                ctx.blackboard.set(self.outputs[0], text, writer=self.label())
                 return Status.SUCCESS
             parsed = self._parse(text)
             if parsed is None: return Status.FAILURE
-            for key in self.outputs: ctx.blackboard[key] = parsed.get(key)
+            for key in self.outputs: ctx.blackboard.set(key, parsed.get(key), writer=self.label())
             return Status.SUCCESS
         return self._run_with_context(ctx, body)
+
+    def label(self) -> str:
+        return f"predict({', '.join(self.inputs)} -> {', '.join(self.outputs)})"
 
     def _build_prompt(self, ctx: RunContext) -> str:
         lines: list[str] = []
@@ -248,7 +275,7 @@ class React(Node):
                 if not turn.tool_calls:
                     answer = turn.text.strip()
                     if not answer: return Status.FAILURE
-                    ctx.blackboard[self.outputs[0]] = answer
+                    ctx.blackboard.set(self.outputs[0], answer, writer=self.label())
                     return Status.SUCCESS
                 history.append({"role": "assistant", "content": turn.text, "tool_calls": turn.tool_calls})
                 for call in turn.tool_calls:
@@ -268,6 +295,79 @@ class React(Node):
         lines.append("Use the available tools as needed, then give your final answer as plain text.")
         return "\n".join(lines)
 
+    def label(self) -> str:
+        names = ", ".join(t.name for t in self.tools)
+        return f"react({', '.join(self.inputs)} -> {', '.join(self.outputs)}, tools=[{names}])"
+
+
+@dataclass
+class Decorator(Node):
+    """Base for single-child wrappers ('a behaviour wearing a different hat'):
+    they transform a child's status without introducing a new composite type."""
+    child: Node
+    context_system: str | None = None
+
+    def _children(self) -> list[tuple[str | None, Node]]: return [(None, self.child)]
+
+
+@dataclass
+class Invert(Decorator):
+    """Flip the child's status: SUCCESS <-> FAILURE."""
+    def tick(self, ctx: RunContext) -> Status:
+        def body() -> Status:
+            return Status.FAILURE if self.child.tick(ctx) is Status.SUCCESS else Status.SUCCESS
+        return self._run_with_context(ctx, body)
+
+    def label(self) -> str: return "invert"
+
+
+@dataclass
+class Optional(Decorator):
+    """Fail-soft: run the child but always report SUCCESS, so a failing step never
+    aborts its parent sequence (py_trees' FailureIsSuccess)."""
+    def tick(self, ctx: RunContext) -> Status:
+        def body() -> Status:
+            self.child.tick(ctx)
+            return Status.SUCCESS
+        return self._run_with_context(ctx, body)
+
+    def label(self) -> str: return "optional"
+
+
+@dataclass
+class Timeout(Decorator):
+    """Run the child with a wall-clock bound; FAILURE if it doesn't finish in
+    `seconds`. The child runs in a worker thread — on timeout it is abandoned
+    (Python can't kill it), so use this for read-only/idempotent work like an LLM
+    or lookup call."""
+    seconds: float = 30.0
+
+    def tick(self, ctx: RunContext) -> Status:
+        import concurrent.futures
+        def body() -> Status:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(self.child.tick, ctx)
+                try: return future.result(timeout=self.seconds)
+                except concurrent.futures.TimeoutError: return Status.FAILURE
+        return self._run_with_context(ctx, body)
+
+    def label(self) -> str: return f"timeout({self.seconds}s)"
+
+
+@dataclass
+class OneShot(Decorator):
+    """Run the child at most once per run; latch and replay its status on any
+    later tick (only observable inside a repeat/loop). State is per-run."""
+    def tick(self, ctx: RunContext) -> Status:
+        def body() -> Status:
+            key = id(self)
+            if key not in ctx.state:
+                ctx.state[key] = self.child.tick(ctx)
+            return ctx.state[key]
+        return self._run_with_context(ctx, body)
+
+    def label(self) -> str: return "oneshot"
+
 
 @dataclass
 class Root(Node):
@@ -284,6 +384,12 @@ class Root(Node):
         if self.child is None: raise RuntimeError(f"Root {self.name!r} has no child; call .do(...) on it.")
         if ctx.model_id is None: ctx.model_id = self.model_id
         return self._run_with_context(ctx, lambda: self.child.tick(ctx))
+
+    def label(self) -> str:
+        return f"root {self.name!r}" + (f" [{self.model_id}]" if self.model_id else "")
+
+    def _children(self) -> list[tuple[str | None, Node]]:
+        return [(None, self.child)] if self.child is not None else []
 
     def run(self, *, model: Any = None, **inputs: Any) -> RunContext:
         """Execute the skill and return the final RunContext (read ctx.blackboard)."""

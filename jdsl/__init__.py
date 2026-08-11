@@ -1,10 +1,43 @@
 """jdsl — behavior-tree agents with DSPy-style signatures, run by a tree-walking
 interpreter. Authoring surface: tool, root, seq, sel, repeat, act, check, predict, ref, store."""
 
-from jdsl.context import Blackboard, ContextWindow, ModelTurn, Ref, RunContext, ToolCall
-from jdsl.dsl import act, check, predict, react, ref, repeat, root, sel, seq, store, tool
+from jdsl.context import Blackboard, ContextWindow, ModelTurn, Ref, RunContext, ToolCall, Write
+from jdsl.dsl import (
+    act,
+    check,
+    invert,
+    oneshot,
+    optional,
+    predict,
+    react,
+    ref,
+    repeat,
+    root,
+    sel,
+    seq,
+    store,
+    timeout,
+    tool,
+)
 from jdsl.provider import LanguageModel
-from jdsl.tree import Action, Check, Node, Predict, React, Repeat, Root, Selector, Sequence, Status
+from jdsl.render import render
+from jdsl.tree import (
+    Action,
+    Check,
+    Decorator,
+    Invert,
+    Node,
+    OneShot,
+    Optional,
+    Predict,
+    React,
+    Repeat,
+    Root,
+    Selector,
+    Sequence,
+    Status,
+    Timeout,
+)
 
 __all__ = [
     "tool",
@@ -15,9 +48,14 @@ __all__ = [
     "check",
     "predict",
     "react",
+    "invert",
+    "optional",
+    "timeout",
+    "oneshot",
     "root",
     "store",
     "ref",
+    "render",
     "Ref",
     "Status",
     "Node",
@@ -28,6 +66,11 @@ __all__ = [
     "Selector",
     "Predict",
     "React",
+    "Decorator",
+    "Invert",
+    "Optional",
+    "Timeout",
+    "OneShot",
     "Root",
     "LanguageModel",
     "RunContext",
@@ -35,4 +78,5 @@ __all__ = [
     "ContextWindow",
     "ToolCall",
     "ModelTurn",
+    "Write",
 ]

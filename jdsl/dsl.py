@@ -9,7 +9,21 @@ from dataclasses import dataclass
 from typing import Any, ParamSpec, TypeVar, overload
 
 from jdsl.context import Ref
-from jdsl.tree import Action, Check, Node, Predict, React, Repeat, Root, Selector, Sequence
+from jdsl.tree import (
+    Action,
+    Check,
+    Invert,
+    Node,
+    OneShot,
+    Optional,
+    Predict,
+    React,
+    Repeat,
+    Root,
+    Selector,
+    Sequence,
+    Timeout,
+)
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -75,6 +89,26 @@ def check(key: str, equals: Any) -> Check:
 def repeat(child: Node, *, until: Node | None = None, max: int = 3, context: str | None = None) -> Repeat:
     """Run child up to `max` times, stopping early when `until` (e.g. a check) succeeds."""
     return Repeat(child=child, until=until, max=max, context_system=context)
+
+
+def invert(child: Node, *, context: str | None = None) -> Invert:
+    """Flip a child's status: SUCCESS <-> FAILURE (e.g. invert(check(...)))."""
+    return Invert(child=child, context_system=context)
+
+
+def optional(child: Node, *, context: str | None = None) -> Optional:
+    """Fail-soft wrapper: run the child but always succeed, so it can't abort a seq."""
+    return Optional(child=child, context_system=context)
+
+
+def timeout(child: Node, *, seconds: float = 30.0, context: str | None = None) -> Timeout:
+    """Bound a child to `seconds` of wall-clock time; FAILURE if it overruns."""
+    return Timeout(child=child, seconds=seconds, context_system=context)
+
+
+def oneshot(child: Node, *, context: str | None = None) -> OneShot:
+    """Run the child at most once per run; replay its status on later ticks."""
+    return OneShot(child=child, context_system=context)
 
 
 def predict(signature: str, *, instructions: str | None = None, context: str | None = None) -> Predict:
