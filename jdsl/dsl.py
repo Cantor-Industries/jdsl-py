@@ -32,10 +32,14 @@ R = TypeVar("R")
 @dataclass
 class Tool:
     """Named, still-callable wrapper around a function; carries name/description
-    used by react to expose it to the model for function-calling."""
+    used by react to expose it to the model for function-calling. `parameters` is
+    an optional explicit JSON-schema for the arguments — set it when the schema
+    can't be introspected from the fn (e.g. a `**kwargs` bridge to an external
+    tool environment); leave it None to derive the schema from the signature."""
     fn: Callable[..., Any]
     name: str
     description: str = ""
+    parameters: dict[str, Any] | None = None
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any: return self.fn(*args, **kwargs)
 

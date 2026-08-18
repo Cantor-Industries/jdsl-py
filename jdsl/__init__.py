@@ -21,6 +21,7 @@ from jdsl.dsl import (
 )
 from jdsl.provider import LanguageModel
 from jdsl.render import render
+from jdsl.session import Session
 from jdsl.tree import (
     Action,
     Check,
@@ -56,6 +57,7 @@ __all__ = [
     "store",
     "ref",
     "render",
+    "Session",
     "Ref",
     "Status",
     "Node",
