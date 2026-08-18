@@ -79,16 +79,20 @@ class HFModel:
 
     def _complete(self, chat: list[dict]) -> str:
         import torch  # lazy
-        inputs = self.tokenizer.apply_chat_template(
-            chat, add_generation_prompt=True, return_tensors="pt",
-        ).to(self.model.device)
+        # return_dict=True so we always get a BatchEncoding (input_ids + attention
+        # mask), rather than a bare tensor on some versions / a dict on others —
+        # then feed the whole thing to generate() so the mask goes along too.
+        enc = self.tokenizer.apply_chat_template(
+            chat, add_generation_prompt=True, return_tensors="pt", return_dict=True,
+        )
+        enc = {k: v.to(self.model.device) for k, v in enc.items()}
+        input_len = enc["input_ids"].shape[-1]
         with torch.no_grad():
             out = self.model.generate(
-                inputs, max_new_tokens=self.max_new_tokens, do_sample=False,
+                **enc, max_new_tokens=self.max_new_tokens, do_sample=False,
                 pad_token_id=self.tokenizer.pad_token_id or self.tokenizer.eos_token_id,
             )
-        new_tokens = out[0][inputs.shape[-1]:]
-        return self.tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+        return self.tokenizer.decode(out[0][input_len:], skip_special_tokens=True).strip()
 
     # -- message shaping -----------------------------------------------------
 
