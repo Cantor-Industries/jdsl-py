@@ -248,6 +248,53 @@ def _tool_schema(fn: Callable[..., Any]) -> dict[str, Any]:
     return {"type": "object", "properties": props, "required": required}
 
 
+# -- failed-attempt memory ----------------------------------------------------
+# A weak model, handed a bare tool error, tends to re-issue the *identical*
+# failing call turn after turn (never adapting the arguments). We keep a small
+# record of calls that have already failed — on the blackboard, so it survives a
+# re-ticked tree across turns — surface it in the prompt ("don't repeat these"),
+# and short-circuit an exact repeat instead of firing the tool again. General:
+# both react and Session flat mode use it, so neither arm is advantaged.
+
+FAILED_CALLS_KEY = "_failed_tool_calls"
+
+
+def _looks_like_error(result: Any) -> bool:
+    """Heuristic for a tool observation that reports failure. tau-bench (and most
+    tools) prefix errors with 'Error: ...'; jdsl's own bridges use 'error:'."""
+    return str(result).strip().lower().startswith("error")
+
+
+def _call_signature(name: str, arguments: dict[str, Any]) -> str:
+    """Stable identity for a (tool, arguments) call, for exact-repeat detection."""
+    return f"{name}:{json.dumps(arguments, sort_keys=True, default=str)}"
+
+
+def _record_failure(failed: list[dict[str, Any]], name: str, arguments: dict[str, Any],
+                    error: Any) -> list[dict[str, Any]]:
+    """Append a failed call (de-duped by signature); newest last, capped."""
+    sig = _call_signature(name, arguments)
+    if any(f["sig"] == sig for f in failed): return failed
+    entry = {"sig": sig, "tool": name, "arguments": arguments, "error": str(error).strip()[:200]}
+    return [*failed, entry][-12:]
+
+
+def _failed_calls_note(failed: list[dict[str, Any]]) -> str:
+    """A prompt block listing already-failed calls, or '' if there are none."""
+    if not failed: return ""
+    lines = ["Some tool calls have ALREADY been tried and FAILED. Do NOT repeat any of them with "
+             "the same arguments — correct the arguments (check the exact format/ids) or ask the "
+             "user for the missing detail:"]
+    lines += [f"- {f['tool']}({f['arguments']}) -> {f['error']}" for f in failed]
+    return "\n".join(lines)
+
+
+def _known_failure(failed: list[dict[str, Any]], name: str, arguments: dict[str, Any]) -> dict | None:
+    """The prior failure matching this exact call, if any."""
+    sig = _call_signature(name, arguments)
+    return next((f for f in failed if f["sig"] == sig), None)
+
+
 @dataclass
 class React(Node):
     """Agentic LLM leaf: the model reasons and calls @tools in a loop (native
@@ -273,7 +320,9 @@ class React(Node):
             specs = [{"name": t.name, "description": t.description,
                       "parameters": getattr(t, "parameters", None) or _tool_schema(t.fn)}
                      for t in self.tools]
-            history: list[dict[str, Any]] = [{"role": "user", "content": self._build_prompt(ctx)}]
+            # Calls that already failed (this turn or earlier turns, via the blackboard).
+            failed = list(ctx.blackboard.get(FAILED_CALLS_KEY) or [])
+            history: list[dict[str, Any]] = [{"role": "user", "content": self._build_prompt(ctx, failed)}]
             for _ in range(self.max_steps):
                 turn = model.converse(system=ctx.window.system, messages=history,
                                       tools=specs, model_id=ctx.model_id)
@@ -284,19 +333,29 @@ class React(Node):
                     return Status.SUCCESS
                 history.append({"role": "assistant", "content": turn.text, "tool_calls": turn.tool_calls})
                 for call in turn.tool_calls:
-                    tool = by_name.get(call.name)
-                    result = tool(**call.arguments) if tool else f"error: no tool named {call.name!r}"
+                    known = _known_failure(failed, call.name, call.arguments)
+                    if known is not None:  # exact repeat of a known-bad call: don't fire it again
+                        result: Any = (f"error: this exact call already failed ({known['error']}). "
+                                       "Do not repeat it — change the arguments or ask the user.")
+                    else:
+                        tool = by_name.get(call.name)
+                        result = tool(**call.arguments) if tool else f"error: no tool named {call.name!r}"
+                        if _looks_like_error(result):
+                            failed = _record_failure(failed, call.name, call.arguments, result)
+                            ctx.blackboard.set(FAILED_CALLS_KEY, failed, writer=self.label())
                     history.append({"role": "tool", "tool_call_id": call.id,
                                     "name": call.name, "content": str(result)})
             return Status.FAILURE  # ran out of steps without a final answer
         return self._run_with_context(ctx, body)
 
-    def _build_prompt(self, ctx: RunContext) -> str:
+    def _build_prompt(self, ctx: RunContext, failed: list[dict[str, Any]] | None = None) -> str:
         lines: list[str] = []
         if self.instructions: lines.append(self.instructions)
         if self.inputs:
             lines.append("Given these inputs:")
             lines += [f"- {name}: {ctx.blackboard.get(name)!r}" for name in self.inputs]
+        note = _failed_calls_note(failed or [])
+        if note: lines.append(note)
         lines.append("Use the available tools as needed, then give your final answer as plain text.")
         return "\n".join(lines)
 

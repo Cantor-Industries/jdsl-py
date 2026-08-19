@@ -32,7 +32,15 @@ from __future__ import annotations
 from typing import Any
 
 from jdsl.context import Blackboard, RunContext
-from jdsl.tree import Node, _tool_schema
+from jdsl.tree import (
+    FAILED_CALLS_KEY,
+    Node,
+    _failed_calls_note,
+    _known_failure,
+    _looks_like_error,
+    _record_failure,
+    _tool_schema,
+)
 
 
 class Session:
@@ -100,8 +108,12 @@ class Session:
     def _send_flat(self, user_message: str) -> str:
         self.history.append({"role": "user", "content": user_message})
         for _ in range(self.max_tool_steps):
+            # Surface already-failed calls so the model stops re-issuing them
+            # (the blackboard persists across turns, so this spans the whole episode).
+            note = _failed_calls_note(self.ctx.blackboard.get(FAILED_CALLS_KEY) or [])
+            system = self.ctx.window.system + (f"\n\n{note}" if note else "")
             turn = self.model.converse(
-                system=self.ctx.window.system,
+                system=system,
                 messages=self.history,
                 tools=self._specs,
                 model_id=self.model_id,
@@ -126,13 +138,23 @@ class Session:
 
     def _invoke(self, name: str, arguments: dict[str, Any]) -> Any:
         self.last_tool_calls.append({"name": name, "arguments": arguments})
+        failed = list(self.ctx.blackboard.get(FAILED_CALLS_KEY) or [])
+        known = _known_failure(failed, name, arguments)
+        if known is not None:  # exact repeat of a known-bad call: don't fire it again
+            return (f"error: this exact call already failed ({known['error']}). "
+                    "Do not repeat it — change the arguments or ask the user.")
         tool = self._tools.get(name)
         if tool is None:
-            return f"error: no tool named {name!r}"
-        try:
-            return tool(**arguments)
-        except Exception as err:  # tool errors are observations, not crashes
-            return f"error: {type(err).__name__}: {err}"
+            result: Any = f"error: no tool named {name!r}"
+        else:
+            try:
+                result = tool(**arguments)
+            except Exception as err:  # tool errors are observations, not crashes
+                result = f"error: {type(err).__name__}: {err}"
+        if _looks_like_error(result):
+            self.ctx.blackboard.set(FAILED_CALLS_KEY,
+                                    _record_failure(failed, name, arguments, result), writer="session")
+        return result
 
     # -- tree / tree-steered -------------------------------------------------
 

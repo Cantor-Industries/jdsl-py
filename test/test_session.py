@@ -57,6 +57,31 @@ def test_flat_tool_error_is_an_observation_not_a_crash(fake_model):
     assert any(m["role"] == "tool" and "nope" in m["content"] for m in fed_back)
 
 
+def test_flat_does_not_repeat_a_failed_call_across_turns(fake_model):
+    """The failed-attempt memory persists on the blackboard, so a call that failed
+    on turn 1 is short-circuited (and the model warned) if re-issued on turn 2 —
+    the fix for a weak model looping the same broken call forever."""
+    fired: list[str] = []
+
+    @tool
+    def get_order(order_id: str) -> str:
+        """Look up an order."""
+        fired.append(order_id)
+        return "Error: order not found"
+
+    model = fake_model(turns=[
+        ModelTurn(tool_calls=[ToolCall(id="1", name="get_order", arguments={"order_id": "W1"})]),
+        ModelTurn(text="Couldn't find it."),                                                       # turn 1
+        ModelTurn(tool_calls=[ToolCall(id="2", name="get_order", arguments={"order_id": "W1"})]),  # turn 2 repeat
+        ModelTurn(text="Still couldn't."),
+    ])
+    s = Session(model=model, model_id="deepseek-chat", tools=[get_order])
+    s.send("find order W1")
+    s.send("try again")
+    assert fired == ["W1"]  # fired once total; the cross-turn repeat was short-circuited
+    assert "ALREADY been tried and FAILED" in model.converse_calls[-1]["system"]
+
+
 def test_flat_requires_exactly_one_mode(fake_model):
     with pytest.raises(ValueError, match="exactly one"):
         Session(model=fake_model(), tools=[], tree=seq())

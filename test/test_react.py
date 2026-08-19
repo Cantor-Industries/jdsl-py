@@ -57,6 +57,42 @@ def test_explicit_tool_parameters_are_passed_through(fake_model):
     assert sent == schema  # the real schema reached the model, not an empty {}
 
 
+def test_react_does_not_repeat_a_failed_call(fake_model):
+    """A tool call that returns an error is remembered; an exact repeat is
+    short-circuited (the tool isn't fired again) and the failure is surfaced to a
+    later tick's prompt. This is the 'stop re-issuing the same broken call' fix."""
+    fired: list[str] = []
+
+    @tool
+    def get_order(order_id: str) -> str:
+        """Look up an order."""
+        fired.append(order_id)
+        return "Error: order not found"
+
+    model = fake_model(turns=[
+        ModelTurn(tool_calls=[ToolCall(id="1", name="get_order", arguments={"order_id": "W1"})]),
+        ModelTurn(tool_calls=[ToolCall(id="2", name="get_order", arguments={"order_id": "W1"})]),  # repeat
+        ModelTurn(text="I couldn't find that order."),
+    ])
+    node = react("q -> answer", tools=[get_order], max_steps=5)
+    ctx = _ctx(model)
+    assert node.tick(ctx) is Status.SUCCESS
+    assert fired == ["W1"]  # the identical second call was short-circuited, not re-fired
+    failed = ctx.blackboard.get("_failed_tool_calls")
+    assert failed and failed[0]["tool"] == "get_order"
+
+    # a fresh tick now warns the model up-front, before it can repeat the call
+    node.tick(_ctx_sharing(ctx, model))
+    assert "ALREADY been tried and FAILED" in model.converse_calls[-1]["messages"][0]["content"]
+
+
+def _ctx_sharing(ctx, model):
+    """A new RunContext reusing ctx's blackboard (as a re-ticked tree would)."""
+    new = RunContext(model=model, model_id="deepseek-chat")
+    new.blackboard = ctx.blackboard
+    return new
+
+
 def test_answers_without_calling_tools(fake_model):
     model = fake_model(turns=[ModelTurn(text="42")])
     node = react("question -> answer", tools=[lookup])
