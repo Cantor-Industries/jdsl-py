@@ -4,8 +4,8 @@ proving the local-model provider satisfies jdsl's generate/converse interface.""
 
 from __future__ import annotations
 
-from jdsl.hf import HFModel
 from jdsl import RunContext, Session, Status, predict, react, tool
+from jdsl.hf import HFModel
 
 
 class ScriptedHF(HFModel):

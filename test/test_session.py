@@ -9,7 +9,6 @@ import pytest
 from jdsl import Session, act, check, sel, seq, store, tool
 from jdsl.context import ModelTurn, ToolCall
 
-
 # -- flat / model-steered (the tau-bench "Arm A" baseline shape) --------------
 
 def test_flat_persists_history_and_tool_state(fake_model):

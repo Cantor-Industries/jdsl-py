@@ -39,13 +39,13 @@ from __future__ import annotations
 import argparse
 import importlib
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from jdsl import Session
 from jdsl.dsl import Tool
 from jdsl.provider import LanguageModel
-
 
 # -- tau-bench shim: the only place that imports tau-bench --------------------
 
@@ -62,11 +62,10 @@ def _load_tau_bench() -> _TauBench:
         from tau_bench.types import Action  # type: ignore
     except ImportError as err:  # pragma: no cover - depends on external install
         raise SystemExit(
-            "tau-bench is not importable. Install it as a sibling package:\n"
-            "    git clone https://github.com/sierra-research/tau-bench\n"
-            "    cd tau-bench && pip install -e .\n"
+            "tau-bench is not importable. Install it:\n"
+            "    pip install 'git+https://github.com/sierra-research/tau-bench.git'\n"
             f"(underlying import error: {err})"
-        )
+        ) from err
     # RESPOND_ACTION_NAME lives in tau_bench.envs.base in current releases; fall
     # back to the documented literal if the constant moves again.
     respond = "respond"
