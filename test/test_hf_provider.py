@@ -4,25 +4,33 @@ proving the local-model provider satisfies jdsl's generate/converse interface.""
 
 from __future__ import annotations
 
-from jdsl import RunContext, Session, Status, predict, react, tool
+from jdsl import RunContext, Session, Status, ToolCall, predict, react, tool
 from jdsl.hf import HFModel
 
 
 class ScriptedHF(HFModel):
-    """HFModel with generation stubbed to a list of replies (in order)."""
+    """HFModel with generation stubbed to a list of replies (in order). `native`
+    selects which tool-calling path converse takes (prompt-based vs native)."""
 
-    def __init__(self, replies: list[str]) -> None:
+    def __init__(self, replies: list[str], *, native: bool = False) -> None:
         self.replies = list(replies)
         self._i = 0
         self.max_new_tokens = 8
         self._call_id = 0
         self.model = None
         self.tokenizer = None
+        self.native_tools = native
 
-    def _complete(self, chat: list[dict]) -> str:  # type: ignore[override]
+    def _next(self) -> str:
         r = self.replies[min(self._i, len(self.replies) - 1)]
         self._i += 1
         return r
+
+    def _complete(self, chat: list[dict]) -> str:  # type: ignore[override]
+        return self._next()
+
+    def _complete_tools(self, chat: list[dict], tools: list[dict]) -> str:  # type: ignore[override]
+        return self._next()
 
 
 @tool
@@ -63,6 +71,48 @@ def test_react_over_local_model_parses_prose_wrapped_call():
     # first turn narrates + emits the call as prose; second turn is the plain answer
     m = ScriptedHF(['Let me check.\n{"tool": "lookup", "arguments": {"city": "Paris"}}',
                     "Paris has 2.1M people."])
+    ctx = RunContext(model=m, model_id="local")
+    ctx.blackboard["question"] = "how big is paris?"
+    assert react("question -> answer", tools=[lookup]).tick(ctx) is Status.SUCCESS
+    assert "2.1M" in ctx.blackboard["answer"]
+
+
+def test_native_tools_autodetected_for_gemma4():
+    class Cfg: architectures = ["Gemma4ForConditionalGeneration"]; model_type = "gemma4"
+    class M: config = Cfg()
+    class Tok: chat_template = "…{{ tool_call }}…"
+    assert HFModel(model=M(), tokenizer=Tok()).native_tools is True
+
+    class PlainCfg: architectures = ["LlamaForCausalLM"]; model_type = "llama"
+    class PlainM: config = PlainCfg()
+    class PlainTok: chat_template = "no tool support"
+    assert HFModel(model=PlainM(), tokenizer=PlainTok()).native_tools is False
+
+
+def test_native_chat_shaping_keeps_roles_and_tool_calls():
+    msgs = [
+        {"role": "user", "content": "cancel W1"},
+        {"role": "assistant", "content": "",
+         "tool_calls": [ToolCall(id="1", name="get_order", arguments={"order_id": "#W1"})]},
+        {"role": "tool", "tool_call_id": "1", "name": "get_order", "content": "ok"},
+    ]
+    chat = HFModel._to_native_chat("SYS", msgs)
+    assert chat[0] == {"role": "system", "content": "SYS"}       # real system turn, not folded
+    assert chat[2]["tool_calls"][0]["function"] == {"name": "get_order", "arguments": {"order_id": "#W1"}}
+    assert chat[3] == {"role": "tool", "name": "get_order", "content": "ok"}
+
+
+def test_native_parse_prefers_tool_call_markers():
+    g = HFModel.__new__(HFModel)  # no model needed for the pure parser
+    raw = 'Let me look.<|tool_call>{"name": "get_order", "arguments": {"order_id": "#W2378156"}}<tool_call|>'
+    assert g._parse_native_tool_calls(raw) == [{"tool": "get_order", "arguments": {"order_id": "#W2378156"}}]
+    assert g._clean_text("<|turn>model\nDone.<turn|>") == "model\nDone."
+
+
+def test_native_react_loop_over_local_model():
+    # native path: model emits a tool call (via markers), then a plain answer
+    m = ScriptedHF(['<|tool_call>{"name": "lookup", "arguments": {"city": "Paris"}}<tool_call|>',
+                    "Paris has 2.1M people."], native=True)
     ctx = RunContext(model=m, model_id="local")
     ctx.blackboard["question"] = "how big is paris?"
     assert react("question -> answer", tools=[lookup]).tick(ctx) is Status.SUCCESS
