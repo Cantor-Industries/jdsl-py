@@ -40,6 +40,35 @@ def test_react_loop_over_local_model():
     assert "2.1M" in ctx.blackboard["answer"]
 
 
+def test_parses_tool_call_wrapped_in_prose_with_nested_args():
+    """The model often narrates before emitting the call, and the args are a nested
+    object. The brace-balanced extractor must still find it — a non-greedy regex
+    stops at the first inner '}' and the JSON (a real tool call) leaks to the user."""
+    text = ('I understand. I will now look up your order.\n\n'
+            '{"tool": "get_order_details", "arguments": {"order_id": "#W2378156"}}')
+    call = HFModel._parse_tool_call(text)
+    assert call == {"tool": "get_order_details", "arguments": {"order_id": "#W2378156"}}
+
+
+def test_parse_ignores_braces_inside_strings():
+    text = '{"tool": "say", "arguments": {"msg": "use {curly} braces"}}'
+    assert HFModel._parse_tool_call(text)["arguments"] == {"msg": "use {curly} braces"}
+
+
+def test_plain_answer_is_not_a_tool_call():
+    assert HFModel._parse_tool_call("Sorry, I couldn't find that order.") is None
+
+
+def test_react_over_local_model_parses_prose_wrapped_call():
+    # first turn narrates + emits the call as prose; second turn is the plain answer
+    m = ScriptedHF(['Let me check.\n{"tool": "lookup", "arguments": {"city": "Paris"}}',
+                    "Paris has 2.1M people."])
+    ctx = RunContext(model=m, model_id="local")
+    ctx.blackboard["question"] = "how big is paris?"
+    assert react("question -> answer", tools=[lookup]).tick(ctx) is Status.SUCCESS
+    assert "2.1M" in ctx.blackboard["answer"]
+
+
 def test_predict_over_local_model():
     m = ScriptedHF(["billing"])
     ctx = RunContext(model=m, model_id="local")

@@ -27,7 +27,6 @@ module loads without them.
 from __future__ import annotations
 
 import json
-import re
 from typing import Any
 
 from jdsl import ModelTurn, ToolCall
@@ -151,7 +150,7 @@ class HFModel:
 
     @staticmethod
     def _parse_tool_call(text: str) -> dict | None:
-        for candidate in (text, *re.findall(r"\{.*?\}", text, re.DOTALL)):
+        for candidate in HFModel._json_objects(text):
             try:
                 obj = json.loads(candidate)
             except json.JSONDecodeError:
@@ -160,6 +159,31 @@ class HFModel:
                 obj.setdefault("arguments", {})
                 return obj
         return None
+
+    @staticmethod
+    def _json_objects(text: str) -> list[str]:
+        """Candidate JSON-object substrings: the whole text first, then every
+        brace-balanced ``{...}`` span. A depth counter (that ignores braces inside
+        strings) means nested objects and surrounding prose both parse — unlike a
+        non-greedy regex, which stops at the first inner ``}`` and mangles
+        ``{"tool": ..., "arguments": {...}}``."""
+        out = [text]
+        depth = start = 0
+        in_str = esc = False
+        for i, c in enumerate(text):
+            if in_str:
+                if esc: esc = False
+                elif c == "\\": esc = True
+                elif c == '"': in_str = False
+                continue
+            if c == '"': in_str = True
+            elif c == "{":
+                if depth == 0: start = i
+                depth += 1
+            elif c == "}" and depth > 0:
+                depth -= 1
+                if depth == 0: out.append(text[start:i + 1])
+        return out
 
 
 __all__ = ["HFModel"]
