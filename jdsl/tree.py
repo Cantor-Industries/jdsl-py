@@ -266,7 +266,12 @@ class React(Node):
         def body() -> Status:
             model = ctx.require_model()
             by_name = {t.name: t for t in self.tools}
-            specs = [{"name": t.name, "description": t.description, "parameters": _tool_schema(t.fn)}
+            # Honor an explicit JSON schema on the tool (e.g. tau-bench tools wrapped
+            # as `**kwargs` bridges, where introspecting `fn` yields empty props and
+            # the model would have to guess argument names); fall back to signature
+            # introspection for plain @tools. Matches Session flat mode.
+            specs = [{"name": t.name, "description": t.description,
+                      "parameters": getattr(t, "parameters", None) or _tool_schema(t.fn)}
                      for t in self.tools]
             history: list[dict[str, Any]] = [{"role": "user", "content": self._build_prompt(ctx)}]
             for _ in range(self.max_steps):

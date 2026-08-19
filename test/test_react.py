@@ -34,6 +34,29 @@ def test_calls_tool_then_answers(fake_model):
     assert any(m["role"] == "tool" and "2.1M" in m["content"] for m in fed_back)
 
 
+def test_explicit_tool_parameters_are_passed_through(fake_model):
+    """A Tool carrying an explicit JSON schema (e.g. a tau-bench tool wrapped as a
+    **kwargs bridge, where introspecting fn yields empty props) must have THAT
+    schema handed to the model — otherwise the model can't know the argument names
+    and guesses them wrong. Regression for react ignoring Tool.parameters."""
+    from jdsl.dsl import Tool
+
+    schema = {"type": "object",
+              "properties": {"first_name": {"type": "string"},
+                             "last_name": {"type": "string"},
+                             "zip": {"type": "string"}},
+              "required": ["first_name", "last_name", "zip"]}
+    bridge = Tool(fn=lambda **kw: "u_42", name="find_user", description="look up a user",
+                  parameters=schema)
+
+    model = fake_model(turns=[ModelTurn(text="done")])
+    node = react("q -> answer", tools=[bridge])
+    ctx = _ctx(model)
+    assert node.tick(ctx) is Status.SUCCESS
+    sent = model.converse_calls[0]["tools"][0]["parameters"]
+    assert sent == schema  # the real schema reached the model, not an empty {}
+
+
 def test_answers_without_calling_tools(fake_model):
     model = fake_model(turns=[ModelTurn(text="42")])
     node = react("question -> answer", tools=[lookup])
