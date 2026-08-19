@@ -79,20 +79,22 @@ class HFModel:
 
     def _complete(self, chat: list[dict]) -> str:
         import torch  # lazy
-        # return_dict=True so we always get a BatchEncoding (input_ids + attention
-        # mask), rather than a bare tensor on some versions / a dict on others —
-        # then feed the whole thing to generate() so the mask goes along too.
-        enc = self.tokenizer.apply_chat_template(
-            chat, add_generation_prompt=True, return_tensors="pt", return_dict=True,
-        )
-        enc = {k: v.to(self.model.device) for k, v in enc.items()}
-        input_len = enc["input_ids"].shape[-1]
+        # Render to a string first, then tokenize, then pass input_ids POSITIONALLY
+        # to generate(). This is the compatible path across text and multimodal
+        # models: handing generate() a BatchEncoding (via return_dict + **enc) makes
+        # some multimodal generate() implementations treat the whole encoding as the
+        # input tensor and blow up on `.shape`. The template already injects <bos>,
+        # so add_special_tokens=False avoids a doubled BOS.
+        prompt = self.tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=False)
+        enc = self.tokenizer(prompt, return_tensors="pt", add_special_tokens=False).to(self.model.device)
+        input_ids = enc["input_ids"]
         with torch.no_grad():
             out = self.model.generate(
-                **enc, max_new_tokens=self.max_new_tokens, do_sample=False,
+                input_ids, attention_mask=enc.get("attention_mask"),
+                max_new_tokens=self.max_new_tokens, do_sample=False,
                 pad_token_id=self.tokenizer.pad_token_id or self.tokenizer.eos_token_id,
             )
-        return self.tokenizer.decode(out[0][input_len:], skip_special_tokens=True).strip()
+        return self.tokenizer.decode(out[0][input_ids.shape[-1]:], skip_special_tokens=True).strip()
 
     # -- message shaping -----------------------------------------------------
 

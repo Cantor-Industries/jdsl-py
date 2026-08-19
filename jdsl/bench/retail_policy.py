@@ -1,7 +1,7 @@
 """Arm B policy tree for tau-bench *retail* — policy encoded in the tree, not
 just the prompt.
 
-`build_tree(tools, wiki)` is what `bench.tau_bench_adapter --arm tree` loads.
+`build_tree(tools, wiki)` is what `jdsl.bench.tau_bench_adapter --arm tree` loads.
 It returns a jdsl `Node` re-ticked once per user turn (the `Session` threads a
 running `transcript` onto the blackboard so a re-ticked tree still sees the whole
 dialogue).

@@ -35,13 +35,13 @@ From the jdsl repo, with tau-bench importable:
 
 ```bash
 # Arm A — model-steered baseline (policy in the prompt)
-python -m bench.tau_bench_adapter --env retail --arm flat \
+python -m jdsl.bench.tau_bench_adapter --env retail --arm flat \
     --agent-model claude-opus-4-8 --user-model gpt-4o-mini \
     --tasks 0,1,2 --k 5
 
 # Arm B — tree-steered (policy in seq/sel/check guards)
-python -m bench.tau_bench_adapter --env retail --arm tree \
-    --tree-module bench.retail_policy \
+python -m jdsl.bench.tau_bench_adapter --env retail --arm tree \
+    --tree-module jdsl.bench.retail_policy \
     --tasks 0,1,2 --k 5
 ```
 
@@ -74,7 +74,7 @@ for the shape in miniature.
 
 `jdsl/session.py` adds `Session`, the multi-turn primitive `Root.run()` isn't:
 one persistent `RunContext` (blackboard + window + model) driven turn by turn
-via `send(user_message) -> reply`. `bench/tau_bench_adapter.py` wraps each
+via `send(user_message) -> reply`. `jdsl/bench/tau_bench_adapter.py` wraps each
 tau-bench tool as a jdsl `Tool` bridging to `env.step`, and alternates
 `session.send(...)` with tau-bench's `respond` action to fetch the next
 simulated-user turn.
