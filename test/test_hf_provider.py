@@ -107,6 +107,8 @@ def test_native_parse_prefers_tool_call_markers():
     raw = 'Let me look.<|tool_call>{"name": "get_order", "arguments": {"order_id": "#W2378156"}}<tool_call|>'
     assert g._parse_native_tool_calls(raw) == [{"tool": "get_order", "arguments": {"order_id": "#W2378156"}}]
     assert g._clean_text("<|turn>model\nDone.<turn|>") == "model\nDone."
+    # the quote token <|"|> leaks into Gemma's output too; it must not reach the user
+    assert g._clean_text('Hello <|"|>there<|"|>.') == "Hello there."
 
 
 def test_native_react_loop_over_local_model():

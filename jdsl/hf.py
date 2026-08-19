@@ -160,9 +160,11 @@ class HFModel:
         return [one] if one is not None else []
 
     def _clean_text(self, raw: str) -> str:
-        """Strip special-token markers (`<|turn>`, `<turn|>`, `<|channel>`, …) so a
-        plain-text answer reaches the user clean even when decoded with specials."""
-        return re.sub(r"<\|?[a-zA-Z_]+\|?>", "", raw).strip()
+        """Strip special-token markers so a plain-text answer reaches the user clean
+        even when decoded with specials. Catches every pipe-delimited marker Gemma
+        emits — `<|turn>`, `<turn|>`, `<|channel>`, and the quote token `<|"|>` — by
+        requiring a leading `<|` or trailing `|>`, so real `<tags>` are left alone."""
+        return re.sub(r"<\|[^<>]*?\|?>|<[^<>]*?\|>", "", raw).strip()
 
     # -- prompt-based tool calling (other models) ----------------------------
 
