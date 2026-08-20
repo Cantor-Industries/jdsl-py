@@ -102,17 +102,41 @@ is loaded automatically.
 ## Layout
 
 ```
-jdsl/        the package — dsl, tree (interpreter), context, provider, router, render, config, cli
-examples/    runnable skills — see examples/README.md
-test/        pytest suite (no network; LLM leaves use fakes)
-docs/        concepts, API reference, providers
+jdsl/          the runtime core — dsl, tree (interpreter), context, provider, render, cli
+  trace/       canonical trace events, sinks, storage, redaction, replay
+  ir/          Behavior IR: schema, safe guard expressions, validation, lowering
+  package/     .jdslpkg manifest, tool contracts, provenance, export + loader
+jdsl_harness/  capture + behavior compiler (separate package; optional [harness] extra)
+plugins/       Claude Code plugin + Gemini CLI extension (trace capture)
+examples/      runnable skills — see examples/README.md
+test/          pytest suite (no network; LLM leaves use fakes)
+docs/          concepts, API reference, providers, harness & compiler
 ```
+
+## Behavior harness & compiler
+
+jdsl can also *compile* observed frontier-model behavior into portable policy a
+smaller frozen model runs. The harness captures canonical traces, mines and
+verifies reusable structure (exact dataflow, sequencing, guards, recovery), and
+leaves only irreducible semantic decisions as typed signatures — exported as a
+deterministic `.jdslpkg`.
+
+```bash
+jdsl harness serve                 # local capture daemon
+jdsl capture inspect <id>          # exact-lineage report
+jdsl compile <id> --out retail.jdslpkg
+jdsl package run retail.jdslpkg --tools tools.py --model <small-model>
+```
+
+See [docs/harness.md](docs/harness.md) for the full design-to-code map.
 
 ## Docs
 
 - [docs/concepts.md](docs/concepts.md) — behavior trees, the blackboard, signatures, why no codegen
 - [docs/api.md](docs/api.md) — full combinator + node reference
 - [docs/providers.md](docs/providers.md) — models, keys, `.env`, routing
+- [docs/harness.md](docs/harness.md) — the capture harness and behavior compiler
+- [docs/jdsl_behaviour_compiler.md](docs/jdsl_behaviour_compiler.md) — the full engineering design
 - [CONTRIBUTING.md](CONTRIBUTING.md) — dev setup, tests, adding examples
 
 ## Status
