@@ -7,7 +7,7 @@ because that unreachability is the determinism thesis."""
 from __future__ import annotations
 
 from jdsl import ModelTurn, Session, ToolCall
-from jdsl.bench.retail_policy import _confirmed, _last_user_line, build_tree
+from jdsl.bench.retail_policy import _confirmed, _known_facts, _last_user_line, _order_ids, build_tree
 from jdsl.dsl import Tool
 
 _TOOL_NAMES = (
@@ -92,6 +92,30 @@ def test_unconfirmed_write_intent_gets_read_only_tools(fake_model):
     offered = _tool_names_last_converse(model)
     assert "cancel_pending_order" not in offered  # the write tool is NOT in the model's hands
     assert offered.issubset(set(_TOOL_NAMES[2:8]))  # only READ_TOOLS
+
+
+# -- surfacing the ids the tree already knows --------------------------------
+
+def test_order_ids_and_known_facts_extraction():
+    assert _order_ids("User: exchange #W2378156 and also #W1\nAgent: ok") == ["#W2378156", "#W1"]
+    facts = _known_facts("yusuf_rossi_9620", "User: it's order #W2378156")
+    assert "yusuf_rossi_9620" in facts and "#W2378156" in facts  # exact id, # preserved
+    assert _known_facts(None, "no orders mentioned here") == ""
+
+
+def test_serve_phase_surfaces_verified_user_id_and_order_id(fake_model):
+    """The tree hands the serve model the ids it already knows — the verified
+    user_id (from the auth latch) and the order id the user named — so a small model
+    quotes them exactly instead of guessing. Regression for the model sending
+    'Yusuf Rossi, 19122' as a user_id and dropping the '#' from an order id."""
+    s, model = _authed_session(fake_model)  # auth latch user_id is the tool's "ok"
+    model.replies = ["cancel"]; model._i = 0
+    model.turns = [ModelTurn(text="Order #W2378156 is pending. Shall I cancel it?")]; model._t = 0
+    s.send("please cancel my order #W2378156")
+    facts = s.blackboard.get("facts")
+    assert "ok" in facts and "#W2378156" in facts
+    # and the facts actually reached the model's prompt for that serve turn
+    assert "#W2378156" in model.converse_calls[-1]["messages"][0]["content"]
 
 
 def test_confirmed_write_intent_unlocks_the_single_write_tool(fake_model):

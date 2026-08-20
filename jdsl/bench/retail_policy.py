@@ -34,10 +34,16 @@ the reply) is the model's. That split is the point of jdsl.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from jdsl import act, check, predict, react, ref, sel, seq, store
 from jdsl.dsl import Tool
+
+# tau-bench retail order ids have a fixed shape (#W followed by digits). Capturing
+# the one the user named lets the tree hand the model an exact id to quote, rather
+# than trusting a small model to reproduce it (it drops the '#').
+_ORDER_ID = re.compile(r"#W\d+")
 
 AUTH_TOOLS = ("find_user_id_by_email", "find_user_id_by_name_zip")
 
@@ -112,19 +118,24 @@ def build_tree(tools: list[Tool], wiki: str) -> Any:
     # Read the auth latch onto the blackboard so a `check` can branch on it. The
     # latch itself lives for the whole session inside the wrapped auth tools.
     sync_auth = store(act(lambda: latch["authenticated"]), "authenticated")
+    # The verified user id is a fact the tree computed at auth time — surface it so
+    # the serve model quotes it exactly instead of guessing from the transcript.
+    sync_user = store(act(lambda: latch["user_id"]), "user_id")
 
     return sel(
         # --- serve phase: only reachable once authenticated --------------------
         seq(
             sync_auth,
             check("authenticated", True),
+            sync_user,
             # Deterministic control decisions, set before any model leaf runs:
+            store(act(_known_facts, ref("user_id"), ref("transcript")), "facts"),  # ids to quote verbatim
             store(act(_confirmed, ref("transcript")), "confirmed"),  # has the user said yes?
             predict("transcript -> intent", instructions=INTENT_INSTRUCTIONS),  # what do they want?
             sel(
                 *(_action(name, read_tools, pick(WRITE_TOOLS[name])) for name in INTENTS),
                 # info / fallback: read-only, always answers so serve never falls back to auth.
-                store(react("transcript -> reply", tools=read_tools,
+                store(react("transcript, facts -> reply", tools=read_tools,
                             instructions=INFO_INSTRUCTIONS), "reply"),
             ),
         ),
@@ -147,10 +158,10 @@ def _action(intent: str, read_tools: list[Tool], write_tools: list[Tool]) -> Any
         sel(
             seq(
                 check("confirmed", True),
-                store(react("transcript -> reply", tools=read_tools + write_tools,
+                store(react("transcript, facts -> reply", tools=read_tools + write_tools,
                             instructions=EXECUTE_INSTRUCTIONS.format(intent=intent)), "reply"),
             ),
-            store(react("transcript -> reply", tools=read_tools,
+            store(react("transcript, facts -> reply", tools=read_tools,
                         instructions=PROPOSE_INSTRUCTIONS.format(intent=intent)), "reply"),
         ),
     )
@@ -172,6 +183,30 @@ def _last_user_line(transcript: Any) -> str:
     for line in reversed(str(transcript).splitlines()):
         if line.startswith("User:"): return line[len("User:"):].strip()
     return ""
+
+
+def _order_ids(transcript: Any) -> list[str]:
+    """Order ids the user named, in tau-bench's fixed #W... format, de-duped in order."""
+    return list(dict.fromkeys(_ORDER_ID.findall(str(transcript or ""))))
+
+
+def _known_facts(user_id: Any, transcript: Any) -> str:
+    """The ids the tree already knows for certain — the verified user id (computed at
+    auth time) and any order ids the user named — rendered for the serve model to
+    quote *verbatim*. A small model drops the '#' from an order id and can't recall
+    its own user id; handing it these removes the brittle copying and leaves it only
+    the language. This is deterministic state flowing to the model, not hardcoding:
+    the values come from the auth step and the user's own words, not the episode."""
+    facts = []
+    if user_id:
+        facts.append(f"authenticated user_id = {user_id}")
+    orders = _order_ids(transcript)
+    if orders:
+        facts.append(f"order id(s) in question = {', '.join(orders)}")
+    if not facts:
+        return ""
+    return ("Known-good values — use these EXACTLY in tool calls; never reformat, "
+            "abbreviate, or invent ids:\n" + "\n".join(f"- {f}" for f in facts))
 
 
 def _watch_auth(tool: Tool, latch: dict[str, Any]) -> Tool:
