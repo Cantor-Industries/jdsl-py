@@ -48,8 +48,12 @@ _ORDER_ID = re.compile(r"#W\d+")
 AUTH_TOOLS = ("find_user_id_by_email", "find_user_id_by_name_zip")
 
 # Read-only tools, in scope for every serve-phase leaf (propose and execute alike).
+# `think` is deliberately excluded: it is a no-op scratchpad, and a small model
+# fills it with unbounded reasoning that overruns the token budget (so the tool call
+# never closes and leaks to the user) and never converges to an action. Denying the
+# escape hatch forces the model to either act or produce a real reply.
 READ_TOOLS = ("get_order_details", "get_product_details", "get_user_details",
-              "list_all_product_types", "calculate", "think")
+              "list_all_product_types", "calculate")
 
 # Write tools, grouped by the intent that unlocks them. Each group is exposed only
 # in its own action subtree, and only after confirmation — so the model can never
