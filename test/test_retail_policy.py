@@ -6,8 +6,18 @@ because that unreachability is the determinism thesis."""
 
 from __future__ import annotations
 
+import json
+
 from jdsl import ModelTurn, Session, ToolCall
-from jdsl.bench.retail_policy import _confirmed, _known_facts, _last_user_line, _order_ids, build_tree
+from jdsl.bench.retail_policy import (
+    _confirmed,
+    _facts_builder,
+    _known_facts,
+    _last_user_line,
+    _order_detail_lines,
+    _order_ids,
+    build_tree,
+)
 from jdsl.dsl import Tool
 
 _TOOL_NAMES = (
@@ -101,6 +111,43 @@ def test_order_ids_and_known_facts_extraction():
     facts = _known_facts("yusuf_rossi_9620", "User: it's order #W2378156")
     assert "yusuf_rossi_9620" in facts and "#W2378156" in facts  # exact id, # preserved
     assert _known_facts(None, "no orders mentioned here") == ""
+
+
+_ORDER_JSON = {
+    "order_id": "#W2378156", "user_id": "yusuf_rossi_9620", "status": "delivered",
+    "items": [
+        {"name": "Mechanical Keyboard", "item_id": "1151293680", "product_id": "1656367028",
+         "options": {"switch type": "linear", "backlight": "RGB"}},
+        {"name": "Smart Thermostat", "item_id": "4983901480", "product_id": "4896585277", "options": {}},
+    ],
+    "payment_history": [{"transaction_type": "payment", "payment_method_id": "credit_card_9513926"}],
+}
+
+
+def _order_tool(payload) -> Tool:
+    return Tool(fn=lambda **kw: json.dumps(payload) if isinstance(payload, dict) else payload,
+                name="get_order_details", description="", parameters={"type": "object", "properties": {}})
+
+
+def test_order_detail_lines_surface_item_ids_and_payment():
+    lines = _order_detail_lines(_order_tool(_ORDER_JSON), "#W2378156")
+    joined = "\n".join(lines)
+    assert "1151293680" in joined and "4983901480" in joined  # current item_ids to exchange FROM
+    assert "1656367028" in joined                             # product_id, for the variant lookup
+    assert "credit_card_9513926" in joined                    # payment id, no re-derivation needed
+    assert "switch type=linear" in joined                     # current options, so the model sees the delta
+
+
+def test_order_detail_lines_tolerate_a_tool_error():
+    assert _order_detail_lines(_order_tool("Error: order not found"), "#W1") == []
+
+
+def test_facts_builder_folds_order_details_into_facts():
+    facts = _facts_builder({"get_order_details": _order_tool(_ORDER_JSON)})("yusuf_rossi_9620",
+                                                                            "User: exchange #W2378156")
+    # the tree hands the execute-phase model every id it can't reliably reproduce
+    for token in ("yusuf_rossi_9620", "#W2378156", "1151293680", "4983901480", "credit_card_9513926"):
+        assert token in facts
 
 
 def test_serve_phase_surfaces_verified_user_id_and_order_id(fake_model):
