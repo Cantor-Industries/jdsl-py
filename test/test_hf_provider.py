@@ -124,6 +124,20 @@ def test_native_parse_handles_gemma_call_dsl():
          "arguments": {"first_name": "Yusuf", "last_name": "Rossi", "zip": "19122"}}]
 
 
+def test_gemma_dsl_coerces_bracketed_list_args():
+    """The model writes list args (item_ids, new_item_ids) in the DSL's own syntax —
+    a bracketed string with quote tokens and internal commas. It must become a real
+    list, or the tool rejects it with '[ not found'. Regression for exchange calls."""
+    g = HFModel.__new__(HFModel)
+    raw = ('<|tool_call>call:exchange_delivered_order_items{order_id:<|"|>#W2378156<|"|>,'
+           'item_ids:[<|"|>1151293680<|"|>,<|"|>4983901480<|"|>],'
+           'payment_method_id:<|"|>credit_card_9513926<|"|>}<tool_call|>')
+    [call] = g._parse_native_tool_calls(raw)
+    assert call["arguments"]["item_ids"] == ["1151293680", "4983901480"]  # a list, not a string
+    assert call["arguments"]["order_id"] == "#W2378156"
+    assert call["arguments"]["payment_method_id"] == "credit_card_9513926"
+
+
 def test_gemma_dsl_preserves_hash_in_bare_value():
     """A value with no quote token (e.g. an order id) is taken bare — and its `#`
     must survive, since that prefix is exactly what tau-bench grades on."""

@@ -40,7 +40,10 @@ from jdsl import ModelTurn, ToolCall
 # conveniently bounds each value so commas/colons inside one don't break parsing.
 _TOOL_CALL_SPAN = re.compile(r"<\|tool_call\|?>(.*?)<\|?tool_call\|>", re.DOTALL)
 _GEMMA_CALL = re.compile(r"call:\s*([A-Za-z_]\w*)\s*\{(.*)\}", re.DOTALL)
-_GEMMA_ARG = re.compile(r'([A-Za-z_]\w*)\s*:\s*(?:<\|"\|>(.*?)<\|"\|>|([^,{}]+))', re.DOTALL)
+# A value is a quote-token string, or a bracketed list (which may contain commas,
+# so it can't be a plain comma-free run), or a bare comma-free scalar.
+_GEMMA_ARG = re.compile(
+    r'([A-Za-z_]\w*)\s*:\s*(?:<\|"\|>(.*?)<\|"\|>|(\[[^\]]*\])|([^,{}]+))', re.DOTALL)
 
 
 class HFModel:
@@ -179,9 +182,22 @@ class HFModel:
         if not m:
             return None
         args: dict[str, Any] = {}
-        for key, quoted, bare in _GEMMA_ARG.findall(m.group(2)):
-            args[key] = quoted if quoted else bare.strip()
+        for key, quoted, listed, bare in _GEMMA_ARG.findall(m.group(2)):
+            args[key] = quoted if quoted else HFModel._coerce_gemma_value(listed or bare.strip())
         return {"tool": m.group(1), "arguments": args}
+
+    @staticmethod
+    def _coerce_gemma_value(value: str) -> Any:
+        """Clean an unquoted Gemma DSL value: drop stray quote tokens, and turn a
+        bracketed `[a, b]` into a real list. Tool args like `item_ids` are lists, but
+        the model writes them in the DSL's own syntax as one string — which the tool
+        then rejects (`[ not found`). List-valued args show up across many tasks, so
+        this is general, not a per-task patch."""
+        value = value.replace('<|"|>', "").strip()
+        if len(value) >= 2 and value[0] == "[" and value[-1] == "]":
+            inner = value[1:-1].strip()
+            return [e.strip().strip("\"'") for e in inner.split(",")] if inner else []
+        return value
 
     def _clean_text(self, raw: str) -> str:
         """Strip special-token markers so a plain-text answer reaches the user clean
