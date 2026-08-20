@@ -150,3 +150,28 @@ def test_second_small_model_runs_same_package(tmp_path):
     ctx = RunContext(blackboard={"customer": {"id": "U7"}, "request": "cancel"}, model=other)
     assert loaded.as_root(tools).tick(ctx) is Status.SUCCESS
     assert ctx.blackboard["order"]["id"] == "#W70"
+
+
+# -- metrics (§33) ------------------------------------------------------------
+
+def test_package_metrics_report_low_burden():
+    from jdsl_harness.metrics import package_metrics
+    r = compile_behavior(_capture(4), name="retail")
+    m = package_metrics(r.compiled.ir)
+    assert m.model_dependent_decisions == 1
+    assert m.residual_decision_burden < 0.5
+    assert m.deterministic_coverage > 0.5
+    assert m.exact_dataflow_rate > 0.5
+    # §18.3: the residual leaf is a predict, so it exposes zero tools
+    assert m.visible_tool_branching_factor == 0.0
+
+
+def test_compare_arms_success_criteria():
+    from jdsl_harness.metrics import ArmResult, compare_arms
+    out = compare_arms([
+        ArmResult("raw agent", 0.40, 120, 15, 1.0),
+        ArmResult("text skill", 0.50, 200, 15, 1.0),
+        ArmResult("frontier-compiled jdsl", 0.70, 12, 0, 0.25),
+    ])
+    assert out["success"] is True
+    assert out["criteria"]["beats_text_skill"]
