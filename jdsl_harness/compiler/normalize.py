@@ -9,12 +9,28 @@ is used — every decision here is structural and reproducible.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from jdsl.trace.events import EventKind
 from jdsl.trace.replay import Episode
 from jdsl_harness.compiler.lineage import find_source
+
+
+def slug(tool: str) -> str:
+    """A blackboard-safe identifier for a logical tool name."""
+    return re.sub(r"[^0-9a-zA-Z]+", "_", tool).strip("_")
+
+
+def synth_store(tool: str, index: int) -> str:
+    """The store name assigned to a tool result that had no explicit store. Shared
+    by the normalizer, staticizer, and verifier so refs stay consistent (§13.2)."""
+    return f"{slug(tool)}_out_{index}"
+
+
+def synth_node_id(tool: str, index: int) -> str:
+    return f"{slug(tool)}_{index}"
 
 
 @dataclass
@@ -95,10 +111,12 @@ def normalize_episode(episode: Episode, *, canonical: dict[str, str] | None = No
             if step is not None:
                 step.result = e.payload.get("result")
                 # register the result under its store name so later steps can
-                # reference it (the symbolic $var of §13.2); also feed env.
-                name = e.payload.get("store") or step.store
-                if name:
-                    env[name] = step.result
+                # reference it (the symbolic $var of §13.2); also feed env. When the
+                # trace carried no store name (gateway/imported calls), synthesize a
+                # stable one the staticizer/verifier reuse.
+                name = e.payload.get("store") or step.store or synth_store(step.logical_tool, step.index)
+                step.store = name
+                env[name] = step.result
         elif e.kind == EventKind.TOOL_CALL_FAILED:
             step = pending.get(e.parent_event_id or "") or (norm.steps[-1] if norm.steps else None)
             if step is not None:

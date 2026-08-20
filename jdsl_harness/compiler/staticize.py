@@ -12,7 +12,6 @@ recovery, and residualize the rest.
 
 from __future__ import annotations
 
-import re
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
@@ -30,7 +29,7 @@ from jdsl.package.manifest import NodeProvenance
 from jdsl_harness.compiler.candidates import ACTION, DATAFLOW, GUARD, RECOVERY
 from jdsl_harness.compiler.consolidate import E1, E3, E4, Candidate
 from jdsl_harness.compiler.model import CompilerModel, HeuristicCompilerModel
-from jdsl_harness.compiler.normalize import NormEpisode, NormStep
+from jdsl_harness.compiler.normalize import NormEpisode, NormStep, synth_node_id, synth_store
 from jdsl_harness.compiler.residualize import residualize_decision
 
 _ACCEPTED_DATAFLOW = {E1, "E2", E3, E4}
@@ -195,8 +194,8 @@ def _build_action(step: NormStep, i: int, dataflow: dict[tuple[str, str], str],
             continue  # positional placeholder; keep kwargs only in compiled form
         path = dataflow.get((step.logical_tool, arg)) or step.arg_lineage.get(arg)
         arguments[arg] = {"ref": path} if path else {"const": value}
-    store = step.store or _synth_store(step.logical_tool, i)
-    node_id = step.node_id or f"{_slug(step.logical_tool)}_{i}"
+    store = step.store or synth_store(step.logical_tool, i)
+    node_id = step.node_id or synth_node_id(step.logical_tool, i)
     return IRAction(type="action", id=node_id, tool=step.logical_tool,
                     arguments=arguments, store=store)
 
@@ -209,14 +208,6 @@ def _prov(node_id: str | None, cand: Candidate, compiler_model_id: str | None) -
         rationale_summary=f"{cand.type} candidate, support={cand.evidence.support}, "
                           f"counterexamples={cand.evidence.counterexamples}",
     )
-
-
-def _synth_store(tool: str, i: int) -> str:
-    return f"{_slug(tool)}_out_{i}"
-
-
-def _slug(tool: str) -> str:
-    return re.sub(r"[^0-9a-zA-Z]+", "_", tool).strip("_")
 
 
 __all__ = ["CompiledBehavior", "staticize"]

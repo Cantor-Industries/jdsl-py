@@ -115,8 +115,8 @@ def promote_replay_verified(compiled: CompiledBehavior, report: VerificationRepo
 
 
 def _synth_id(step) -> str:
-    from jdsl_harness.compiler.staticize import _slug
-    return f"{_slug(step.logical_tool)}_{step.index}"
+    from jdsl_harness.compiler.normalize import synth_node_id
+    return synth_node_id(step.logical_tool, step.index)
 
 
 __all__ = ["VerificationReport", "verify", "promote_replay_verified"]
