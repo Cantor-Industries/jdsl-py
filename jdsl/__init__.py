@@ -21,6 +21,19 @@ from jdsl.dsl import (
 )
 from jdsl.provider import LanguageModel
 from jdsl.render import render
+from jdsl.trace import (
+    BlobStore,
+    EventKind,
+    EventSource,
+    JsonlTraceSink,
+    ListTraceSink,
+    NullTraceSink,
+    Redactor,
+    SafeSink,
+    TraceEvent,
+    read_events,
+    segment_episodes,
+)
 from jdsl.tree import (
     Action,
     Check,
@@ -37,6 +50,7 @@ from jdsl.tree import (
     Sequence,
     Status,
     Timeout,
+    assign_runtime_ids,
 )
 
 __all__ = [
@@ -79,4 +93,16 @@ __all__ = [
     "ToolCall",
     "ModelTurn",
     "Write",
+    "assign_runtime_ids",
+    "TraceEvent",
+    "EventKind",
+    "EventSource",
+    "NullTraceSink",
+    "ListTraceSink",
+    "JsonlTraceSink",
+    "SafeSink",
+    "BlobStore",
+    "Redactor",
+    "read_events",
+    "segment_episodes",
 ]

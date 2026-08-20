@@ -26,10 +26,38 @@ class Status(enum.Enum):
 
 
 class Node:
-    """Base node. Subclasses implement tick; context is scoped to the subtree."""
-    context_system: str | None = None
+    """Base node. Subclasses implement `_tick`; `tick` wraps it with trace
+    emission (node.enter/node.exit, §35 PR1). Context is scoped to the subtree.
 
-    def tick(self, ctx: RunContext) -> Status: raise NotImplementedError
+    `node_id` is the optional stable identity used by compiled artifacts (§20):
+    author-supplied via the DSL `id=` argument, otherwise a path-derived runtime
+    id is assigned by `assign_runtime_ids` when a run is being traced. Tree path
+    is deliberately not the *persistent* identity — a compiler may insert nodes."""
+    context_system: str | None = None
+    node_id: str | None = None
+    _runtime_id: str | None = None
+
+    def _tick(self, ctx: RunContext) -> Status: raise NotImplementedError
+
+    def tick(self, ctx: RunContext) -> Status:
+        """Public entry: emit enter/exit around the subclass `_tick` when tracing."""
+        if ctx.trace_sink is None:
+            return self._tick(ctx)
+        from jdsl.trace.events import EventKind
+        enter = ctx.emit(EventKind.NODE_ENTER, payload=self._trace_meta())
+        parent = enter.event_id if enter is not None else None
+        status = self._tick(ctx)
+        ctx.emit(EventKind.NODE_EXIT, parent_event_id=parent,
+                 payload={**self._trace_meta(), "status": status.value})
+        return status
+
+    def effective_id(self) -> str | None:
+        """The id used in traces/IR: author id if set, else the runtime path id."""
+        return self.node_id or self._runtime_id
+
+    def _trace_meta(self) -> dict[str, Any]:
+        return {"node_id": self.effective_id(), "type": type(self).__name__.lower(),
+                "label": self.label()}
 
     def label(self) -> str:
         """Short human-readable label for rendering / write provenance."""
@@ -56,7 +84,7 @@ class Action(Node):
     store_as: str | None = None
     context_system: str | None = None
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             args = tuple(self._resolve(a, ctx) for a in self.args)
             kwargs = {k: self._resolve(v, ctx) for k, v in self.kwargs.items()}
@@ -85,7 +113,7 @@ class Sequence(Node):
     children: list[Node] = field(default_factory=list)
     context_system: str | None = None
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             for child in self.children:
                 if child.tick(ctx) is Status.FAILURE: return Status.FAILURE
@@ -102,7 +130,7 @@ class Selector(Node):
     children: list[Node] = field(default_factory=list)
     context_system: str | None = None
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             for child in self.children:
                 if child.tick(ctx) is Status.SUCCESS: return Status.SUCCESS
@@ -124,7 +152,7 @@ class Repeat(Node):
     max: int = 3
     context_system: str | None = None
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             for _ in range(self.max):
                 if self.child.tick(ctx) is Status.FAILURE: return Status.FAILURE
@@ -147,7 +175,7 @@ class Check(Node):
     equals: Any
     context_system: str | None = None
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         return Status.SUCCESS if self._match(ctx.blackboard.get(self.key)) else Status.FAILURE
 
     def label(self) -> str: return f"check({self.key} == {self.equals!r})"
@@ -170,7 +198,7 @@ class Predict(Node):
     instructions: str | None = None
     context_system: str | None = None
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             model = ctx.require_model()
             # stateless: prompt is built from blackboard inputs + scoped system only.
@@ -248,6 +276,27 @@ def _tool_schema(fn: Callable[..., Any]) -> dict[str, Any]:
     return {"type": "object", "properties": props, "required": required}
 
 
+def _looks_like_error(result: Any) -> bool:
+    """Heuristic for a tool observation that reports failure — used only to label
+    a trace event tool.call.completed vs tool.call.failed. tau-bench and most
+    tools prefix errors with 'Error: ...'; jdsl's own bridges use 'error:'."""
+    return str(result).strip().lower().startswith("error")
+
+
+def assign_runtime_ids(root: Node) -> None:
+    """Assign path-derived `_runtime_id`s to every node lacking an author id (§20).
+
+    The id is the structural path from the root (e.g. `root/seq.0/act.1`). It is a
+    *runtime* identity only — stable across a single tree's formatting, but the
+    persistent package identity is the author-supplied `node_id`, since a compiler
+    may insert nodes and shift paths."""
+    def walk(node: Node, path: str) -> None:
+        node._runtime_id = node._runtime_id or path
+        for i, (_edge, child) in enumerate(node._children()):
+            walk(child, f"{path}/{type(child).__name__.lower()}.{i}")
+    walk(root, type(root).__name__.lower())
+
+
 @dataclass
 class React(Node):
     """Agentic LLM leaf: the model reasons and calls @tools in a loop (native
@@ -262,27 +311,65 @@ class React(Node):
     max_steps: int = 6
     context_system: str | None = None
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
+        # PR2: react is the largest trace gap in the runtime — its internal tool
+        # trajectory used to stay local and only the final answer hit the
+        # blackboard. We emit the whole loop (model turns + every tool call) so
+        # the compiler can mine dataflow, recovery, and tool visibility (§5.4).
+        from jdsl.trace.events import EventKind
+
         def body() -> Status:
             model = ctx.require_model()
             by_name = {t.name: t for t in self.tools}
             specs = [{"name": t.name, "description": t.description, "parameters": _tool_schema(t.fn)}
                      for t in self.tools]
+            ctx.emit(EventKind.REACT_STARTED, payload={"node_id": self.effective_id(),
+                     "inputs": list(self.inputs), "outputs": list(self.outputs)})
+            ctx.emit(EventKind.TOOLSET_EXPOSED, payload={"node_id": self.effective_id(),
+                     "tools": [{"host_name": t.name, "description": t.description} for t in self.tools]})
             history: list[dict[str, Any]] = [{"role": "user", "content": self._build_prompt(ctx)}]
             for _ in range(self.max_steps):
+                ctx.emit(EventKind.MODEL_REQUESTED, actor="model",
+                         payload={"node_id": self.effective_id(), "tools": [t.name for t in self.tools]})
                 turn = model.converse(system=ctx.window.system, messages=history,
                                       tools=specs, model_id=ctx.model_id)
+                ctx.emit(EventKind.MODEL_RESPONDED, actor="model", payload={
+                    "node_id": self.effective_id(), "text": turn.text,
+                    "tool_calls": [{"name": c.name, "arguments": c.arguments} for c in turn.tool_calls]})
                 if not turn.tool_calls:
                     answer = turn.text.strip()
-                    if not answer: return Status.FAILURE
+                    if not answer:
+                        ctx.emit(EventKind.REACT_FINISHED, payload={"node_id": self.effective_id(),
+                                 "status": Status.FAILURE.value})
+                        return Status.FAILURE
                     ctx.blackboard.set(self.outputs[0], answer, writer=self.label())
+                    ctx.emit(EventKind.REACT_FINISHED, payload={"node_id": self.effective_id(),
+                             "status": Status.SUCCESS.value})
                     return Status.SUCCESS
                 history.append({"role": "assistant", "content": turn.text, "tool_calls": turn.tool_calls})
                 for call in turn.tool_calls:
                     tool = by_name.get(call.name)
-                    result = tool(**call.arguments) if tool else f"error: no tool named {call.name!r}"
+                    started = ctx.emit(EventKind.TOOL_CALL_STARTED, actor="model", payload={
+                        "node_id": self.effective_id(),
+                        "tool": {"host_name": call.name, "logical_id": None},
+                        "arguments": call.arguments})
+                    parent = started.event_id if started is not None else None
+                    try:
+                        result = tool(**call.arguments) if tool else f"error: no tool named {call.name!r}"
+                    except Exception as err:  # noqa: BLE001 — surface tool errors to the model, don't crash
+                        result = f"error: {err}"
+                    if _looks_like_error(result) or tool is None:
+                        ctx.emit(EventKind.TOOL_CALL_FAILED, actor="tool", parent_event_id=parent,
+                                 payload={"node_id": self.effective_id(),
+                                          "tool": {"host_name": call.name}, "error": str(result)})
+                    else:
+                        ctx.emit(EventKind.TOOL_CALL_COMPLETED, actor="tool", parent_event_id=parent,
+                                 payload={"node_id": self.effective_id(),
+                                          "tool": {"host_name": call.name}, "result": result})
                     history.append({"role": "tool", "tool_call_id": call.id,
                                     "name": call.name, "content": str(result)})
+            ctx.emit(EventKind.REACT_FINISHED, payload={"node_id": self.effective_id(),
+                     "status": Status.FAILURE.value})
             return Status.FAILURE  # ran out of steps without a final answer
         return self._run_with_context(ctx, body)
 
@@ -313,7 +400,7 @@ class Decorator(Node):
 @dataclass
 class Invert(Decorator):
     """Flip the child's status: SUCCESS <-> FAILURE."""
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             return Status.FAILURE if self.child.tick(ctx) is Status.SUCCESS else Status.SUCCESS
         return self._run_with_context(ctx, body)
@@ -325,7 +412,7 @@ class Invert(Decorator):
 class Optional(Decorator):
     """Fail-soft: run the child but always report SUCCESS, so a failing step never
     aborts its parent sequence (py_trees' FailureIsSuccess)."""
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             self.child.tick(ctx)
             return Status.SUCCESS
@@ -342,7 +429,7 @@ class Timeout(Decorator):
     or lookup call."""
     seconds: float = 30.0
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         import concurrent.futures
         def body() -> Status:
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
@@ -358,7 +445,7 @@ class Timeout(Decorator):
 class OneShot(Decorator):
     """Run the child at most once per run; latch and replay its status on any
     later tick (only observable inside a repeat/loop). State is per-run."""
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             key = id(self)
             if key not in ctx.state:
@@ -380,7 +467,7 @@ class Root(Node):
     def model(self, model_id: str) -> Root: self.model_id = model_id; return self
     def do(self, child: Node) -> Root: self.child = child; return self
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         if self.child is None: raise RuntimeError(f"Root {self.name!r} has no child; call .do(...) on it.")
         if ctx.model_id is None: ctx.model_id = self.model_id
         return self._run_with_context(ctx, lambda: self.child.tick(ctx))
@@ -391,12 +478,27 @@ class Root(Node):
     def _children(self) -> list[tuple[str | None, Node]]:
         return [(None, self.child)] if self.child is not None else []
 
-    def run(self, *, model: Any = None, **inputs: Any) -> RunContext:
-        """Execute the skill and return the final RunContext (read ctx.blackboard)."""
+    def run(self, *, model: Any = None, trace_sink: Any = None, capture_id: str = "cap_local",
+            episode_id: str = "ep_local", trace_source: Any = None, **inputs: Any) -> RunContext:
+        """Execute the skill and return the final RunContext (read ctx.blackboard).
+
+        Pass a `trace_sink` to capture a canonical event stream for this run
+        (episode `episode_id` under `capture_id`); omit it and the run is
+        untraced and behaves exactly as before."""
         from jdsl.context import Blackboard
         if model is None and self.model_id is not None:
             from jdsl.provider import LanguageModel
             model = LanguageModel.from_config()
-        ctx = RunContext(blackboard=Blackboard(inputs), model=model, model_id=self.model_id)
+        if trace_sink is not None:
+            assign_runtime_ids(self)
+        ctx = RunContext(blackboard=Blackboard(inputs), model=model, model_id=self.model_id,
+                         trace_sink=trace_sink, capture_id=capture_id, episode_id=episode_id,
+                         trace_source=trace_source)
+        if trace_sink is not None:
+            from jdsl.trace.events import EventKind
+            ctx.emit(EventKind.EPISODE_STARTED, payload={"skill": self.name, "inputs": dict(inputs)})
         self.tick(ctx)
+        if trace_sink is not None:
+            from jdsl.trace.events import EventKind
+            ctx.emit(EventKind.EPISODE_FINISHED, payload={"skill": self.name})
         return ctx
