@@ -128,7 +128,14 @@ class HarnessStore:
         return self.sink(event.capture_id).emit(event)
 
     def _index(self, event: TraceEvent) -> None:
+        from jdsl.trace.events import _now_iso
         conn = self._conn()
+        # ensure a capture row exists even for events that arrived via ingest
+        # (adapters/hooks) rather than an explicit start_capture (§7.2).
+        conn.execute(
+            "INSERT OR IGNORE INTO captures(capture_id, host, adapter, status, created_at) "
+            "VALUES(?,?,?,?,?)",
+            (event.capture_id, event.source.host, event.source.adapter, "recording", _now_iso()))
         conn.execute(
             "INSERT INTO event_index(capture_id, episode_id, sequence, kind, event_hash) VALUES(?,?,?,?,?)",
             (event.capture_id, event.episode_id, event.sequence, event.kind, event.event_hash))
