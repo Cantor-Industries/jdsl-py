@@ -34,6 +34,14 @@ from typing import Any
 
 from jdsl import ModelTurn, ToolCall
 
+# Gemma 4 emits tool calls in its own DSL, not JSON:
+#   <|tool_call>call:NAME{key:<|"|>value<|"|>,key:<|"|>value<|"|>}<tool_call|>
+# String values are wrapped in the `<|"|>` quote token (not double-quotes), which
+# conveniently bounds each value so commas/colons inside one don't break parsing.
+_TOOL_CALL_SPAN = re.compile(r"<\|tool_call\|?>(.*?)<\|?tool_call\|>", re.DOTALL)
+_GEMMA_CALL = re.compile(r"call:\s*([A-Za-z_]\w*)\s*\{(.*)\}", re.DOTALL)
+_GEMMA_ARG = re.compile(r'([A-Za-z_]\w*)\s*:\s*(?:<\|"\|>(.*?)<\|"\|>|([^,{}]+))', re.DOTALL)
+
 
 class HFModel:
     """A jdsl-shaped provider backed by a local transformers CausalLM.
@@ -150,21 +158,39 @@ class HFModel:
 
     def _parse_native_tool_calls(self, raw: str) -> list[dict]:
         """Extract tool calls from generated text. Prefer the model's native
-        `<|tool_call>…<tool_call|>` spans; fall back to a bare JSON object carrying a
-        name/arguments — tolerant, because the exact wrapper varies by model."""
-        spans = re.findall(r"<\|tool_call\|?>(.*?)<\|?tool_call\|>", raw, re.DOTALL)
-        calls = [c for span in spans if (c := self._parse_tool_call(span)) is not None]
+        `<|tool_call>…<tool_call|>` spans, parsing Gemma's `call:NAME{…}` DSL inside
+        them; fall back to a bare JSON object carrying a name/arguments — tolerant,
+        because the exact wrapper varies by model."""
+        spans = _TOOL_CALL_SPAN.findall(raw)
+        calls = [c for span in spans
+                 if (c := self._parse_gemma_call(span) or self._parse_tool_call(span)) is not None]
         if calls:
             return calls
-        one = self._parse_tool_call(raw)
+        # No usable markers: scan the whole text for the DSL, then for bare JSON.
+        one = self._parse_gemma_call(raw) or self._parse_tool_call(raw)
         return [one] if one is not None else []
+
+    @staticmethod
+    def _parse_gemma_call(text: str) -> dict | None:
+        """Parse Gemma 4's tool-call DSL: `call:NAME{key:<|"|>value<|"|>,…}`. Values
+        are read from between the `<|"|>` quote tokens when present (so a comma or
+        colon inside a value is safe), else taken bare up to the next delimiter."""
+        m = _GEMMA_CALL.search(text)
+        if not m:
+            return None
+        args: dict[str, Any] = {}
+        for key, quoted, bare in _GEMMA_ARG.findall(m.group(2)):
+            args[key] = quoted if quoted else bare.strip()
+        return {"tool": m.group(1), "arguments": args}
 
     def _clean_text(self, raw: str) -> str:
         """Strip special-token markers so a plain-text answer reaches the user clean
         even when decoded with specials. Catches every pipe-delimited marker Gemma
-        emits — `<|turn>`, `<turn|>`, `<|channel>`, and the quote token `<|"|>` — by
-        requiring a leading `<|` or trailing `|>`, so real `<tags>` are left alone."""
-        return re.sub(r"<\|[^<>]*?\|?>|<[^<>]*?\|>", "", raw).strip()
+        emits — `<|turn>`, `<turn|>`, `<|channel>`, the quote token `<|"|>` — plus the
+        bare sentinels (`<eos>`, `<bos>`, …), while leaving real `<tags>` alone."""
+        text = re.sub(r"<\|[^<>]*?\|?>|<[^<>]*?\|>", "", raw)
+        text = re.sub(r"</?(?:eos|bos|pad|unk|s|end_of_turn|start_of_turn)>", "", text)
+        return text.strip()
 
     # -- prompt-based tool calling (other models) ----------------------------
 

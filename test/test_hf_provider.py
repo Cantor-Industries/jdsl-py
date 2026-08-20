@@ -109,6 +109,28 @@ def test_native_parse_prefers_tool_call_markers():
     assert g._clean_text("<|turn>model\nDone.<turn|>") == "model\nDone."
     # the quote token <|"|> leaks into Gemma's output too; it must not reach the user
     assert g._clean_text('Hello <|"|>there<|"|>.') == "Hello there."
+    assert g._clean_text("Verified.<turn|><eos>") == "Verified."  # bare sentinels stripped too
+
+
+def test_native_parse_handles_gemma_call_dsl():
+    """Gemma 4 does not emit JSON inside the markers — it emits its own DSL,
+    `call:NAME{key:<|"|>value<|"|>,…}`. This is the exact string observed from the
+    real model; if it doesn't parse, no tool fires and the agent loops forever."""
+    g = HFModel.__new__(HFModel)
+    raw = ('<|tool_call>call:find_user_id_by_name_zip{first_name:<|"|>Yusuf<|"|>,'
+           'last_name:<|"|>Rossi<|"|>,zip:<|"|>19122<|"|>}<tool_call|><|tool_response><eos>')
+    assert g._parse_native_tool_calls(raw) == [
+        {"tool": "find_user_id_by_name_zip",
+         "arguments": {"first_name": "Yusuf", "last_name": "Rossi", "zip": "19122"}}]
+
+
+def test_gemma_dsl_preserves_hash_in_bare_value():
+    """A value with no quote token (e.g. an order id) is taken bare — and its `#`
+    must survive, since that prefix is exactly what tau-bench grades on."""
+    g = HFModel.__new__(HFModel)
+    raw = "<|tool_call>call:get_order_details{order_id:#W2378156}<tool_call|>"
+    assert g._parse_native_tool_calls(raw) == [
+        {"tool": "get_order_details", "arguments": {"order_id": "#W2378156"}}]
 
 
 def test_native_react_loop_over_local_model():
