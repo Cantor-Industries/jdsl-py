@@ -90,8 +90,13 @@ def _index_into(cur: Any, key: Any) -> Any:
     try:
         if isinstance(cur, dict):
             return cur.get(key, _MISSING)
-        if isinstance(cur, (list, tuple)) and isinstance(key, int):
-            return cur[key] if -len(cur) <= key < len(cur) else _MISSING
+        if isinstance(cur, (list, tuple)):
+            # a digit string indexing a list is coerced to int: a `$var` index may
+            # hold text ("1") when it came from an untyped model output.
+            if isinstance(key, str) and (key.isdigit() or (key[:1] == "-" and key[1:].isdigit())):
+                key = int(key)
+            if isinstance(key, int) and not isinstance(key, bool):
+                return cur[key] if -len(cur) <= key < len(cur) else _MISSING
     except (TypeError, KeyError, IndexError):
         return _MISSING
     return _MISSING

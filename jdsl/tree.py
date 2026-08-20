@@ -88,11 +88,47 @@ class Action(Node):
         def body() -> Status:
             args = tuple(self._resolve(a, ctx) for a in self.args)
             kwargs = {k: self._resolve(v, ctx) for k, v in self.kwargs.items()}
-            result = self.fn(*args, **kwargs)
+            # Tier-A gateway capture (§8.1): record the *resolved* tool arguments so
+            # the compiler can mine exact dataflow. Without this an Action calls fn
+            # directly and its arguments never appear in the trace.
+            self._emit_call(ctx, args, kwargs)
+            try:
+                result = self.fn(*args, **kwargs)
+            except Exception as err:  # noqa: BLE001 — record the failure, then re-raise
+                self._emit_result(ctx, error=err)
+                raise
+            self._emit_result(ctx, result=result)
             if isinstance(result, Status): return result
             if self.store_as is not None: ctx.blackboard.set(self.store_as, result, writer=self.label())
             return Status.SUCCESS
         return self._run_with_context(ctx, body)
+
+    def _tool_name(self) -> str:
+        return getattr(self.fn, "name", None) or getattr(self.fn, "__name__", "fn")
+
+    def _emit_call(self, ctx: RunContext, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
+        if ctx.trace_sink is None: return
+        from jdsl.trace.events import EventKind
+        arguments = dict(kwargs)
+        for i, a in enumerate(args): arguments[f"_arg{i}"] = a
+        started = ctx.emit(EventKind.TOOL_CALL_STARTED, actor="model", payload={
+            "node_id": self.effective_id(), "store": self.store_as,
+            "tool": {"host_name": self._tool_name(), "logical_id": None}, "arguments": arguments})
+        self._call_event_id = started.event_id if started is not None else None
+
+    def _emit_result(self, ctx: RunContext, *, result: Any = None, error: Any = None) -> None:
+        if ctx.trace_sink is None: return
+        from jdsl.trace.events import EventKind
+        parent = getattr(self, "_call_event_id", None)
+        if error is not None or _looks_like_error(result):
+            ctx.emit(EventKind.TOOL_CALL_FAILED, actor="tool", parent_event_id=parent, payload={
+                "node_id": self.effective_id(), "tool": {"host_name": self._tool_name()},
+                "error": str(error if error is not None else result)})
+        else:
+            ctx.emit(EventKind.TOOL_CALL_COMPLETED, actor="tool", parent_event_id=parent, payload={
+                "node_id": self.effective_id(), "store": self.store_as,
+                "tool": {"host_name": self._tool_name()},
+                "result": result if not isinstance(result, Status) else result.value})
 
     def label(self) -> str:
         name = getattr(self.fn, "name", None) or getattr(self.fn, "__name__", "fn")
