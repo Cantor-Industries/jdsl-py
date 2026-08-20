@@ -12,6 +12,8 @@ from jdsl.context import Ref
 from jdsl.tree import (
     Action,
     Check,
+    Guard,
+    GuardCall,
     Invert,
     Node,
     OneShot,
@@ -94,6 +96,20 @@ def sel(*children: Node, context: str | None = None, id: str | None = None) -> S
 def check(key: str, equals: Any, *, id: str | None = None) -> Check:
     """Guard leaf: succeeds iff blackboard[key] == equals."""
     return _ident(Check(key=key, equals=equals), id)  # type: ignore[return-value]
+
+
+def guard(expression: dict[str, Any], *, id: str | None = None) -> Guard:
+    """Compiled state predicate over the blackboard using the restricted expression
+    language (§21.2), e.g. guard({"in": [{"ref": "order.status"}, ["pending"]]})."""
+    return _ident(Guard(expression=expression), id)  # type: ignore[return-value]
+
+
+def guard_call(predicate: Callable[..., Any], arguments: dict[str, Any] | None = None, *,
+               predicate_id: str | None = None, id: str | None = None) -> GuardCall:
+    """Guard backed by a trusted runtime predicate (§21.2). arguments may contain
+    ref(...) values resolved from the blackboard at run time."""
+    node = GuardCall(predicate=predicate, arguments=arguments or {}, predicate_id=predicate_id)
+    return _ident(node, id)  # type: ignore[return-value]
 
 
 def repeat(child: Node, *, until: Node | None = None, max: int = 3, context: str | None = None,

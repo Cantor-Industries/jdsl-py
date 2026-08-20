@@ -101,10 +101,16 @@ class Action(Node):
     @staticmethod
     def _resolve(value: Any, ctx: RunContext) -> Any:
         if not isinstance(value, Ref): return value
-        if value.name not in ctx.blackboard:
+        if value.name in ctx.blackboard:
+            return ctx.blackboard[value.name]
+        # Compiled refs may be JSON paths (e.g. "orders[$selected_index].id", §21.1)
+        # rather than a bare key. Fall back to the restricted path resolver.
+        from jdsl.ir.expr import _MISSING, resolve_path
+        resolved = resolve_path(value.name, ctx.blackboard)
+        if resolved is _MISSING:
             raise KeyError(f"ref({value.name!r}) is not on the blackboard yet. Seed it as a run() "
                            "input or produce it in an earlier node (e.g. store(...)).")
-        return ctx.blackboard[value.name]
+        return resolved
 
 
 @dataclass
@@ -190,13 +196,54 @@ class Check(Node):
 
 
 @dataclass
+class Guard(Node):
+    """Compiled state predicate (§21.2): SUCCESS iff the restricted expression is
+    true over the blackboard. This is the general guard `check` is too narrow for
+    (§5.4) — it reads refs/paths and combines them with eq/in/and/or/… . The
+    expression is a safe JSON tree, never arbitrary code."""
+    expression: dict[str, Any]
+    context_system: str | None = None
+
+    def _tick(self, ctx: RunContext) -> Status:
+        from jdsl.ir.expr import evaluate
+        return Status.SUCCESS if evaluate(self.expression, ctx.blackboard) else Status.FAILURE
+
+    def label(self) -> str:
+        op = next(iter(self.expression), "?") if isinstance(self.expression, dict) else "?"
+        return f"guard({op})"
+
+
+@dataclass
+class GuardCall(Node):
+    """Guard backed by a trusted runtime predicate (§21.2 `guard_call`). Domain
+    logic that exceeds the expression system references a named capability the
+    runtime supplies; the package only names it, it never ships its code."""
+    predicate: Callable[..., Any]
+    arguments: dict[str, Any] = field(default_factory=dict)
+    predicate_id: str | None = None
+    context_system: str | None = None
+
+    def _tick(self, ctx: RunContext) -> Status:
+        args = {k: Action._resolve(v, ctx) for k, v in self.arguments.items()}
+        return Status.SUCCESS if self.predicate(**args) else Status.FAILURE
+
+    def label(self) -> str: return f"guard_call({self.predicate_id or getattr(self.predicate, '__name__', '?')})"
+
+
+@dataclass
 class Predict(Node):
     """DSPy-style LLM leaf: read input fields, ask for output fields as JSON,
-    write them back. FAILURE if nothing parseable comes back."""
+    write them back. FAILURE if nothing parseable comes back.
+
+    `output_schemas` (compiled signatures, §18) attaches a JSON-schema fragment
+    per output; when present the parsed value is coerced to the declared type and
+    validated (integer index, enum, …) before it is written. Absent (the authoring
+    default) leaves behavior unchanged — a single free-text output stored verbatim."""
     inputs: tuple[str, ...]
     outputs: tuple[str, ...]
     instructions: str | None = None
     context_system: str | None = None
+    output_schemas: dict[str, dict[str, Any]] | None = None
 
     def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
@@ -212,13 +259,42 @@ class Predict(Node):
             if len(self.outputs) == 1:
                 text = text.strip()
                 if not text: return Status.FAILURE
-                ctx.blackboard.set(self.outputs[0], text, writer=self.label())
+                value, ok = self._coerce(self.outputs[0], text)
+                if not ok: return Status.FAILURE
+                ctx.blackboard.set(self.outputs[0], value, writer=self.label())
                 return Status.SUCCESS
             parsed = self._parse(text)
             if parsed is None: return Status.FAILURE
-            for key in self.outputs: ctx.blackboard.set(key, parsed.get(key), writer=self.label())
+            for key in self.outputs:
+                value, ok = self._coerce(key, parsed.get(key))
+                if not ok: return Status.FAILURE
+                ctx.blackboard.set(key, value, writer=self.label())
             return Status.SUCCESS
         return self._run_with_context(ctx, body)
+
+    def _coerce(self, key: str, value: Any) -> tuple[Any, bool]:
+        """Coerce/validate `value` against the output schema for `key`. Returns
+        (value, ok); ok=False signals a validation failure (leaf -> FAILURE)."""
+        schema = (self.output_schemas or {}).get(key)
+        if not schema: return value, True
+        typ = schema.get("type")
+        try:
+            if typ == "integer" and not isinstance(value, bool):
+                value = int(str(value).strip())
+            elif typ == "number" and not isinstance(value, bool):
+                value = float(str(value).strip())
+            elif typ == "boolean":
+                value = str(value).strip().lower() in ("true", "yes", "1")
+            elif typ == "string":
+                value = str(value)
+        except (TypeError, ValueError):
+            return value, False
+        enum = schema.get("enum")
+        if enum is not None and value not in enum:
+            return value, False
+        if "minimum" in schema and isinstance(value, (int, float)) and value < schema["minimum"]:
+            return value, False
+        return value, True
 
     def label(self) -> str:
         return f"predict({', '.join(self.inputs)} -> {', '.join(self.outputs)})"
