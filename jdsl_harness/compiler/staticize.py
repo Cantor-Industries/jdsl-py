@@ -56,6 +56,7 @@ def staticize(episodes: list[NormEpisode], candidates: list[Candidate], *,
     dataflow = _index_dataflow(candidates)
     recovery = _index_recovery(candidates)
     guards = _index_guards(candidates)
+    inputs = _input_args(episodes, dataflow)
 
     children: list[IRNode] = []
     signatures: dict[str, Signature] = {}
@@ -86,7 +87,7 @@ def staticize(episodes: list[NormEpisode], candidates: list[Candidate], *,
             provenance.append(_prov(gnode.id, gcand, compiler_model_id))
             n_deterministic += 1
 
-        action = _build_action(step, i, dataflow, caps)
+        action = _build_action(step, i, dataflow, inputs, caps)
         acand = _action_candidate(candidates, step)
         prov = _prov(action.id, acand, compiler_model_id) if acand else NodeProvenance(
             node_id=action.id or "", evidence_grade="E0", compiler_model=compiler_model_id)
@@ -121,12 +122,14 @@ def staticize(episodes: list[NormEpisode], candidates: list[Candidate], *,
     root = IRSequence(type="sequence", id=f"{name}_flow", children_=children)
     ir = BehaviorIR(root=root, signatures=signatures)
     total = n_deterministic + n_model
+    declared_inputs = sorted({arg for (_tool, arg) in inputs})
     stats = {
         "meaningful_decisions": total,
         "model_dependent_decisions": n_model,
         "residual_decision_burden": round(n_model / total, 4) if total else 0.0,
         "deterministic_coverage": round(n_deterministic / total, 4) if total else 0.0,
         "exact_dataflow_refs": sum(1 for s in skeleton.steps for v in s.arg_lineage.values() if v),
+        "inputs": declared_inputs,
     }
     return CompiledBehavior(ir=ir, provenance=provenance, stats=stats,
                             required_capabilities=sorted(caps))
@@ -186,18 +189,50 @@ def _action_candidate(candidates: list[Candidate], step: NormStep) -> Candidate 
 
 
 def _build_action(step: NormStep, i: int, dataflow: dict[tuple[str, str], str],
-                  caps: set[str]) -> IRAction:
+                  inputs: set[tuple[str, str]], caps: set[str]) -> IRAction:
     caps.add(step.logical_tool)
     arguments: dict[str, Any] = {}
     for arg, value in step.arguments.items():
         if arg.startswith("_arg"):
             continue  # positional placeholder; keep kwargs only in compiled form
         path = dataflow.get((step.logical_tool, arg)) or step.arg_lineage.get(arg)
-        arguments[arg] = {"ref": path} if path else {"const": value}
+        if path:
+            arguments[arg] = {"ref": path}          # verified exact dataflow (§16.1)
+        elif (step.logical_tool, arg) in inputs:
+            arguments[arg] = {"ref": arg}            # free input: bound from run seed (§17)
+        else:
+            arguments[arg] = {"const": value}        # constant across all episodes
     store = step.store or synth_store(step.logical_tool, i)
     node_id = step.node_id or synth_node_id(step.logical_tool, i)
     return IRAction(type="action", id=node_id, tool=step.logical_tool,
                     arguments=arguments, store=store)
+
+
+def _input_args(episodes: list[NormEpisode],
+                dataflow: dict[tuple[str, str], str]) -> set[tuple[str, str]]:
+    """A (tool, arg) is a free *input*, not a constant, when it has no verified
+    dataflow source yet its value is not identical across every episode that
+    supplies it (§17: "constant?" is only satisfied by an invariant value). Such
+    args compile to a ref bound from the run's seeded inputs."""
+    seen: dict[tuple[str, str], set[str]] = {}
+    for ep in episodes:
+        for step in ep.steps:
+            for arg, value in step.arguments.items():
+                if arg.startswith("_arg"):
+                    continue
+                key = (step.logical_tool, arg)
+                if key in dataflow or step.arg_lineage.get(arg):
+                    continue  # explained by dataflow — never an input
+                seen.setdefault(key, set()).add(_stable(value))
+    return {key for key, values in seen.items() if len(values) > 1}
+
+
+def _stable(value: Any) -> str:
+    import json
+    try:
+        return json.dumps(value, sort_keys=True, default=str)
+    except Exception:  # noqa: BLE001
+        return repr(value)
 
 
 def _prov(node_id: str | None, cand: Candidate, compiler_model_id: str | None) -> NodeProvenance:

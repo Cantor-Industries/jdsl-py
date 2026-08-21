@@ -92,6 +92,37 @@ def test_cli_package_inspect_and_verify(tmp_path):
     assert "valid" in r.stdout
 
 
+def test_cli_capture_import_and_compile(tmp_path, monkeypatch):
+    """Tier-C import from the CLI: a foreign JSONL log becomes a compilable
+    capture (§8.3)."""
+    monkeypatch.setenv("JDSL_HARNESS_HOME", str(tmp_path / "store"))
+    log = tmp_path / "foreign.jsonl"
+    log.write_text(
+        "\n".join(json.dumps({
+            "episode_id": f"imp_{i}",
+            "steps": [
+                {"tool": "lookup", "args": {"email": f"u{i}@x.com"}, "result": {"id": f"c{i}"}},
+                {"tool": "list_orders", "args": {"customer_id": f"c{i}"},
+                 "result": [{"id": f"o{i}0"}, {"id": f"o{i}1"}]},
+                {"tool": "get_order", "args": {"order_id": f"o{i}1"},
+                 "result": {"id": f"o{i}1", "status": "open"}},
+            ],
+            "outcome": {"reward": 1.0},
+        }) for i in range(3)),
+        encoding="utf-8")
+
+    r = runner.invoke(app, ["capture", "import", str(log), "--capture", "cap_imp"])
+    assert r.exit_code == 0, r.output
+    assert "imported" in r.stdout
+
+    r = runner.invoke(app, ["compile", "cap_imp", "--name", "support"])
+    assert r.exit_code == 0, r.output
+    report = json.loads(r.stdout[r.stdout.index("{"):r.stdout.rindex("}") + 1])
+    assert report["verification"]["status"] == "passed"
+    # email varies across imported episodes with no dataflow -> a declared input
+    assert "email" in report["stats"]["inputs"]
+
+
 def test_cli_compile(tmp_path, monkeypatch):
     # point the harness store at a temp dir and seed a capture via the store
     monkeypatch.setenv("JDSL_HARNESS_HOME", str(tmp_path / "store"))

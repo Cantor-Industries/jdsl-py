@@ -5,6 +5,10 @@ This document maps the implementation to the design in
 frontier-model behavior as canonical traces, mines and verifies reusable
 structure, and compiles it into a portable `.jdslpkg` a smaller frozen model runs.
 
+> For a task-oriented walkthrough (install, all three capture tiers, compile,
+> verify, run, metrics, troubleshooting) see
+> [`harness_usage.md`](./harness_usage.md). This page is the design-to-code map.
+
 > Compile frontier-model behavior into executable policy so weaker frozen models
 > have less policy to infer. (§52)
 
@@ -87,9 +91,10 @@ Three tiers (§8):
 Start the daemon, then capture:
 
 ```bash
-jdsl harness serve                 # loopback ingest + store
+jdsl harness serve                        # loopback ingest + store
 jdsl capture list
-jdsl capture inspect <capture-id>  # the §51 exact-lineage report
+jdsl capture import runs.jsonl -c cap_x   # Tier C: import foreign logs
+jdsl capture inspect <capture-id>         # the §51 exact-lineage report
 jdsl compile <capture-id> --name retail --out retail.jdslpkg
 ```
 

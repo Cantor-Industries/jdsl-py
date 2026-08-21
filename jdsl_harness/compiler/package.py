@@ -74,7 +74,8 @@ def build_package(compiled: CompiledBehavior, report: VerificationReport,
     manifest = Manifest(
         name=name, version=version, task_family=task_family, required_capabilities=list(caps),
         source={"compiler": "jdsl-compiler", "compiler_model": compiler_model_id,
-                "capture_fidelity": capture_fidelity, "episode_count": len(norm)},
+                "capture_fidelity": capture_fidelity, "episode_count": len(norm),
+                "inputs": compiled.stats.get("inputs", [])},
         verification=report.to_dict(),
     )
     evidence_summary = {

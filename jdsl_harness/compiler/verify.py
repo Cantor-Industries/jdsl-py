@@ -67,6 +67,7 @@ def _replay(compiled: CompiledBehavior, episodes: list[NormEpisode],
     guard must hold in the states where its action fired."""
     actions = {n.id: n for n in compiled.ir.walk() if isinstance(n, IRAction)}
     guards = [n for n in compiled.ir.walk() if isinstance(n, IRGuard)]
+    inputs = set(compiled.stats.get("inputs", []))
 
     for ep in episodes:
         # dataflow: each compiled ref must resolve, in the step's recorded state,
@@ -79,8 +80,12 @@ def _replay(compiled: CompiledBehavior, episodes: list[NormEpisode],
                 spec = node.arguments.get(arg)
                 if not (isinstance(spec, dict) and "ref" in spec):
                     continue
-                report.replay_checks += 1
                 resolved = resolve_path(spec["ref"], step.state_before)
+                # A free input ref is supplied at run time; when the capture did
+                # not record it in state we cannot (and need not) replay it (§17).
+                if spec["ref"] in inputs and resolved is EXPR_MISSING:
+                    continue
+                report.replay_checks += 1
                 if resolved is EXPR_MISSING or resolved != value:
                     report.problems.append(
                         f"replay {ep.episode_id}: ref {spec['ref']!r} for "

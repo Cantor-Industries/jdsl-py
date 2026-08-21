@@ -128,14 +128,17 @@ jdsl compile <id> --out retail.jdslpkg
 jdsl package run retail.jdslpkg --tools tools.py --model <small-model>
 ```
 
-See [docs/harness.md](docs/harness.md) for the full design-to-code map.
+See [docs/harness_usage.md](docs/harness_usage.md) for the hands-on guide (all
+three capture tiers, compile, verify, run) and [docs/harness.md](docs/harness.md)
+for the design-to-code map.
 
 ## Docs
 
 - [docs/concepts.md](docs/concepts.md) — behavior trees, the blackboard, signatures, why no codegen
 - [docs/api.md](docs/api.md) — full combinator + node reference
 - [docs/providers.md](docs/providers.md) — models, keys, `.env`, routing
-- [docs/harness.md](docs/harness.md) — the capture harness and behavior compiler
+- [docs/harness_usage.md](docs/harness_usage.md) — hands-on: capture, compile, verify, run
+- [docs/harness.md](docs/harness.md) — the capture harness and behavior compiler (design-to-code map)
 - [docs/jdsl_behaviour_compiler.md](docs/jdsl_behaviour_compiler.md) — the full engineering design
 - [CONTRIBUTING.md](CONTRIBUTING.md) — dev setup, tests, adding examples
 

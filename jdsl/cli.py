@@ -185,6 +185,22 @@ def capture_list() -> None:
         typer.echo(f"{c['capture_id']}  {c['status']:9} episodes={c['episodes']}  {c.get('note','')}")
 
 
+@capture_app.command("import")
+def capture_import(
+    file: Path = typer.Argument(..., exists=True, readable=True,
+                                help="JSONL file: one episode per line {episode_id, steps:[...], outcome}."),
+    capture_id: str = typer.Option(..., "-c", "--capture", help="Capture id to import into."),
+) -> None:
+    """Import foreign agent logs into a capture (Tier C, §8.3)."""
+    from jdsl_harness.adapters.import_jsonl import import_records_file
+    from jdsl_harness.store import HarnessStore
+    store = HarnessStore(_store_root())
+    events = import_records_file(file, capture_id=capture_id)
+    for event in events:
+        store.ingest(event)
+    typer.secho(f"imported {len(events)} events into {capture_id}.", fg=typer.colors.GREEN)
+
+
 @capture_app.command("inspect")
 def capture_inspect(capture_id: str = typer.Argument(..., help="Capture id.")) -> None:
     """Print the exact-lineage report for a capture (§51)."""

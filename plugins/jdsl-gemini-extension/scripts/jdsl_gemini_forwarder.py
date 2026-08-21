@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""jdsl Claude Code hook forwarder (design §29.1).
+"""jdsl Gemini CLI hook forwarder (design §29.2).
 
-Reads Claude's structured JSON hook payload from stdin, forwards it to the local
+Reads Gemini's structured JSON hook payload from stdin, forwards it to the local
 jdsl harness ingest daemon, emits valid (empty) hook output, and exits quickly.
 
 Design constraints it honors:

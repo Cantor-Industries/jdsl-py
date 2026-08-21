@@ -87,6 +87,38 @@ def test_is_meaningful_filters_trivia():
     assert find_source("x", {"a": "x"}) is None  # single char, too trivial
 
 
+# -- inputs vs constants (§17) ------------------------------------------------
+
+def test_varying_unlinked_arg_is_input_not_constant():
+    """An arg with no dataflow source that varies across episodes is a free input,
+    not a baked-in constant of the first episode (§17)."""
+    from jdsl.ir.schema import IRAction
+    from jdsl_harness.compiler.staticize import staticize
+    norm = normalize_all(_capture(3))
+    compiled = staticize(norm, consolidate(norm), name="retail")
+    actions = {n.tool: n for n in compiled.ir.walk() if isinstance(n, IRAction)}
+    assert actions["lookup"].arguments["email"] == {"ref": "email"}
+    assert compiled.stats["inputs"] == ["email"]
+
+
+def test_invariant_unlinked_arg_stays_constant():
+    """An arg identical across every episode with no dataflow stays a constant."""
+    from jdsl.ir.schema import IRAction
+    from jdsl_harness.compiler.normalize import normalize_all as _norm
+    from jdsl_harness.compiler.staticize import staticize
+    sink = ListTraceSink()
+    for i in range(3):  # same email every episode -> invariant
+        env = Retail(f"U{i}", [{"id": f"#W{i}0", "status": "pending"}])
+        from test.conftest import FakeModel
+        root("c").do(seq(store(act(env.lookup, email=ref("email")), "customer"))).run(
+            trace_sink=sink, model=FakeModel("0"), episode_id=f"ep_{i}",
+            capture_id="cap", email="same@x.com")
+    compiled = staticize(_norm(segment_episodes(sink.events)), [], name="r")
+    actions = {n.tool: n for n in compiled.ir.walk() if isinstance(n, IRAction)}
+    assert actions["lookup"].arguments["email"] == {"const": "same@x.com"}
+    assert compiled.stats["inputs"] == []
+
+
 # -- consolidation grades -----------------------------------------------------
 
 def test_dataflow_candidate_is_graded():
@@ -122,6 +154,11 @@ def test_compile_verify_export_run(tmp_path):
     assert "ref" in actions["list_orders"].arguments["customer_id"]
     assert actions["list_orders"].arguments["customer_id"]["ref"] == "customer.id"
 
+    # email varies per episode with no dataflow source: it is a free *input*
+    # (a run seed), never a baked-in constant of the first episode (§17).
+    assert actions["lookup"].arguments["email"] == {"ref": "email"}
+    assert "email" in result.compiled.stats["inputs"]
+
     # export -> reload (fresh, structural + digest verification) -> run
     path = export_jdslpkg(result.package, tmp_path / "retail")
     loaded = load_package(path)
@@ -133,8 +170,8 @@ def test_compile_verify_export_run(tmp_path):
     from test.conftest import FakeModel
     small = FakeModel("1")  # chooses the pending order
     bound = loaded.as_root(tools)
-    ctx = RunContext(blackboard={"customer": {"id": "U99"}, "request": "cancel"}, model=small)
-    # seed the lookup output the compiled tree expects
+    ctx = RunContext(blackboard={"email": "u99@x.com", "request": "cancel"}, model=small)
+    # email is seeded as a run input; lookup produces the customer from it
     assert bound.tick(ctx) is Status.SUCCESS
     assert ctx.blackboard["order"]["id"] == "#W991"
 
@@ -147,7 +184,7 @@ def test_second_small_model_runs_same_package(tmp_path):
     tools = {"lookup": env.lookup, "list_orders": env.list_orders, "get_order": env.get_order}
     from test.conftest import FakeModel
     other = FakeModel("0")  # a different model family choosing index 0
-    ctx = RunContext(blackboard={"customer": {"id": "U7"}, "request": "cancel"}, model=other)
+    ctx = RunContext(blackboard={"email": "u7@x.com", "request": "cancel"}, model=other)
     assert loaded.as_root(tools).tick(ctx) is Status.SUCCESS
     assert ctx.blackboard["order"]["id"] == "#W70"
 
