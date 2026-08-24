@@ -111,6 +111,26 @@ def test_claude_hook_mapping():
     assert post[0].kind == EventKind.TOOL_CALL_COMPLETED
 
 
+def test_claude_hook_unwraps_mcp_result_shapes():
+    """Claude Code may deliver an MCP tool result wrapped as a content envelope, an
+    MCP structuredContent object, or a JSON string. All must yield structured state
+    so exact-dataflow lineage (§16.1) sees discrete ids, not a JSON blob. Plain text
+    (Read/Bash output) must pass through untouched."""
+    def result_of(resp):
+        return claude_code.to_events(
+            {"hook_event_name": "PostToolUse", "session_id": "s1",
+             "tool_name": "mcp__retail__lookup", "tool_response": resp},
+            capture_id="cap")[0].payload["result"]
+
+    assert result_of({"id": "C1"}) == {"id": "C1"}                       # bare
+    assert result_of({"content": [{"type": "text", "text": '{"id": "C1"}'}]}) == {"id": "C1"}
+    # a bare content-block list — how a single-object MCP return actually arrives
+    assert result_of([{"type": "text", "text": '{"id": "C1"}'}]) == {"id": "C1"}
+    assert result_of({"structuredContent": {"id": "C1"}}) == {"id": "C1"}
+    assert result_of({"structuredContent": {"result": [{"id": "O1"}]}}) == [{"id": "O1"}]
+    assert result_of("line1\nline2") == "line1\nline2"                   # plain text untouched
+
+
 def test_gemini_hook_mapping():
     from jdsl.trace import EventKind
     ev = gemini_cli.to_events(
