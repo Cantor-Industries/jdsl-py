@@ -25,4 +25,12 @@ htmlcov/
 .vscode/
 .claude/
 
+# Local agent config (auto-launches servers; per-checkout, like .claude/)
+.mcp.json
+
+# Compiled behavior packages: build outputs / scratch compile dirs.
+# (Committed example fixtures live under examples/ and are tracked explicitly.)
+/pkgs/
+/pkgs.jdslpkg
+
 VERSION_RELEASE.md
