@@ -49,6 +49,21 @@ def test_ingest_server_records_canonical_and_hooks(tmp_path):
     assert any(c["capture_id"] == "cap_x" for c in caps["captures"])
 
 
+def test_build_mcp_control_plane_across_sdk_versions(tmp_path):
+    """The §28 control plane must build against whatever MCP SDK is installed —
+    mcp 2.x (`MCPServer`) or 1.x (`FastMCP`). Skips when the SDK is absent."""
+    import asyncio
+
+    import pytest
+    pytest.importorskip("mcp")
+    from jdsl_harness.server import build_mcp_server
+
+    srv = build_mcp_server(HarnessStore(tmp_path / "h"))
+    tools = asyncio.new_event_loop().run_until_complete(srv.list_tools())
+    names = {t.name for t in tools}
+    assert {"jdsl_capture_start", "jdsl_compile", "jdsl_inspect"} <= names
+
+
 def test_ingest_fails_open_on_bad_payload(tmp_path):
     store = HarnessStore(tmp_path / "h")
     with IngestServer(store, port=0) as server:

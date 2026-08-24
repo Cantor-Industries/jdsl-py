@@ -126,18 +126,30 @@ class IngestServer:
 
 # -- MCP control plane (optional) --------------------------------------------
 
+def _mcp_server(name: str) -> Any:
+    """Instantiate a decorator-style MCP server across SDK versions: `MCPServer`
+    on mcp >= 2.0 (which renamed it from `FastMCP`), `FastMCP` on mcp 1.x. Both
+    expose the same `.tool()` decorator and `.run()`. Raises a clear error when the
+    MCP SDK is absent, keeping the core harness free of a hard MCP dependency (§36)."""
+    try:
+        from mcp.server import MCPServer  # type: ignore  # mcp >= 2.0
+        return MCPServer(name)
+    except ImportError:
+        pass
+    try:
+        from mcp.server.fastmcp import FastMCP  # type: ignore  # mcp 1.x
+        return FastMCP(name)
+    except ImportError as e:  # pragma: no cover - exercised only with mcp installed
+        raise RuntimeError(
+            "the MCP control plane needs the 'mcp' package: uv sync --extra harness") from e
+
+
 def build_mcp_server(store: HarnessStore, name: str = "jdsl-harness") -> Any:
     """Build an MCP server exposing the control tools (§28.1). Requires the `mcp`
     package; raises a clear error if it is not installed. Kept import-optional so
     the core harness never depends on the MCP SDK (§36)."""
-    try:
-        from mcp.server.fastmcp import FastMCP  # type: ignore
-    except ImportError as e:  # pragma: no cover - exercised only with mcp installed
-        raise RuntimeError(
-            "the MCP control plane needs the 'mcp' package: pip install 'jdsl[harness]'") from e
-
     coord = CaptureCoordinator(store)
-    mcp = FastMCP(name)
+    mcp = _mcp_server(name)
 
     @mcp.tool()
     def jdsl_capture_start(host: str = "jdsl", adapter: str = "runtime", note: str = "") -> dict:
