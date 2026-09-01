@@ -4,6 +4,7 @@ CLI package/compile commands (§37)."""
 from __future__ import annotations
 
 import json
+import sys
 import urllib.request
 
 from typer.testing import CliRunner
@@ -11,7 +12,7 @@ from typer.testing import CliRunner
 from jdsl.cli import app
 from jdsl.trace import ListTraceSink, segment_episodes
 from jdsl.trace.events import EventKind, TraceEvent
-from jdsl_harness.mcp_proxy import MCPProxy, ProxiedTool
+from jdsl_harness.mcp_proxy import MCPProxy, ProxiedTool, StdioUpstream, build_stdio_proxy_server
 from jdsl_harness.server import IngestServer
 from jdsl_harness.store import HarnessStore
 
@@ -47,6 +48,25 @@ def test_ingest_server_records_canonical_and_hooks(tmp_path):
 
     assert summary["events"] >= 2
     assert any(c["capture_id"] == "cap_x" for c in caps["captures"])
+
+
+def test_ingest_server_records_opencode_hook_with_correlation(tmp_path):
+    store = HarnessStore(tmp_path / "h")
+    with IngestServer(store, port=0) as server:
+        assert _post(server.url + "/hook/opencode?cap=cap_open",
+                     {"schema": "jdsl.opencode-hook.v1", "hook": "tool.execute.before",
+                      "session_id": "ses_1", "call_id": "call_1", "tool": "read",
+                      "args": {"filePath": "README.md"}})["ok"]
+        assert _post(server.url + "/hook/opencode?cap=cap_open",
+                     {"schema": "jdsl.opencode-hook.v1", "hook": "tool.execute.after",
+                      "session_id": "ses_1", "call_id": "call_1", "tool": "read",
+                      "result": "hello"})["ok"]
+
+    events = store.capture_events("cap_open")
+    start = next(e for e in events if e.kind == EventKind.TOOL_CALL_STARTED)
+    done = next(e for e in events if e.kind == EventKind.TOOL_CALL_COMPLETED)
+    assert done.parent_event_id == start.event_id
+    assert done.payload["host_call_id"] == "call_1"
 
 
 def test_build_mcp_control_plane_across_sdk_versions(tmp_path):
@@ -86,6 +106,51 @@ def test_mcp_proxy_records_namespaced_calls():
     call = ep.tool_calls()[0]
     assert call.logical_id == "retail.get_order"
     assert call.arguments == {"order_id": "#W1"}
+
+
+def test_stdio_mcp_proxy_discovers_calls_and_records(tmp_path):
+    import anyio
+    from mcp import types
+
+    server_script = tmp_path / "fake_mcp.py"
+    server_script.write_text(
+        """
+from mcp.server import MCPServer
+
+mcp = MCPServer("fake-retail")
+
+@mcp.tool()
+def lookup(email: str) -> dict:
+    return {"id": "U17", "email": email}
+
+if __name__ == "__main__":
+    import anyio
+    anyio.run(mcp.run_stdio_async)
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    sink = ListTraceSink()
+    upstream = StdioUpstream(server="retail", command=sys.executable, args=[str(server_script)])
+    proxy = build_stdio_proxy_server(upstream, sink, capture_id="cap", episode_id="ep")
+
+    async def exercise():
+        tools = await proxy._jdsl_on_list_tools(None, None)
+        assert tools.tools[0].name == "mcp__retail__lookup"
+        assert tools.tools[0].input_schema["properties"]["email"]["type"] == "string"
+        result = await proxy._jdsl_on_call_tool(
+            None,
+            types.CallToolRequestParams(name="mcp__retail__lookup", arguments={"email": "a@b.com"}),
+        )
+        assert '"id": "U17"' in result.content[0].text
+
+    anyio.run(exercise)
+
+    ep = segment_episodes(sink.events)[0]
+    call = ep.tool_calls()[0]
+    assert call.logical_id == "retail.lookup"
+    assert call.arguments == {"email": "a@b.com"}
+    assert call.result == {"id": "U17", "email": "a@b.com"}
 
 
 # -- CLI ----------------------------------------------------------------------

@@ -5,7 +5,8 @@ from __future__ import annotations
 
 from jdsl import act, predict, ref, root, seq, store
 from jdsl.trace import segment_episodes
-from jdsl_harness.adapters import claude_code, gemini_cli, import_jsonl
+from jdsl_harness.adapters import claude_code, gemini_cli, generic_mcp, import_jsonl, opencode
+from jdsl_harness.adapters.correlation import ToolCallCorrelator
 from jdsl_harness.capture import CaptureCoordinator
 from jdsl_harness.gateway import ToolGateway
 from jdsl_harness.state import MappingEnvironment, Outcome
@@ -138,6 +139,132 @@ def test_gemini_hook_mapping():
          "args": {"order_id": "#W1"}}, capture_id="cap")
     assert ev[0].kind == EventKind.TOOL_CALL_STARTED
     assert ev[0].source.host == "gemini-cli"
+
+
+def test_host_tool_correlation_handles_overlapping_calls():
+    from jdsl.trace import EventKind
+
+    corr = ToolCallCorrelator()
+    start_a = claude_code.to_events(
+        {"hook_event_name": "PreToolUse", "session_id": "s1", "call_id": "A",
+         "tool_name": "read", "tool_input": {"path": "a.txt"}},
+        capture_id="cap", correlator=corr)[0]
+    start_b = claude_code.to_events(
+        {"hook_event_name": "PreToolUse", "session_id": "s1", "call_id": "B",
+         "tool_name": "read", "tool_input": {"path": "b.txt"}},
+        capture_id="cap", correlator=corr)[0]
+    finish_b = claude_code.to_events(
+        {"hook_event_name": "PostToolUse", "session_id": "s1", "call_id": "B",
+         "tool_name": "read", "tool_response": "b"},
+        capture_id="cap", correlator=corr)[0]
+    finish_a = claude_code.to_events(
+        {"hook_event_name": "PostToolUse", "session_id": "s1", "call_id": "A",
+         "tool_name": "read", "tool_response": "a"},
+        capture_id="cap", correlator=corr)[0]
+
+    assert start_a.kind == EventKind.TOOL_CALL_STARTED
+    assert start_b.kind == EventKind.TOOL_CALL_STARTED
+    assert finish_b.parent_event_id == start_b.event_id
+    assert finish_a.parent_event_id == start_a.event_id
+    assert finish_b.payload["host_call_id"] == "B"
+    assert finish_b.payload["correlation"]["fidelity"] == "exact"
+
+
+def test_host_tool_correlation_marks_missing_and_duplicate_completion():
+    corr = ToolCallCorrelator()
+    missing = gemini_cli.to_events(
+        {"hook": "AfterTool", "session_id": "g1", "call_id": "missing",
+         "tool_name": "read", "result": "done"},
+        capture_id="cap", correlator=corr)[0]
+    assert missing.parent_event_id is None
+    assert missing.payload["correlation"]["fidelity"] == "missing_start"
+
+    start = gemini_cli.to_events(
+        {"hook": "BeforeTool", "session_id": "g1", "call_id": "A",
+         "tool_name": "read", "args": {"path": "a.txt"}},
+        capture_id="cap", correlator=corr)[0]
+    first = gemini_cli.to_events(
+        {"hook": "AfterTool", "session_id": "g1", "call_id": "A",
+         "tool_name": "read", "result": "done"},
+        capture_id="cap", correlator=corr)[0]
+    duplicate = gemini_cli.to_events(
+        {"hook": "AfterTool", "session_id": "g1", "call_id": "A",
+         "tool_name": "read", "result": "again"},
+        capture_id="cap", correlator=corr)[0]
+    assert first.parent_event_id == start.event_id
+    assert duplicate.parent_event_id is None
+    assert duplicate.payload["correlation"]["fidelity"] == "missing_start"
+
+
+def test_host_tool_correlation_infers_single_missing_call_id():
+    corr = ToolCallCorrelator()
+    start = claude_code.to_events(
+        {"hook_event_name": "PreToolUse", "session_id": "s1",
+         "tool_name": "read", "tool_input": {"path": "a.txt"}},
+        capture_id="cap", correlator=corr)[0]
+    finish = claude_code.to_events(
+        {"hook_event_name": "PostToolUse", "session_id": "s1",
+         "tool_name": "read", "tool_response": "a"},
+        capture_id="cap", correlator=corr)[0]
+    assert finish.parent_event_id == start.event_id
+    assert finish.payload["host_call_id"] == start.payload["host_call_id"]
+    assert finish.payload["correlation"]["fidelity"] == "inferred"
+
+
+def test_generic_mcp_preserves_host_call_id():
+    events = generic_mcp.call_events(capture_id="cap", episode_id="ep", server="retail",
+                                     tool="lookup", arguments={"email": "a@b.com"},
+                                     result={"id": "U17"}, host_call_id="call-1")
+    assert events[0].payload["host_call_id"] == "call-1"
+    assert events[1].payload["host_call_id"] == "call-1"
+    assert events[1].parent_event_id == events[0].event_id
+
+
+def test_opencode_hook_mapping_and_correlation():
+    from jdsl.trace import EventKind
+
+    corr = ToolCallCorrelator()
+    session = opencode.to_events(
+        {"schema": opencode.SCHEMA, "hook": "session.created", "session_id": "ses_1",
+         "directory": "/repo", "worktree": "/repo"},
+        capture_id="cap", correlator=corr)[0]
+    before = opencode.to_events(
+        {"schema": opencode.SCHEMA, "hook": "tool.execute.before", "session_id": "ses_1",
+         "call_id": "call_1", "tool": "read", "args": {"filePath": "README.md"},
+         "directory": "/repo", "worktree": "/repo"},
+        capture_id="cap", correlator=corr)[0]
+    after = opencode.to_events(
+        {"schema": opencode.SCHEMA, "hook": "tool.execute.after", "session_id": "ses_1",
+         "call_id": "call_1", "tool": "read", "result": "hello"},
+        capture_id="cap", correlator=corr)[0]
+
+    assert session.kind == EventKind.EPISODE_STARTED
+    assert before.kind == EventKind.TOOL_CALL_STARTED
+    assert after.kind == EventKind.TOOL_CALL_COMPLETED
+    assert before.episode_id == "ses_1"
+    assert before.payload["arguments"] == {"filePath": "README.md"}
+    assert after.parent_event_id == before.event_id
+    assert after.payload["host_call_id"] == "call_1"
+
+
+def test_opencode_hook_failure_unknown_and_malformed():
+    from jdsl.trace import EventKind
+
+    failed = opencode.to_events(
+        {"schema": opencode.SCHEMA, "hook": "tool.execute.after", "session_id": "ses_1",
+         "call_id": "call_1", "tool": "bash", "error": "denied"},
+        capture_id="cap")[0]
+    assert failed.kind == EventKind.TOOL_CALL_FAILED
+    assert failed.payload["error"] == "denied"
+
+    unknown = opencode.to_events(
+        {"schema": opencode.SCHEMA, "hook": "unknown.event", "session_id": "ses_1"},
+        capture_id="cap")
+    assert unknown == []
+
+    import pytest
+    with pytest.raises(opencode.OpenCodeEnvelopeError, match="missing session_id"):
+        opencode.to_events({"schema": opencode.SCHEMA, "hook": "session.created"}, capture_id="cap")
 
 
 def test_import_records_roundtrips_through_compiler():
