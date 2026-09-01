@@ -22,24 +22,25 @@ for generated theme/plugin assets.
 
 ## GitHub Pages
 
-The workflow at `.github/workflows/docs.yml` builds the site and deploys the
-generated `site/` directory with GitHub's Pages artifact actions:
+The workflow at `.github/workflows/docs.yml` follows the same publishing model
+as tinygrad: it builds the Material site and runs `mkdocs gh-deploy --force`.
+That command publishes the generated `site/` tree to the `gh-pages` branch.
 
-1. `actions/configure-pages`
-2. `actions/upload-pages-artifact`
-3. `actions/deploy-pages`
+`mkdocs gh-deploy` also writes the `.nojekyll` marker that keeps GitHub Pages
+from processing generated assets through Jekyll.
 
-Repository settings must use GitHub Actions as the Pages source:
+Repository settings must serve the generated branch:
 
 ```text
-Settings -> Pages -> Build and deployment -> Source -> GitHub Actions
+Settings -> Pages -> Build and deployment
+Source: Deploy from a branch
+Branch: gh-pages
+Folder: / (root)
 ```
 
-If the source is set to `Deploy from a branch` and points at `/docs`, GitHub
-Pages serves the Markdown source directory rather than the generated MkDocs site.
-That commonly produces a 404 at the project root or raw source-like output
-because the deployed source does not contain the built Material HTML, CSS, and
-JavaScript asset tree.
+Do not point Pages at the tracked `/docs` directory. That makes GitHub run
+Jekyll over the Markdown source. The live page will look unthemed and its HTML
+will include `generator: Jekyll` instead of `mkdocs-material`.
 
 After a successful deploy, use the URL shown by the `deploy` job environment.
 For this repository the configured project URL is:
