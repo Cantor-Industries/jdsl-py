@@ -134,12 +134,15 @@ for the design-to-code map.
 
 ## Docs
 
+- [docs/index.md](docs/index.md) — MkDocs homepage
+- [docs/quickstart.md](docs/quickstart.md) — install and first runs
+- [docs/examples.md](docs/examples.md) — guide to the runnable examples
 - [docs/concepts.md](docs/concepts.md) — behavior trees, the blackboard, signatures, why no codegen
 - [docs/api.md](docs/api.md) — full combinator + node reference
 - [docs/providers.md](docs/providers.md) — models, keys, `.env`, routing
 - [docs/harness_usage.md](docs/harness_usage.md) — hands-on: capture, compile, verify, run
-- [docs/harness.md](docs/harness.md) — the capture harness and behavior compiler (design-to-code map)
-- [docs/jdsl_behaviour_compiler.md](docs/jdsl_behaviour_compiler.md) — the full engineering design
+- [docs/harness.md](docs/harness.md) — capture harness and behavior compiler overview
+- [docs/packages.md](docs/packages.md) — `.jdsl` package format and binding
 - [CONTRIBUTING.md](CONTRIBUTING.md) — dev setup, tests, adding examples
 
 ## Status

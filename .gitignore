@@ -24,6 +24,7 @@ htmlcov/
 .idea/
 .vscode/
 .claude/
+.opencode
 
 # Local agent config (auto-launches servers; per-checkout, like .claude/)
 .mcp.json
@@ -34,3 +35,9 @@ htmlcov/
 /pkgs.jdslpkg
 
 VERSION_RELEASE.md
+
+# Docs build output and local-only docs drafts / experiments.
+site/
+docs/*_next_steps.md
+docs/*_experiment.ipynb
+docs/drafts/
