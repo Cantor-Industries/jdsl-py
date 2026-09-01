@@ -134,7 +134,7 @@ def _lower_predict(sig: Signature) -> Predict:
     outputs = (sig.output.name,) if sig.output else ()
     schemas = {sig.output.name: sig.output.schema} if sig.output else None
     return Predict(inputs=inputs, outputs=outputs, instructions=sig.instruction or None,
-                   output_schemas=schemas)
+                   output_schemas=schemas, signature_id=sig.id)
 
 
 def _lower_react(sig: Signature, b: RuntimeBindings) -> React:

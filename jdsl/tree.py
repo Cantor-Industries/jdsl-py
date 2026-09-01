@@ -11,6 +11,7 @@ import enum
 import inspect
 import json
 import re
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, get_args, get_origin, get_type_hints
@@ -280,6 +281,7 @@ class Predict(Node):
     instructions: str | None = None
     context_system: str | None = None
     output_schemas: dict[str, dict[str, Any]] | None = None
+    signature_id: str | None = None
 
     def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
@@ -287,26 +289,98 @@ class Predict(Node):
             # stateless: prompt is built from blackboard inputs + scoped system only.
             # State flows via the blackboard, so leaves don't leak raw output into
             # each other's prompts (and the message list always starts with `user`).
-            text = model.generate(system=ctx.window.system,
-                                  messages=[{"role": "user", "content": self._build_prompt(ctx)}],
-                                  model_id=ctx.model_id)
+            prompt = self._build_prompt(ctx)
+            request = self._emit_model_request(ctx, prompt)
+            parent = request.event_id if request is not None else None
+            t0 = time.monotonic()
+            try:
+                text = model.generate(system=ctx.window.system,
+                                      messages=[{"role": "user", "content": prompt}],
+                                      model_id=ctx.model_id)
+            except Exception as err:  # noqa: BLE001 — trace the failed model turn, then preserve behavior
+                self._emit_model_response(ctx, parent_event_id=parent, elapsed_ms=_ms_float(t0),
+                                          status=Status.FAILURE, error=str(err))
+                raise
             # single free-text output: store the reply verbatim (no JSON envelope,
             # which otherwise makes the model reason about the wrapper, not the task).
             if len(self.outputs) == 1:
                 text = text.strip()
-                if not text: return Status.FAILURE
+                if not text:
+                    self._emit_model_response(ctx, parent_event_id=parent, elapsed_ms=_ms_float(t0),
+                                              raw_output=text, parsed_output=None,
+                                              status=Status.FAILURE, error="empty model output")
+                    return Status.FAILURE
                 value, ok = self._coerce(self.outputs[0], text)
-                if not ok: return Status.FAILURE
+                if not ok:
+                    self._emit_model_response(ctx, parent_event_id=parent, elapsed_ms=_ms_float(t0),
+                                              raw_output=text, parsed_output=value,
+                                              status=Status.FAILURE, error="output validation failed")
+                    return Status.FAILURE
+                self._emit_model_response(ctx, parent_event_id=parent, elapsed_ms=_ms_float(t0),
+                                          raw_output=text, parsed_output=value, status=Status.SUCCESS)
                 ctx.blackboard.set(self.outputs[0], value, writer=self.label())
                 return Status.SUCCESS
             parsed = self._parse(text)
-            if parsed is None: return Status.FAILURE
+            if parsed is None:
+                self._emit_model_response(ctx, parent_event_id=parent, elapsed_ms=_ms_float(t0),
+                                          raw_output=text, parsed_output=None,
+                                          status=Status.FAILURE, error="model output is not parseable JSON")
+                return Status.FAILURE
+            coerced: dict[str, Any] = {}
             for key in self.outputs:
                 value, ok = self._coerce(key, parsed.get(key))
-                if not ok: return Status.FAILURE
+                if not ok:
+                    self._emit_model_response(ctx, parent_event_id=parent, elapsed_ms=_ms_float(t0),
+                                              raw_output=text, parsed_output={**coerced, key: value},
+                                              status=Status.FAILURE,
+                                              error=f"output validation failed for {key}")
+                    return Status.FAILURE
+                coerced[key] = value
+            self._emit_model_response(ctx, parent_event_id=parent, elapsed_ms=_ms_float(t0),
+                                      raw_output=text, parsed_output=coerced, status=Status.SUCCESS)
+            for key, value in coerced.items():
                 ctx.blackboard.set(key, value, writer=self.label())
             return Status.SUCCESS
         return self._run_with_context(ctx, body)
+
+    def _emit_model_request(self, ctx: RunContext, prompt: str) -> Any:
+        if ctx.trace_sink is None:
+            return None
+        from jdsl.trace.events import EventKind
+        return ctx.emit(EventKind.MODEL_REQUESTED, actor="model", payload={
+            "node_id": self.effective_id(),
+            "signature_id": self.signature_id,
+            "kind": "predict",
+            "model_id": ctx.model_id,
+            "input_fields": list(self.inputs),
+            "inputs": {name: ctx.blackboard.get(name) for name in self.inputs},
+            "output_fields": list(self.outputs),
+            "outputs": [{"name": name, "schema": (self.output_schemas or {}).get(name)}
+                        for name in self.outputs],
+            "prompt": prompt,
+        })
+
+    def _emit_model_response(self, ctx: RunContext, *, parent_event_id: str | None,
+                             elapsed_ms: float, status: Status, raw_output: Any = None,
+                             parsed_output: Any = None, error: str | None = None) -> None:
+        if ctx.trace_sink is None:
+            return
+        from jdsl.trace.events import EventKind
+        payload = {
+            "node_id": self.effective_id(),
+            "signature_id": self.signature_id,
+            "kind": "predict",
+            "model_id": ctx.model_id,
+            "output_fields": list(self.outputs),
+            "raw_output": raw_output,
+            "parsed_output": parsed_output,
+            "elapsed_ms": elapsed_ms,
+            "status": status.value,
+        }
+        if error is not None:
+            payload["error"] = error
+        ctx.emit(EventKind.MODEL_RESPONDED, actor="model", parent_event_id=parent_event_id,
+                 payload=payload)
 
     def _coerce(self, key: str, value: Any) -> tuple[Any, bool]:
         """Coerce/validate `value` against the output schema for `key`. Returns
@@ -393,6 +467,10 @@ def _looks_like_error(result: Any) -> bool:
     a trace event tool.call.completed vs tool.call.failed. tau-bench and most
     tools prefix errors with 'Error: ...'; jdsl's own bridges use 'error:'."""
     return str(result).strip().lower().startswith("error")
+
+
+def _ms_float(t0: float) -> float:
+    return round((time.monotonic() - t0) * 1000, 3)
 
 
 def assign_runtime_ids(root: Node) -> None:
