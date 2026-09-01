@@ -107,7 +107,13 @@ def _applicable(rep: Fact, ep: NormEpisode) -> bool:
     tools = [s.logical_tool for s in ep.steps]
     if rep.type == DATAFLOW:
         tgt = claim["target"]
-        return any(s.logical_tool == tgt["tool"] and tgt["argument"] in s.arguments for s in ep.steps)
+        index = tgt.get("index")
+        return any(
+            s.logical_tool == tgt["tool"]
+            and tgt["argument"] in s.arguments
+            and (not isinstance(index, int) or s.index == index)
+            for s in ep.steps
+        )
     if rep.type == CONTROL:
         return claim["before"] in tools and claim["after"] in tools
     if rep.type == ACTION:

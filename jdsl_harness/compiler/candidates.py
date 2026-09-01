@@ -55,7 +55,7 @@ def _dataflow_facts(ep: NormEpisode) -> list[Fact]:
             if path:
                 out.append(Fact(DATAFLOW, {
                     "source": path,
-                    "target": {"tool": step.logical_tool, "argument": arg},
+                    "target": {"tool": step.logical_tool, "argument": arg, "index": step.index},
                 }, ep.episode_id, ep.success))
     return out
 

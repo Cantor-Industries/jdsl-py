@@ -29,7 +29,7 @@ from jdsl.package.manifest import NodeProvenance
 from jdsl_harness.compiler.candidates import ACTION, DATAFLOW, GUARD, RECOVERY
 from jdsl_harness.compiler.consolidate import E1, E3, E4, Candidate
 from jdsl_harness.compiler.model import CompilerModel, HeuristicCompilerModel
-from jdsl_harness.compiler.normalize import NormEpisode, NormStep, synth_node_id, synth_store
+from jdsl_harness.compiler.normalize import NormEpisode, NormStep, slug, synth_node_id, synth_store
 from jdsl_harness.compiler.residualize import residualize_decision
 
 _ACCEPTED_DATAFLOW = {E1, "E2", E3, E4}
@@ -122,7 +122,7 @@ def staticize(episodes: list[NormEpisode], candidates: list[Candidate], *,
     root = IRSequence(type="sequence", id=f"{name}_flow", children_=children)
     ir = BehaviorIR(root=root, signatures=signatures)
     total = n_deterministic + n_model
-    declared_inputs = sorted({arg for (_tool, arg) in inputs})
+    declared_inputs = sorted(set(inputs.values()))
     stats = {
         "meaningful_decisions": total,
         "model_dependent_decisions": n_model,
@@ -155,12 +155,13 @@ def _decisions_by_index(ep: NormEpisode) -> dict[int, list]:
     return out
 
 
-def _index_dataflow(candidates: list[Candidate]) -> dict[tuple[str, str], str]:
-    out: dict[tuple[str, str], str] = {}
+def _index_dataflow(candidates: list[Candidate]) -> dict[tuple[int, str, str], str]:
+    out: dict[tuple[int, str, str], str] = {}
     for c in candidates:
         if c.type == DATAFLOW and c.grade in _ACCEPTED_DATAFLOW and c.status != "rejected":
             tgt = c.claim["target"]
-            out[(tgt["tool"], tgt["argument"])] = c.claim["source"]
+            index = tgt.get("index", -1)
+            out[(index if isinstance(index, int) else -1, tgt["tool"], tgt["argument"])] = c.claim["source"]
     return out
 
 
@@ -188,18 +189,20 @@ def _action_candidate(candidates: list[Candidate], step: NormStep) -> Candidate 
     return None
 
 
-def _build_action(step: NormStep, i: int, dataflow: dict[tuple[str, str], str],
-                  inputs: set[tuple[str, str]], caps: set[str]) -> IRAction:
+def _build_action(step: NormStep, i: int, dataflow: dict[tuple[int, str, str], str],
+                  inputs: dict[tuple[int, str, str], str], caps: set[str]) -> IRAction:
     caps.add(step.logical_tool)
     arguments: dict[str, Any] = {}
     for arg, value in step.arguments.items():
         if arg.startswith("_arg"):
             continue  # positional placeholder; keep kwargs only in compiled form
-        path = dataflow.get((step.logical_tool, arg)) or step.arg_lineage.get(arg)
+        key = (i, step.logical_tool, arg)
+        legacy_key = (-1, step.logical_tool, arg)
+        path = dataflow.get(key) or dataflow.get(legacy_key) or step.arg_lineage.get(arg)
         if path:
             arguments[arg] = {"ref": path}          # verified exact dataflow (§16.1)
-        elif (step.logical_tool, arg) in inputs:
-            arguments[arg] = {"ref": arg}            # free input: bound from run seed (§17)
+        elif key in inputs:
+            arguments[arg] = {"ref": inputs[key]}    # free input: bound from run seed (§17)
         else:
             arguments[arg] = {"const": value}        # constant across all episodes
     store = step.store or synth_store(step.logical_tool, i)
@@ -209,22 +212,29 @@ def _build_action(step: NormStep, i: int, dataflow: dict[tuple[str, str], str],
 
 
 def _input_args(episodes: list[NormEpisode],
-                dataflow: dict[tuple[str, str], str]) -> set[tuple[str, str]]:
-    """A (tool, arg) is a free *input*, not a constant, when it has no verified
-    dataflow source yet its value is not identical across every episode that
-    supplies it (§17: "constant?" is only satisfied by an invariant value). Such
-    args compile to a ref bound from the run's seeded inputs."""
-    seen: dict[tuple[str, str], set[str]] = {}
+                dataflow: dict[tuple[int, str, str], str]) -> dict[tuple[int, str, str], str]:
+    """A call-slot argument is a free *input*, not a constant, when it has no
+    verified dataflow source yet its value is not identical across every episode
+    that supplies it (§17). Repeated calls to the same tool are intentionally
+    distinguished by step index, so `bash.command` at step 0 and step 1 are not
+    collapsed into one runtime input."""
+    seen: dict[tuple[int, str, str], set[str]] = {}
     for ep in episodes:
         for step in ep.steps:
             for arg, value in step.arguments.items():
                 if arg.startswith("_arg"):
                     continue
-                key = (step.logical_tool, arg)
-                if key in dataflow or step.arg_lineage.get(arg):
+                key = (step.index, step.logical_tool, arg)
+                legacy_key = (-1, step.logical_tool, arg)
+                if key in dataflow or legacy_key in dataflow or step.arg_lineage.get(arg):
                     continue  # explained by dataflow — never an input
                 seen.setdefault(key, set()).add(_stable(value))
-    return {key for key, values in seen.items() if len(values) > 1}
+    variable = sorted(key for key, values in seen.items() if len(values) > 1)
+    arg_counts = Counter(arg for (_index, _tool, arg) in variable)
+    return {
+        key: key[2] if arg_counts[key[2]] == 1 else f"{slug(key[1])}_{key[0]}_{key[2]}"
+        for key in variable
+    }
 
 
 def _stable(value: Any) -> str:

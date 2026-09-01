@@ -119,6 +119,78 @@ def test_invariant_unlinked_arg_stays_constant():
     assert compiled.stats["inputs"] == []
 
 
+def test_repeated_same_tool_args_stay_position_constants():
+    """Repeated calls to the same tool are separate call slots. Different values
+    within one episode are not enough to turn every slot into the same input."""
+    from jdsl.ir.schema import IRAction
+    from jdsl_harness.compiler.normalize import NormEpisode, NormStep
+    from jdsl_harness.compiler.staticize import staticize
+
+    commands = [
+        "git status",
+        "git diff",
+        'git add -A && git commit -m "update sessionID and properties lookup"',
+    ]
+    ep = NormEpisode(episode_id="opencode")
+    ep.steps = [
+        NormStep(index=i, logical_tool="bash", host_tool="bash",
+                 arguments={"command": command}, arg_lineage={"command": None})
+        for i, command in enumerate(commands)
+    ]
+
+    compiled = staticize([ep], [], name="opencode")
+    actions = [n for n in compiled.ir.walk() if isinstance(n, IRAction)]
+    assert [a.arguments["command"] for a in actions] == [{"const": c} for c in commands]
+    assert compiled.stats["inputs"] == []
+
+
+def test_repeated_same_tool_variable_slots_get_distinct_inputs():
+    """If multiple repeated call slots vary across episodes, their run inputs are
+    disambiguated by tool and step position."""
+    from jdsl.ir.schema import IRAction
+    from jdsl_harness.compiler.normalize import NormEpisode, NormStep
+    from jdsl_harness.compiler.staticize import staticize
+
+    episodes = []
+    for i in range(2):
+        ep = NormEpisode(episode_id=f"ep_{i}")
+        ep.steps = [
+            NormStep(index=0, logical_tool="bash", host_tool="bash",
+                     arguments={"command": f"git status {i}"}, arg_lineage={"command": None}),
+            NormStep(index=1, logical_tool="bash", host_tool="bash",
+                     arguments={"command": f"git diff {i}"}, arg_lineage={"command": None}),
+        ]
+        episodes.append(ep)
+
+    compiled = staticize(episodes, [], name="opencode")
+    actions = [n for n in compiled.ir.walk() if isinstance(n, IRAction)]
+    assert actions[0].arguments["command"] == {"ref": "bash_0_command"}
+    assert actions[1].arguments["command"] == {"ref": "bash_1_command"}
+    assert compiled.stats["inputs"] == ["bash_0_command", "bash_1_command"]
+
+
+def test_shell_capability_defaults_to_write_effects():
+    """Without a trusted host contract, shell capabilities are conservative:
+    running bash can mutate the workspace."""
+    from jdsl_harness.compiler.normalize import NormEpisode, NormStep
+    from jdsl_harness.compiler.package import build_package
+    from jdsl_harness.compiler.staticize import staticize
+    from jdsl_harness.compiler.verify import VerificationReport
+
+    ep = NormEpisode(episode_id="opencode")
+    ep.steps = [
+        NormStep(index=0, logical_tool="bash", host_tool="bash",
+                 arguments={"command": "git status"}, arg_lineage={"command": None})
+    ]
+    compiled = staticize([ep], [], name="opencode")
+    pkg = build_package(compiled, VerificationReport(), [], [ep], name="opencode")
+
+    effects = pkg.tools[0].effects
+    assert effects.read_only is False
+    assert effects.destructive is True
+    assert effects.idempotent is False
+
+
 # -- consolidation grades -----------------------------------------------------
 
 def test_dataflow_candidate_is_graded():

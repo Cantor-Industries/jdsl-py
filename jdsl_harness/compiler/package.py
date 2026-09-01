@@ -69,7 +69,7 @@ def build_package(compiled: CompiledBehavior, report: VerificationReport,
                   version: str = "0.1.0") -> BehaviorPackage:
     effects = effects or {}
     caps = compiled.required_capabilities
-    tools = [ToolContract(logical_id=c, effects=effects.get(c, ToolEffects())) for c in caps]
+    tools = [ToolContract(logical_id=c, effects=effects.get(c, _default_effects(c))) for c in caps]
 
     manifest = Manifest(
         name=name, version=version, task_family=task_family, required_capabilities=list(caps),
@@ -97,6 +97,15 @@ def build_package(compiled: CompiledBehavior, report: VerificationReport,
         tests=tests, evidence_summary=evidence_summary,
         invariants=[c.to_dict() for c in candidates if c.grade == "E3" and c.type == "GUARD"],
     )
+
+
+def _default_effects(capability: str) -> ToolEffects:
+    """Conservative defaults for capabilities whose host did not provide a
+    contract. Generic shell tools can mutate the workspace, even when a particular
+    captured command happened to be observational."""
+    if capability in {"bash", "sh", "shell"} or capability.endswith(".bash") or capability.endswith(".shell"):
+        return ToolEffects(read_only=False, destructive=True, idempotent=False)
+    return ToolEffects()
 
 
 def _by_grade(candidates: list[Candidate]) -> dict[str, int]:
