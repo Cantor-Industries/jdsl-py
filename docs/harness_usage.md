@@ -66,7 +66,7 @@ coord.finish(cap)
 For non-jdsl tools, wrap them with `ToolGateway`, or route MCP tools through
 `MCPProxy` — both record the same canonical call events.
 
-### Tier B — host hooks (Claude Code / Gemini CLI)
+### Tier B — host hooks (Claude Code / Gemini CLI / OpenCode)
 
 Start the daemon, then let a host forward its structured hook payloads to it.
 
@@ -74,26 +74,42 @@ Start the daemon, then let a host forward its structured hook payloads to it.
 jdsl harness serve                 # loopback ingest on http://127.0.0.1:8848
 ```
 
-Install the plugin (`plugins/jdsl-claude-plugin/`) or extension
-(`plugins/jdsl-gemini-extension/`). The forwarder posts Claude's / Gemini's
-**structured JSON** hook payload — never scraped terminal text — to the daemon.
-Route events into a named capture and tune the hot-path budget with env vars:
+Install the plugin/extension:
+
+```text
+plugins/jdsl-claude-plugin/
+plugins/jdsl-gemini-extension/
+plugins/jdsl-opencode-plugin/
+```
+
+The forwarder posts each host's **structured JSON** hook payload — never scraped
+terminal text — to the daemon. Route events into a named capture and tune the
+hot-path budget with env vars:
 
 | var | default | meaning |
 |-----|---------|---------|
 | `JDSL_INGEST_URL` | `http://127.0.0.1:8848` | ingest daemon base URL |
-| `JDSL_CAPTURE_ID` | `cap_claude` / `cap_gemini` | capture to route into |
+| `JDSL_CAPTURE_ID` | `cap_claude` / `cap_gemini` / `cap_opencode` | capture to route into |
 | `JDSL_HOOK_TIMEOUT` | `0.5` | max seconds to wait on the hot path |
 
 The forwarder **fails open** (§7.2): if the daemon is down, slow, or the payload
 is malformed, the hook still exits 0 with empty output and never blocks or fails a
 tool call. Capture is best-effort — observation must never take the agent down.
 
+When the host supplies a stable tool-call id, hook events preserve it as
+`host_call_id` and completions are linked to their corresponding
+`tool.call.started` event with `parent_event_id`. If a host omits the id, the
+adapter marks the correlation as inferred or ambiguous rather than silently
+claiming exact fidelity.
+
 > Fidelity note: pure host hooks see tool calls but not the model's private
 > reasoning, so a choice like "which order" can look like a constant across
 > episodes. `inspect` reports the fidelity the evidence actually supports; a
 > gateway/native capture (Tier A) that also records the decision output gives the
 > compiler more to work with.
+
+See [docs/opencode.md](./opencode.md) for OpenCode-specific installation and
+smoke-test notes.
 
 ### Tier C — import foreign logs
 
@@ -237,6 +253,29 @@ Add `--model <small-model-id>` to bind a real model to any residual `predict`/
 `react` leaves; with none, deterministic packages (RDB 0.0) run without a model at
 all. The same package runs unchanged with a *different* small model — portability
 is a first-class goal (§34.3).
+
+When a package reaches a residual `predict` leaf, the runtime emits one
+`model.requested` event and one `model.responded` event. The request records the
+node/signature identity, field names, model id, output schema, and prompt; the
+response records raw text where capture policy permits, the parsed semantic value,
+elapsed time, and success/failure status:
+
+```json
+{
+  "kind": "model.responded",
+  "payload": {
+    "node_id": "resolve_target",
+    "signature_id": "resolve_target_order",
+    "kind": "predict",
+    "model_id": "small-model",
+    "output_fields": ["selected_index"],
+    "raw_output": "1",
+    "parsed_output": 1,
+    "elapsed_ms": 18.2,
+    "status": "success"
+  }
+}
+```
 
 ### Safety of `package run` (§45)
 

@@ -84,6 +84,8 @@ Three tiers (§8):
 - **Tier A — gateway** (preferred): wrap task tools with `ToolGateway` or route MCP
   tools through `MCPProxy`; every call is recorded with arguments, result, and
   state. jdsl-native `Action`/`React` nodes self-record when a `trace_sink` is set.
+  The live MCP proxy currently supports one stdio upstream and preserves upstream
+  tool schemas while namespacing forwarded tools.
 - **Tier B — host hooks**: install the Claude Code plugin or Gemini extension; the
   forwarder posts structured hook payloads to the local ingest daemon.
 - **Tier C — import**: `adapters/import_jsonl` maps foreign logs into canonical events.
@@ -123,7 +125,7 @@ and unsupported schema versions.
 Implemented: PR1–PR13 (trace core, react instrumentation, node ids, canonical
 trace package, gateway/proxy, harness daemon, host adapters, deterministic
 normalizer, candidate store, compiler-model pass, IR + loader, verifier, package
-export) plus the §33 metrics. The live MCP transport (`serve_proxy`) and the MCP
-control plane are import-guarded behind the optional `harness` extra. Package
-signing (§22.4) and iterative residual decomposition (§26) are left as documented
-extension points.
+export) plus the §33 metrics. The live MCP transport (`serve_proxy`) supports a
+stdio upstream and the MCP control plane is import-guarded behind the optional
+`harness` extra. Additional MCP transports, package signing (§22.4), and
+iterative residual decomposition (§26) are left as documented extension points.

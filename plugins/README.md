@@ -37,6 +37,22 @@ Gemini exposes a broader hook surface, including model and tool-selection events
 `BeforeToolSelection`, `BeforeTool`, `AfterTool`, `SessionEnd`) and posts to
 `/hook/gemini`. Full model requests are not stored by default.
 
+## OpenCode (`jdsl-opencode-plugin/`)
+
+OpenCode loads project-local plugins from `.opencode/plugins/` and global plugins
+from `~/.config/opencode/plugins/`. The jdsl plugin forwards session events plus
+`tool.execute.before` / `tool.execute.after` envelopes to `/hook/opencode`.
+
+Environment:
+
+| var | default | meaning |
+|-----|---------|---------|
+| `JDSL_INGEST_URL` | `http://127.0.0.1:8848` | ingest daemon base URL |
+| `JDSL_CAPTURE_ID` | `cap_opencode` | route events into a named capture |
+| `JDSL_HOOK_TIMEOUT` | `0.5` | max seconds to wait on the hot path |
+
+See [`docs/opencode.md`](../docs/opencode.md) for install and smoke-test steps.
+
 ## Capture fidelity
 
 An adapter never claims more than it sees (§8.2). Events carry their `source.host`
