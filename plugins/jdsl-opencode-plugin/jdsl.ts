@@ -43,8 +43,23 @@ function now(): string {
   return new Date().toISOString()
 }
 
+function record(value: unknown): Record<string, unknown> {
+  return value != null && typeof value === "object" ? value as Record<string, unknown> : {}
+}
+
 function sessionID(input: Record<string, unknown>): string {
-  return String(input.sessionID ?? input.session_id ?? input.sessionId ?? "opencode-session")
+  const properties = record(input.properties)
+  const info = record(properties.info)
+  return String(
+    input.sessionID ??
+      input.session_id ??
+      input.sessionId ??
+      properties.sessionID ??
+      properties.session_id ??
+      properties.sessionId ??
+      info.id ??
+      "opencode-session",
+  )
 }
 
 function callID(input: Record<string, unknown>): string | undefined {
@@ -58,12 +73,13 @@ export const JdslHarness: Plugin = async ({ directory, worktree }) => {
       const item = event as Record<string, unknown>
       const type = String(item.type ?? "")
       if (!type.startsWith("session.")) return
+      const properties = record(item.properties)
       await forward({
         schema: SCHEMA,
         hook: type,
         session_id: sessionID(item),
-        error: item.error,
-        status: item.status,
+        error: item.error ?? properties.error,
+        status: item.status ?? properties.status,
         directory,
         worktree,
         timestamp: now(),
