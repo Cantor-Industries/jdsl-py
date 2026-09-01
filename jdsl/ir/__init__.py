@@ -1,0 +1,61 @@
+"""Behavior IR: the serializable, restricted representation a compiled package
+ships and the runtime lowers into `Node`s (design §21, §35 PR11)."""
+
+from jdsl.ir.expr import ExprError, evaluate, resolve_path, validate_expr
+from jdsl.ir.lower import BindingError, RuntimeBindings, lower, lower_node
+from jdsl.ir.schema import (
+    BEHAVIOR_FORMAT,
+    SIGNATURE_FORMAT,
+    VALID_NODE_TYPES,
+    BehaviorIR,
+    IRAction,
+    IRGuard,
+    IRGuardCall,
+    IRInvert,
+    IRNode,
+    IROptional,
+    IRPredict,
+    IRReact,
+    IRRepeat,
+    IRSelector,
+    IRSequence,
+    Signature,
+    SignatureInput,
+    SignatureOutput,
+    node_from_dict,
+    node_to_dict,
+)
+from jdsl.ir.validate import ValidationReport, validate_ir
+
+__all__ = [
+    "BEHAVIOR_FORMAT",
+    "SIGNATURE_FORMAT",
+    "VALID_NODE_TYPES",
+    "BehaviorIR",
+    "Signature",
+    "SignatureInput",
+    "SignatureOutput",
+    "IRNode",
+    "IRSequence",
+    "IRSelector",
+    "IROptional",
+    "IRInvert",
+    "IRRepeat",
+    "IRAction",
+    "IRGuard",
+    "IRGuardCall",
+    "IRPredict",
+    "IRReact",
+    "node_to_dict",
+    "node_from_dict",
+    "RuntimeBindings",
+    "BindingError",
+    "lower",
+    "lower_node",
+    "evaluate",
+    "resolve_path",
+    "validate_expr",
+    "ExprError",
+    "validate_ir",
+    "ValidationReport",
+]

@@ -11,6 +11,7 @@ import enum
 import inspect
 import json
 import re
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, get_args, get_origin, get_type_hints
@@ -26,10 +27,38 @@ class Status(enum.Enum):
 
 
 class Node:
-    """Base node. Subclasses implement tick; context is scoped to the subtree."""
-    context_system: str | None = None
+    """Base node. Subclasses implement `_tick`; `tick` wraps it with trace
+    emission (node.enter/node.exit, §35 PR1). Context is scoped to the subtree.
 
-    def tick(self, ctx: RunContext) -> Status: raise NotImplementedError
+    `node_id` is the optional stable identity used by compiled artifacts (§20):
+    author-supplied via the DSL `id=` argument, otherwise a path-derived runtime
+    id is assigned by `assign_runtime_ids` when a run is being traced. Tree path
+    is deliberately not the *persistent* identity — a compiler may insert nodes."""
+    context_system: str | None = None
+    node_id: str | None = None
+    _runtime_id: str | None = None
+
+    def _tick(self, ctx: RunContext) -> Status: raise NotImplementedError
+
+    def tick(self, ctx: RunContext) -> Status:
+        """Public entry: emit enter/exit around the subclass `_tick` when tracing."""
+        if ctx.trace_sink is None:
+            return self._tick(ctx)
+        from jdsl.trace.events import EventKind
+        enter = ctx.emit(EventKind.NODE_ENTER, payload=self._trace_meta())
+        parent = enter.event_id if enter is not None else None
+        status = self._tick(ctx)
+        ctx.emit(EventKind.NODE_EXIT, parent_event_id=parent,
+                 payload={**self._trace_meta(), "status": status.value})
+        return status
+
+    def effective_id(self) -> str | None:
+        """The id used in traces/IR: author id if set, else the runtime path id."""
+        return self.node_id or self._runtime_id
+
+    def _trace_meta(self) -> dict[str, Any]:
+        return {"node_id": self.effective_id(), "type": type(self).__name__.lower(),
+                "label": self.label()}
 
     def label(self) -> str:
         """Short human-readable label for rendering / write provenance."""
@@ -56,15 +85,51 @@ class Action(Node):
     store_as: str | None = None
     context_system: str | None = None
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             args = tuple(self._resolve(a, ctx) for a in self.args)
             kwargs = {k: self._resolve(v, ctx) for k, v in self.kwargs.items()}
-            result = self.fn(*args, **kwargs)
+            # Tier-A gateway capture (§8.1): record the *resolved* tool arguments so
+            # the compiler can mine exact dataflow. Without this an Action calls fn
+            # directly and its arguments never appear in the trace.
+            self._emit_call(ctx, args, kwargs)
+            try:
+                result = self.fn(*args, **kwargs)
+            except Exception as err:  # noqa: BLE001 — record the failure, then re-raise
+                self._emit_result(ctx, error=err)
+                raise
+            self._emit_result(ctx, result=result)
             if isinstance(result, Status): return result
             if self.store_as is not None: ctx.blackboard.set(self.store_as, result, writer=self.label())
             return Status.SUCCESS
         return self._run_with_context(ctx, body)
+
+    def _tool_name(self) -> str:
+        return getattr(self.fn, "name", None) or getattr(self.fn, "__name__", "fn")
+
+    def _emit_call(self, ctx: RunContext, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
+        if ctx.trace_sink is None: return
+        from jdsl.trace.events import EventKind
+        arguments = dict(kwargs)
+        for i, a in enumerate(args): arguments[f"_arg{i}"] = a
+        started = ctx.emit(EventKind.TOOL_CALL_STARTED, actor="model", payload={
+            "node_id": self.effective_id(), "store": self.store_as,
+            "tool": {"host_name": self._tool_name(), "logical_id": None}, "arguments": arguments})
+        self._call_event_id = started.event_id if started is not None else None
+
+    def _emit_result(self, ctx: RunContext, *, result: Any = None, error: Any = None) -> None:
+        if ctx.trace_sink is None: return
+        from jdsl.trace.events import EventKind
+        parent = getattr(self, "_call_event_id", None)
+        if error is not None or _looks_like_error(result):
+            ctx.emit(EventKind.TOOL_CALL_FAILED, actor="tool", parent_event_id=parent, payload={
+                "node_id": self.effective_id(), "tool": {"host_name": self._tool_name()},
+                "error": str(error if error is not None else result)})
+        else:
+            ctx.emit(EventKind.TOOL_CALL_COMPLETED, actor="tool", parent_event_id=parent, payload={
+                "node_id": self.effective_id(), "store": self.store_as,
+                "tool": {"host_name": self._tool_name()},
+                "result": result if not isinstance(result, Status) else result.value})
 
     def label(self) -> str:
         name = getattr(self.fn, "name", None) or getattr(self.fn, "__name__", "fn")
@@ -73,10 +138,16 @@ class Action(Node):
     @staticmethod
     def _resolve(value: Any, ctx: RunContext) -> Any:
         if not isinstance(value, Ref): return value
-        if value.name not in ctx.blackboard:
+        if value.name in ctx.blackboard:
+            return ctx.blackboard[value.name]
+        # Compiled refs may be JSON paths (e.g. "orders[$selected_index].id", §21.1)
+        # rather than a bare key. Fall back to the restricted path resolver.
+        from jdsl.ir.expr import _MISSING, resolve_path
+        resolved = resolve_path(value.name, ctx.blackboard)
+        if resolved is _MISSING:
             raise KeyError(f"ref({value.name!r}) is not on the blackboard yet. Seed it as a run() "
                            "input or produce it in an earlier node (e.g. store(...)).")
-        return ctx.blackboard[value.name]
+        return resolved
 
 
 @dataclass
@@ -85,7 +156,7 @@ class Sequence(Node):
     children: list[Node] = field(default_factory=list)
     context_system: str | None = None
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             for child in self.children:
                 if child.tick(ctx) is Status.FAILURE: return Status.FAILURE
@@ -102,7 +173,7 @@ class Selector(Node):
     children: list[Node] = field(default_factory=list)
     context_system: str | None = None
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             for child in self.children:
                 if child.tick(ctx) is Status.SUCCESS: return Status.SUCCESS
@@ -124,7 +195,7 @@ class Repeat(Node):
     max: int = 3
     context_system: str | None = None
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             for _ in range(self.max):
                 if self.child.tick(ctx) is Status.FAILURE: return Status.FAILURE
@@ -147,7 +218,7 @@ class Check(Node):
     equals: Any
     context_system: str | None = None
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         return Status.SUCCESS if self._match(ctx.blackboard.get(self.key)) else Status.FAILURE
 
     def label(self) -> str: return f"check({self.key} == {self.equals!r})"
@@ -162,35 +233,178 @@ class Check(Node):
 
 
 @dataclass
+class Guard(Node):
+    """Compiled state predicate (§21.2): SUCCESS iff the restricted expression is
+    true over the blackboard. This is the general guard `check` is too narrow for
+    (§5.4) — it reads refs/paths and combines them with eq/in/and/or/… . The
+    expression is a safe JSON tree, never arbitrary code."""
+    expression: dict[str, Any]
+    context_system: str | None = None
+
+    def _tick(self, ctx: RunContext) -> Status:
+        from jdsl.ir.expr import evaluate
+        return Status.SUCCESS if evaluate(self.expression, ctx.blackboard) else Status.FAILURE
+
+    def label(self) -> str:
+        op = next(iter(self.expression), "?") if isinstance(self.expression, dict) else "?"
+        return f"guard({op})"
+
+
+@dataclass
+class GuardCall(Node):
+    """Guard backed by a trusted runtime predicate (§21.2 `guard_call`). Domain
+    logic that exceeds the expression system references a named capability the
+    runtime supplies; the package only names it, it never ships its code."""
+    predicate: Callable[..., Any]
+    arguments: dict[str, Any] = field(default_factory=dict)
+    predicate_id: str | None = None
+    context_system: str | None = None
+
+    def _tick(self, ctx: RunContext) -> Status:
+        args = {k: Action._resolve(v, ctx) for k, v in self.arguments.items()}
+        return Status.SUCCESS if self.predicate(**args) else Status.FAILURE
+
+    def label(self) -> str: return f"guard_call({self.predicate_id or getattr(self.predicate, '__name__', '?')})"
+
+
+@dataclass
 class Predict(Node):
     """DSPy-style LLM leaf: read input fields, ask for output fields as JSON,
-    write them back. FAILURE if nothing parseable comes back."""
+    write them back. FAILURE if nothing parseable comes back.
+
+    `output_schemas` (compiled signatures, §18) attaches a JSON-schema fragment
+    per output; when present the parsed value is coerced to the declared type and
+    validated (integer index, enum, …) before it is written. Absent (the authoring
+    default) leaves behavior unchanged — a single free-text output stored verbatim."""
     inputs: tuple[str, ...]
     outputs: tuple[str, ...]
     instructions: str | None = None
     context_system: str | None = None
+    output_schemas: dict[str, dict[str, Any]] | None = None
+    signature_id: str | None = None
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             model = ctx.require_model()
             # stateless: prompt is built from blackboard inputs + scoped system only.
             # State flows via the blackboard, so leaves don't leak raw output into
             # each other's prompts (and the message list always starts with `user`).
-            text = model.generate(system=ctx.window.system,
-                                  messages=[{"role": "user", "content": self._build_prompt(ctx)}],
-                                  model_id=ctx.model_id)
+            prompt = self._build_prompt(ctx)
+            request = self._emit_model_request(ctx, prompt)
+            parent = request.event_id if request is not None else None
+            t0 = time.monotonic()
+            try:
+                text = model.generate(system=ctx.window.system,
+                                      messages=[{"role": "user", "content": prompt}],
+                                      model_id=ctx.model_id)
+            except Exception as err:  # noqa: BLE001 — trace the failed model turn, then preserve behavior
+                self._emit_model_response(ctx, parent_event_id=parent, elapsed_ms=_ms_float(t0),
+                                          status=Status.FAILURE, error=str(err))
+                raise
             # single free-text output: store the reply verbatim (no JSON envelope,
             # which otherwise makes the model reason about the wrapper, not the task).
             if len(self.outputs) == 1:
                 text = text.strip()
-                if not text: return Status.FAILURE
-                ctx.blackboard.set(self.outputs[0], text, writer=self.label())
+                if not text:
+                    self._emit_model_response(ctx, parent_event_id=parent, elapsed_ms=_ms_float(t0),
+                                              raw_output=text, parsed_output=None,
+                                              status=Status.FAILURE, error="empty model output")
+                    return Status.FAILURE
+                value, ok = self._coerce(self.outputs[0], text)
+                if not ok:
+                    self._emit_model_response(ctx, parent_event_id=parent, elapsed_ms=_ms_float(t0),
+                                              raw_output=text, parsed_output=value,
+                                              status=Status.FAILURE, error="output validation failed")
+                    return Status.FAILURE
+                self._emit_model_response(ctx, parent_event_id=parent, elapsed_ms=_ms_float(t0),
+                                          raw_output=text, parsed_output=value, status=Status.SUCCESS)
+                ctx.blackboard.set(self.outputs[0], value, writer=self.label())
                 return Status.SUCCESS
             parsed = self._parse(text)
-            if parsed is None: return Status.FAILURE
-            for key in self.outputs: ctx.blackboard.set(key, parsed.get(key), writer=self.label())
+            if parsed is None:
+                self._emit_model_response(ctx, parent_event_id=parent, elapsed_ms=_ms_float(t0),
+                                          raw_output=text, parsed_output=None,
+                                          status=Status.FAILURE, error="model output is not parseable JSON")
+                return Status.FAILURE
+            coerced: dict[str, Any] = {}
+            for key in self.outputs:
+                value, ok = self._coerce(key, parsed.get(key))
+                if not ok:
+                    self._emit_model_response(ctx, parent_event_id=parent, elapsed_ms=_ms_float(t0),
+                                              raw_output=text, parsed_output={**coerced, key: value},
+                                              status=Status.FAILURE,
+                                              error=f"output validation failed for {key}")
+                    return Status.FAILURE
+                coerced[key] = value
+            self._emit_model_response(ctx, parent_event_id=parent, elapsed_ms=_ms_float(t0),
+                                      raw_output=text, parsed_output=coerced, status=Status.SUCCESS)
+            for key, value in coerced.items():
+                ctx.blackboard.set(key, value, writer=self.label())
             return Status.SUCCESS
         return self._run_with_context(ctx, body)
+
+    def _emit_model_request(self, ctx: RunContext, prompt: str) -> Any:
+        if ctx.trace_sink is None:
+            return None
+        from jdsl.trace.events import EventKind
+        return ctx.emit(EventKind.MODEL_REQUESTED, actor="model", payload={
+            "node_id": self.effective_id(),
+            "signature_id": self.signature_id,
+            "kind": "predict",
+            "model_id": ctx.model_id,
+            "input_fields": list(self.inputs),
+            "inputs": {name: ctx.blackboard.get(name) for name in self.inputs},
+            "output_fields": list(self.outputs),
+            "outputs": [{"name": name, "schema": (self.output_schemas or {}).get(name)}
+                        for name in self.outputs],
+            "prompt": prompt,
+        })
+
+    def _emit_model_response(self, ctx: RunContext, *, parent_event_id: str | None,
+                             elapsed_ms: float, status: Status, raw_output: Any = None,
+                             parsed_output: Any = None, error: str | None = None) -> None:
+        if ctx.trace_sink is None:
+            return
+        from jdsl.trace.events import EventKind
+        payload = {
+            "node_id": self.effective_id(),
+            "signature_id": self.signature_id,
+            "kind": "predict",
+            "model_id": ctx.model_id,
+            "output_fields": list(self.outputs),
+            "raw_output": raw_output,
+            "parsed_output": parsed_output,
+            "elapsed_ms": elapsed_ms,
+            "status": status.value,
+        }
+        if error is not None:
+            payload["error"] = error
+        ctx.emit(EventKind.MODEL_RESPONDED, actor="model", parent_event_id=parent_event_id,
+                 payload=payload)
+
+    def _coerce(self, key: str, value: Any) -> tuple[Any, bool]:
+        """Coerce/validate `value` against the output schema for `key`. Returns
+        (value, ok); ok=False signals a validation failure (leaf -> FAILURE)."""
+        schema = (self.output_schemas or {}).get(key)
+        if not schema: return value, True
+        typ = schema.get("type")
+        try:
+            if typ == "integer" and not isinstance(value, bool):
+                value = int(str(value).strip())
+            elif typ == "number" and not isinstance(value, bool):
+                value = float(str(value).strip())
+            elif typ == "boolean":
+                value = str(value).strip().lower() in ("true", "yes", "1")
+            elif typ == "string":
+                value = str(value)
+        except (TypeError, ValueError):
+            return value, False
+        enum = schema.get("enum")
+        if enum is not None and value not in enum:
+            return value, False
+        if "minimum" in schema and isinstance(value, (int, float)) and value < schema["minimum"]:
+            return value, False
+        return value, True
 
     def label(self) -> str:
         return f"predict({', '.join(self.inputs)} -> {', '.join(self.outputs)})"
@@ -248,6 +462,31 @@ def _tool_schema(fn: Callable[..., Any]) -> dict[str, Any]:
     return {"type": "object", "properties": props, "required": required}
 
 
+def _looks_like_error(result: Any) -> bool:
+    """Heuristic for a tool observation that reports failure — used only to label
+    a trace event tool.call.completed vs tool.call.failed. tau-bench and most
+    tools prefix errors with 'Error: ...'; jdsl's own bridges use 'error:'."""
+    return str(result).strip().lower().startswith("error")
+
+
+def _ms_float(t0: float) -> float:
+    return round((time.monotonic() - t0) * 1000, 3)
+
+
+def assign_runtime_ids(root: Node) -> None:
+    """Assign path-derived `_runtime_id`s to every node lacking an author id (§20).
+
+    The id is the structural path from the root (e.g. `root/seq.0/act.1`). It is a
+    *runtime* identity only — stable across a single tree's formatting, but the
+    persistent package identity is the author-supplied `node_id`, since a compiler
+    may insert nodes and shift paths."""
+    def walk(node: Node, path: str) -> None:
+        node._runtime_id = node._runtime_id or path
+        for i, (_edge, child) in enumerate(node._children()):
+            walk(child, f"{path}/{type(child).__name__.lower()}.{i}")
+    walk(root, type(root).__name__.lower())
+
+
 @dataclass
 class React(Node):
     """Agentic LLM leaf: the model reasons and calls @tools in a loop (native
@@ -262,27 +501,65 @@ class React(Node):
     max_steps: int = 6
     context_system: str | None = None
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
+        # PR2: react is the largest trace gap in the runtime — its internal tool
+        # trajectory used to stay local and only the final answer hit the
+        # blackboard. We emit the whole loop (model turns + every tool call) so
+        # the compiler can mine dataflow, recovery, and tool visibility (§5.4).
+        from jdsl.trace.events import EventKind
+
         def body() -> Status:
             model = ctx.require_model()
             by_name = {t.name: t for t in self.tools}
             specs = [{"name": t.name, "description": t.description, "parameters": _tool_schema(t.fn)}
                      for t in self.tools]
+            ctx.emit(EventKind.REACT_STARTED, payload={"node_id": self.effective_id(),
+                     "inputs": list(self.inputs), "outputs": list(self.outputs)})
+            ctx.emit(EventKind.TOOLSET_EXPOSED, payload={"node_id": self.effective_id(),
+                     "tools": [{"host_name": t.name, "description": t.description} for t in self.tools]})
             history: list[dict[str, Any]] = [{"role": "user", "content": self._build_prompt(ctx)}]
             for _ in range(self.max_steps):
+                ctx.emit(EventKind.MODEL_REQUESTED, actor="model",
+                         payload={"node_id": self.effective_id(), "tools": [t.name for t in self.tools]})
                 turn = model.converse(system=ctx.window.system, messages=history,
                                       tools=specs, model_id=ctx.model_id)
+                ctx.emit(EventKind.MODEL_RESPONDED, actor="model", payload={
+                    "node_id": self.effective_id(), "text": turn.text,
+                    "tool_calls": [{"name": c.name, "arguments": c.arguments} for c in turn.tool_calls]})
                 if not turn.tool_calls:
                     answer = turn.text.strip()
-                    if not answer: return Status.FAILURE
+                    if not answer:
+                        ctx.emit(EventKind.REACT_FINISHED, payload={"node_id": self.effective_id(),
+                                 "status": Status.FAILURE.value})
+                        return Status.FAILURE
                     ctx.blackboard.set(self.outputs[0], answer, writer=self.label())
+                    ctx.emit(EventKind.REACT_FINISHED, payload={"node_id": self.effective_id(),
+                             "status": Status.SUCCESS.value})
                     return Status.SUCCESS
                 history.append({"role": "assistant", "content": turn.text, "tool_calls": turn.tool_calls})
                 for call in turn.tool_calls:
                     tool = by_name.get(call.name)
-                    result = tool(**call.arguments) if tool else f"error: no tool named {call.name!r}"
+                    started = ctx.emit(EventKind.TOOL_CALL_STARTED, actor="model", payload={
+                        "node_id": self.effective_id(),
+                        "tool": {"host_name": call.name, "logical_id": None},
+                        "arguments": call.arguments})
+                    parent = started.event_id if started is not None else None
+                    try:
+                        result = tool(**call.arguments) if tool else f"error: no tool named {call.name!r}"
+                    except Exception as err:  # noqa: BLE001 — surface tool errors to the model, don't crash
+                        result = f"error: {err}"
+                    if _looks_like_error(result) or tool is None:
+                        ctx.emit(EventKind.TOOL_CALL_FAILED, actor="tool", parent_event_id=parent,
+                                 payload={"node_id": self.effective_id(),
+                                          "tool": {"host_name": call.name}, "error": str(result)})
+                    else:
+                        ctx.emit(EventKind.TOOL_CALL_COMPLETED, actor="tool", parent_event_id=parent,
+                                 payload={"node_id": self.effective_id(),
+                                          "tool": {"host_name": call.name}, "result": result})
                     history.append({"role": "tool", "tool_call_id": call.id,
                                     "name": call.name, "content": str(result)})
+            ctx.emit(EventKind.REACT_FINISHED, payload={"node_id": self.effective_id(),
+                     "status": Status.FAILURE.value})
             return Status.FAILURE  # ran out of steps without a final answer
         return self._run_with_context(ctx, body)
 
@@ -313,7 +590,7 @@ class Decorator(Node):
 @dataclass
 class Invert(Decorator):
     """Flip the child's status: SUCCESS <-> FAILURE."""
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             return Status.FAILURE if self.child.tick(ctx) is Status.SUCCESS else Status.SUCCESS
         return self._run_with_context(ctx, body)
@@ -325,7 +602,7 @@ class Invert(Decorator):
 class Optional(Decorator):
     """Fail-soft: run the child but always report SUCCESS, so a failing step never
     aborts its parent sequence (py_trees' FailureIsSuccess)."""
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             self.child.tick(ctx)
             return Status.SUCCESS
@@ -342,7 +619,7 @@ class Timeout(Decorator):
     or lookup call."""
     seconds: float = 30.0
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         import concurrent.futures
         def body() -> Status:
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
@@ -358,7 +635,7 @@ class Timeout(Decorator):
 class OneShot(Decorator):
     """Run the child at most once per run; latch and replay its status on any
     later tick (only observable inside a repeat/loop). State is per-run."""
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
             key = id(self)
             if key not in ctx.state:
@@ -380,7 +657,7 @@ class Root(Node):
     def model(self, model_id: str) -> Root: self.model_id = model_id; return self
     def do(self, child: Node) -> Root: self.child = child; return self
 
-    def tick(self, ctx: RunContext) -> Status:
+    def _tick(self, ctx: RunContext) -> Status:
         if self.child is None: raise RuntimeError(f"Root {self.name!r} has no child; call .do(...) on it.")
         if ctx.model_id is None: ctx.model_id = self.model_id
         return self._run_with_context(ctx, lambda: self.child.tick(ctx))
@@ -391,12 +668,27 @@ class Root(Node):
     def _children(self) -> list[tuple[str | None, Node]]:
         return [(None, self.child)] if self.child is not None else []
 
-    def run(self, *, model: Any = None, **inputs: Any) -> RunContext:
-        """Execute the skill and return the final RunContext (read ctx.blackboard)."""
+    def run(self, *, model: Any = None, trace_sink: Any = None, capture_id: str = "cap_local",
+            episode_id: str = "ep_local", trace_source: Any = None, **inputs: Any) -> RunContext:
+        """Execute the skill and return the final RunContext (read ctx.blackboard).
+
+        Pass a `trace_sink` to capture a canonical event stream for this run
+        (episode `episode_id` under `capture_id`); omit it and the run is
+        untraced and behaves exactly as before."""
         from jdsl.context import Blackboard
         if model is None and self.model_id is not None:
             from jdsl.provider import LanguageModel
             model = LanguageModel.from_config()
-        ctx = RunContext(blackboard=Blackboard(inputs), model=model, model_id=self.model_id)
+        if trace_sink is not None:
+            assign_runtime_ids(self)
+        ctx = RunContext(blackboard=Blackboard(inputs), model=model, model_id=self.model_id,
+                         trace_sink=trace_sink, capture_id=capture_id, episode_id=episode_id,
+                         trace_source=trace_source)
+        if trace_sink is not None:
+            from jdsl.trace.events import EventKind
+            ctx.emit(EventKind.EPISODE_STARTED, payload={"skill": self.name, "inputs": dict(inputs)})
         self.tick(ctx)
+        if trace_sink is not None:
+            from jdsl.trace.events import EventKind
+            ctx.emit(EventKind.EPISODE_FINISHED, payload={"skill": self.name})
         return ctx

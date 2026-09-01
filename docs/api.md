@@ -1,4 +1,4 @@
-# API reference
+# API Reference
 
 Everything is imported from the top-level package:
 
@@ -7,7 +7,7 @@ from jdsl import tool, root, seq, sel, repeat, act, check, predict, react, ref, 
 from jdsl import invert, optional, timeout, oneshot, render   # decorators + rendering
 ```
 
-## Building blocks
+## Building Blocks
 
 ### `@tool`
 
@@ -21,11 +21,10 @@ def greet(name: str) -> None: ...
 def search(query: str) -> list[str]: ...
 ```
 
-Usable bare (`@tool`) or with metadata (`@tool(name=…, description=…)`). The
+Usable bare (`@tool`) or with metadata (`@tool(name=..., description=...)`). The
 wrapped object is still directly callable. The name/description and the function's
-type hints are what [`react`](#reactsignature--toolsinstructionsmax_stepscontext--react)
-exposes to the model for function-calling — so annotate tool params and write a
-clear description.
+type hints are what [`react`](#react) exposes to the model for function-calling,
+so annotate tool params and write a clear description.
 
 ### `root(name, *, system=None) -> Root`
 
@@ -35,10 +34,10 @@ The entry point of a skill. Returns a `Root` that is also a small builder:
 skill = root("Triage", system="You classify messages.").model("deepseek-chat").do(child)
 ```
 
-- `.model(model_id)` — sets the model; the **provider is inferred from the id**
+- `.model(model_id)` sets the model; the provider is inferred from the id
   (see [providers.md](providers.md)).
-- `.do(child)` — sets the single child node.
-- `.run(*, model=None, **inputs) -> RunContext` — execute. `model` may be a
+- `.do(child)` sets the single child node.
+- `.run(*, model=None, **inputs) -> RunContext` executes. `model` may be a
   `LanguageModel`; if omitted and the skill needs one, it's built from stored
   credentials. `inputs` seed the blackboard.
 
@@ -56,7 +55,7 @@ Run children in order; return `SUCCESS` at the first child that succeeds, else
 
 Run `child` up to `max` times, checking `until` (a node, usually a `check`) after
 each pass and stopping early when it succeeds. `SUCCESS` when `until` is satisfied
-— or when there's no `until` (a fixed `max`-times loop). `FAILURE` if `max` is
+or when there's no `until` (a fixed `max`-times loop). `FAILURE` if `max` is
 reached unsatisfied, or if `child` fails (which aborts immediately). Do-while, not
 while: the body runs before the first `until` check.
 
@@ -74,8 +73,8 @@ A leaf that calls `fn(*args, **kwargs)`.
 - Literal args are **type-checked** against `fn`'s signature (`ParamSpec`).
 - A `ref("key")` arg is resolved from the blackboard at run time.
 - Return value handling: a returned `Status` is honored (so a tool can report
-  `FAILURE` to a parent selector); otherwise the node succeeds, and — if wrapped
-  in `store` — the return value is written to the blackboard.
+  `FAILURE` to a parent selector); otherwise the node succeeds, and if wrapped
+  in `store`, the return value is written to the blackboard.
 
 ### `ref(name) -> Ref`
 
@@ -100,10 +99,33 @@ store(act(search, ref("query")), "titles")
 Guard leaf: `SUCCESS` iff `blackboard[key]` matches `equals`, else `FAILURE`. Put
 one at the head of a `seq` inside a `sel` to branch on a `predict` output.
 
-String matches are **lenient** — case-insensitive, and whitespace / surrounding
+String matches are lenient: case-insensitive, and whitespace / surrounding
 punctuation are trimmed — because the value is usually fuzzy model text: `"Yes."`,
 `" YES "` and `"yes"` all match `check("ok", "yes")`. Non-string values (ints,
 etc.) compare with plain `==`, so `check("n", 2)` does not match `"2"`.
+
+### `guard(expression, *, id=None) -> Guard`
+
+A general predicate over the blackboard using the restricted expression language:
+
+```python
+guard({"in": [{"ref": "order.status"}, ["pending", "processing"]]})
+```
+
+Supported operators are `exists`, `eq`, `neq`, `lt`, `lte`, `gt`, `gte`, `in`,
+`and`, `or`, and `not`. Refs support dotted and bracket paths, including dynamic
+indexes such as `orders[$selected_index].id`.
+
+### `guard_call(predicate, arguments=None, *, predicate_id=None, id=None) -> GuardCall`
+
+A guard backed by a trusted runtime predicate:
+
+```python
+guard_call(is_cancellable, {"order": ref("order")}, predicate_id="retail.cancellable")
+```
+
+Compiled packages name the predicate capability; they do not ship arbitrary
+Python code.
 
 ### `predict(signature, *, instructions=None, context=None) -> Predict`
 
@@ -113,18 +135,18 @@ stored as the model's raw reply (no JSON envelope, which otherwise makes the mod
 reason about the wrapper); **multiple** outputs are requested as one JSON object
 and parsed leniently (tolerates surrounding prose). Returns `FAILURE` if nothing
 parseable came back. `instructions` prepends task guidance to the prompt. Each
-leaf is stateless — state flows through the blackboard, not the message list.
+leaf is stateless: state flows through the blackboard, not the message list.
 
-### `react(signature, *, tools, instructions=None, max_steps=6, context=None) -> React`
+### `react(signature, *, tools, instructions=None, max_steps=6, context=None) -> React` { #react }
 
 Agentic LLM leaf. Where `predict` is one shot with no tools, `react` lets the
-**model** pick and call the given `@tool`s in a loop — native provider
+model pick and call the given `@tool`s in a loop through native provider
 function-calling (Anthropic `tool_use` / OpenAI `tool_calls`), not text parsing.
 Each tool's JSON schema is derived from its signature: `str`/`int`/`float`/`bool`
 map to their JSON types, `list[T]`/`tuple`/`set` become an `array` (with an
 `items` type from `T`), anything else falls back to `string`; args without a
-default are required. The loop: ask the model → run the tools it
-calls → feed results back → repeat, until it returns a final answer (written to
+default are required. The loop: ask the model, run the tools it calls, feed
+results back, and repeat until it returns a final answer (written to
 the single output field) or `max_steps` is hit (`FAILURE`). `FAILURE` also if the
 final answer is empty.
 
@@ -144,8 +166,7 @@ react("question -> answer", tools=[capital_of, population, multiply], max_steps=
 ## Decorators
 
 Single-child wrappers that transform a child's status without adding a new
-composite type — "a behaviour wearing a different hat" (the idea is borrowed from
-[py_trees](https://py-trees.readthedocs.io/)).
+composite type.
 
 ### `invert(child) -> Invert`
 
@@ -174,7 +195,8 @@ ticks. Only observable inside a `repeat` loop; state is per-run (a fresh
 
 ### `render(node) -> str`
 
-An ASCII-tree rendering of a skill's structure — no execution, no model. Also
+An ASCII-tree rendering of a skill's structure. It does not execute the tree or
+call a model. Also
 available as `jdsl show <file>` on the CLI.
 
 ```
@@ -195,24 +217,24 @@ root 'Triage' [deepseek-chat]
 
 Returned by `skill.run(...)`. Fields:
 
-- `blackboard: Blackboard` — the shared store; read your results here.
-- `window: ContextWindow` — accumulated system fragments.
-- `model`, `model_id` — the model backing this run.
-- `state: dict` — per-run scratch for stateful nodes (e.g. `oneshot`).
+- `blackboard: Blackboard`: the shared store; read your results here.
+- `window: ContextWindow`: accumulated system fragments.
+- `model`, `model_id`: the model backing this run.
+- `state: dict`: per-run scratch for stateful nodes, such as `oneshot`.
 
 ### `Blackboard`
 
 A `dict` with **provenance**. Read with normal dict access; every write is
 recorded so you can trace and debug a run:
 
-- `set(key, value, *, writer=…)` — write with attribution (nodes pass their own
+- `set(key, value, *, writer=...)`: write with attribution (nodes pass their own
   label as `writer`; plain `bb[key] = v` records `writer="?"`).
-- `activity: list[Write]` — every write, in order (`key`, `value`, `writer`,
+- `activity: list[Write]`: every write, in order (`key`, `value`, `writer`,
   `previous`, `overwrote`).
-- `who_wrote(key) -> str | None` — the last writer of a key.
-- `clobbers() -> list[Write]` — writes that overwrote a key a **different** writer
+- `who_wrote(key) -> str | None`: the last writer of a key.
+- `clobbers() -> list[Write]`: writes that overwrote a key a different writer
   had set. This catches the silent-clobber bug where two leaves share an output
-  name; `jdsl run` prints a `⚠` for each.
+  name.
 
 ### `LanguageModel`
 

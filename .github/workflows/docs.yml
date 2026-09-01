@@ -1,0 +1,58 @@
+name: docs
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - harness
+  pull_request:
+    paths:
+      - docs/**
+      - mkdocs.yml
+      - pyproject.toml
+      - .github/workflows/docs.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          key: mkdocs-${{ runner.os }}-${{ hashFiles('mkdocs.yml') }}
+          path: ~/.cache/pip
+          restore-keys: |
+            mkdocs-${{ runner.os }}-
+
+      - name: Install docs dependencies
+        run: pip install "mkdocs>=1.6,<2" "mkdocs-material>=9.5,<10" "mkdocstrings[python]>=0.26,<1"
+
+      - name: Build docs
+        run: mkdocs build --strict
+
+      - name: Configure Git Credentials
+        if: github.event_name != 'pull_request'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+      - name: Deploy docs
+        if: github.event_name != 'pull_request'
+        run: mkdocs gh-deploy --force --strict --no-history

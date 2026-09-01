@@ -1,0 +1,13 @@
+{
+  "name": "jdsl-harness",
+  "version": "0.1.0",
+  "description": "Capture Gemini CLI tool trajectories into the jdsl behavior harness (design §29.2).",
+  "//": "Gemini's hook surface is broader than Claude's (model + tool-selection events, §29.2). This extension registers the capture-only subset; the forwarder posts each payload to the local ingest daemon and fails open. Full model requests are not stored by default.",
+  "hooks": {
+    "SessionStart":         [{ "command": "python3 ${extensionPath}/scripts/jdsl_gemini_forwarder.py" }],
+    "BeforeToolSelection":  [{ "command": "python3 ${extensionPath}/scripts/jdsl_gemini_forwarder.py" }],
+    "BeforeTool":           [{ "command": "python3 ${extensionPath}/scripts/jdsl_gemini_forwarder.py" }],
+    "AfterTool":            [{ "command": "python3 ${extensionPath}/scripts/jdsl_gemini_forwarder.py" }],
+    "SessionEnd":           [{ "command": "python3 ${extensionPath}/scripts/jdsl_gemini_forwarder.py" }]
+  }
+}

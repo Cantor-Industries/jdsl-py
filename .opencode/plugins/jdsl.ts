@@ -1,0 +1,1 @@
+../../plugins/jdsl-opencode-plugin/jdsl.ts
