@@ -11,9 +11,14 @@ uv run --group docs mkdocs build --strict
 The build output is `site/`, which is ignored by Git. Do not commit generated
 HTML.
 
-`use_directory_urls` is disabled, so subpages are emitted as explicit files such
-as `quickstart.html` and `compiler.html`. This avoids relying on directory index
-handling for project-page subpaths.
+The site uses MkDocs' default directory URLs, matching tinygrad's docs. Subpages
+are emitted as directories with `index.html` files, such as
+`quickstart/index.html` and `code/compiler/index.html`, and should be visited as
+`/quickstart/` and `/code/compiler/`.
+
+The workflow also writes `site/.nojekyll` before upload. That keeps GitHub Pages
+from applying Jekyll rules to the built static artifact and is especially useful
+for generated theme/plugin assets.
 
 ## GitHub Pages
 
@@ -32,8 +37,9 @@ Settings -> Pages -> Build and deployment -> Source -> GitHub Actions
 
 If the source is set to `Deploy from a branch` and points at `/docs`, GitHub
 Pages serves the Markdown source directory rather than the generated MkDocs site.
-That commonly produces a 404 at the project root because the deployed source
-does not contain the expected generated `index.html`.
+That commonly produces a 404 at the project root or raw source-like output
+because the deployed source does not contain the built Material HTML, CSS, and
+JavaScript asset tree.
 
 After a successful deploy, use the URL shown by the `deploy` job environment.
 For this repository the configured project URL is:
