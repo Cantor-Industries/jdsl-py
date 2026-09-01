@@ -19,23 +19,34 @@ ADAPTER = "mcp-routed"
 
 def call_events(*, capture_id: str, episode_id: str, server: str, tool: str,
                 arguments: dict[str, Any], result: Any = None, error: Any = None,
-                logical_id: str | None = None) -> list[TraceEvent]:
+                logical_id: str | None = None, host_call_id: str | None = None) -> list[TraceEvent]:
     """One MCP tool call → started + completed/failed. `server` namespaces the tool
     so logical ids stay collision-free across MCP servers (§44.3)."""
     src = EventSource(host=HOST, adapter=ADAPTER)
     host_name = f"mcp__{server}__{tool}"
+    start_payload = {
+        "tool": {"host_name": host_name, "logical_id": logical_id, "server": server},
+        "arguments": arguments,
+    }
+    if host_call_id is not None:
+        start_payload["host_call_id"] = host_call_id
+        start_payload["correlation"] = {"method": "host_call_id", "fidelity": "exact"}
     started = TraceEvent.new(EventKind.TOOL_CALL_STARTED, capture_id, episode_id, actor="model",
-                             source=src, payload={
-                                 "tool": {"host_name": host_name, "logical_id": logical_id,
-                                          "server": server}, "arguments": arguments})
+                             source=src, payload=start_payload)
     if error is not None:
+        payload = {"tool": {"host_name": host_name}, "error": str(error)}
+        if host_call_id is not None:
+            payload["host_call_id"] = host_call_id
         done = TraceEvent.new(EventKind.TOOL_CALL_FAILED, capture_id, episode_id, actor="tool",
                               source=src, parent_event_id=started.event_id,
-                              payload={"tool": {"host_name": host_name}, "error": str(error)})
+                              payload=payload)
     else:
+        payload = {"tool": {"host_name": host_name}, "result": result}
+        if host_call_id is not None:
+            payload["host_call_id"] = host_call_id
         done = TraceEvent.new(EventKind.TOOL_CALL_COMPLETED, capture_id, episode_id, actor="tool",
                               source=src, parent_event_id=started.event_id,
-                              payload={"tool": {"host_name": host_name}, "result": result})
+                              payload=payload)
     return [started, done]
 
 

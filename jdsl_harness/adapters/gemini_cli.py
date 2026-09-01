@@ -14,12 +14,14 @@ from __future__ import annotations
 from typing import Any
 
 from jdsl.trace.events import EventKind, EventSource, TraceEvent
+from jdsl_harness.adapters.correlation import ToolCallCorrelator, host_call_id
 
 HOST = "gemini-cli"
 ADAPTER = "gemini-hooks"
 
 
-def to_events(payload: dict[str, Any], *, capture_id: str, model: str | None = None) -> list[TraceEvent]:
+def to_events(payload: dict[str, Any], *, capture_id: str, model: str | None = None,
+              correlator: ToolCallCorrelator | None = None) -> list[TraceEvent]:
     hook = payload.get("hook") or payload.get("event")
     episode_id = payload.get("session_id") or payload.get("sessionId") or "ep_gemini"
     src = EventSource(host=HOST, adapter=ADAPTER, model=model)
@@ -34,17 +36,32 @@ def to_events(payload: dict[str, Any], *, capture_id: str, model: str | None = N
         return [ev(EventKind.TOOLSET_EXPOSED, data={
             "tools": [{"host_name": t if isinstance(t, str) else t.get("name")} for t in tools]})]
     if hook == "BeforeTool":
-        return [ev(EventKind.TOOL_CALL_STARTED, actor="model", data={
+        tool = payload.get("tool_name") or payload.get("name")
+        event = ev(EventKind.TOOL_CALL_STARTED, actor="model", data={
             "tool": {"host_name": payload.get("tool_name") or payload.get("name")},
-            "arguments": payload.get("args") or payload.get("tool_input", {})})]
+            "arguments": payload.get("args") or payload.get("tool_input", {})})
+        cid = host_call_id(payload)
+        if correlator is not None:
+            event = correlator.started(event, host_call_id=cid, tool_name=tool)
+        elif cid is not None:
+            event.payload["host_call_id"] = cid
+        return [event]
     if hook == "AfterTool":
+        tool = payload.get("tool_name") or payload.get("name")
+        cid = host_call_id(payload)
         error = payload.get("error")
         if error:
-            return [ev(EventKind.TOOL_CALL_FAILED, actor="tool", data={
-                "tool": {"host_name": payload.get("tool_name") or payload.get("name")}, "error": error})]
-        return [ev(EventKind.TOOL_CALL_COMPLETED, actor="tool", data={
-            "tool": {"host_name": payload.get("tool_name") or payload.get("name")},
-            "result": payload.get("result") or payload.get("output")})]
+            event = ev(EventKind.TOOL_CALL_FAILED, actor="tool", data={
+                "tool": {"host_name": tool}, "error": error})
+        else:
+            event = ev(EventKind.TOOL_CALL_COMPLETED, actor="tool", data={
+                "tool": {"host_name": tool},
+                "result": payload.get("result") or payload.get("output")})
+        if correlator is not None:
+            event = correlator.finished(event, host_call_id=cid, tool_name=tool)
+        elif cid is not None:
+            event.payload["host_call_id"] = cid
+        return [event]
     if hook in ("SessionEnd", "AfterAgent"):
         return [ev(EventKind.EPISODE_FINISHED, data={"host": HOST})] if hook == "SessionEnd" else []
     return []

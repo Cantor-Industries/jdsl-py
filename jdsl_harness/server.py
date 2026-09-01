@@ -21,7 +21,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from jdsl.trace.events import TraceEvent
-from jdsl_harness.adapters import claude_code, gemini_cli
+from jdsl_harness.adapters import claude_code, gemini_cli, opencode
+from jdsl_harness.adapters.correlation import ToolCallCorrelator
 from jdsl_harness.capture import CaptureCoordinator
 from jdsl_harness.store import HarnessStore
 
@@ -33,6 +34,7 @@ class IngestServer:
         POST /ingest             body: a canonical TraceEvent dict
         POST /hook/claude?cap=…  body: a Claude Code hook payload
         POST /hook/gemini?cap=…  body: a Gemini CLI hook payload
+        POST /hook/opencode?cap=… body: a jdsl OpenCode hook envelope
         GET  /captures           list captures
         GET  /capture/<id>/summary
     The hook itself fails open for observation (§7.2): a bad request never 500s the
@@ -45,6 +47,9 @@ class IngestServer:
         self.port = port
         self._httpd: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
+        self._claude_correlator = ToolCallCorrelator()
+        self._gemini_correlator = ToolCallCorrelator()
+        self._opencode_correlator = ToolCallCorrelator()
 
     def _handler(self) -> type[BaseHTTPRequestHandler]:
         server = self
@@ -79,10 +84,16 @@ class IngestServer:
                         event = TraceEvent.from_dict(payload)
                         server.store.ingest(event)
                     elif path == "/hook/claude":
-                        for e in claude_code.to_events(payload, capture_id=self._cap()):
+                        for e in claude_code.to_events(payload, capture_id=self._cap(),
+                                                       correlator=server._claude_correlator):
                             server.store.ingest(e)
                     elif path == "/hook/gemini":
-                        for e in gemini_cli.to_events(payload, capture_id=self._cap()):
+                        for e in gemini_cli.to_events(payload, capture_id=self._cap(),
+                                                      correlator=server._gemini_correlator):
+                            server.store.ingest(e)
+                    elif path == "/hook/opencode":
+                        for e in opencode.to_events(payload, capture_id=self._cap(),
+                                                    correlator=server._opencode_correlator):
                             server.store.ingest(e)
                     else:
                         return self._reply(404, {"error": "unknown endpoint"})

@@ -16,6 +16,7 @@ import json
 from typing import Any
 
 from jdsl.trace.events import EventKind, EventSource, TraceEvent
+from jdsl_harness.adapters.correlation import ToolCallCorrelator, host_call_id
 
 HOST = "claude-code"
 ADAPTER = "claude-hooks"
@@ -23,7 +24,8 @@ ADAPTER = "claude-hooks"
 _SOURCE = EventSource(host=HOST, adapter=ADAPTER)
 
 
-def to_events(payload: dict[str, Any], *, capture_id: str, model: str | None = None) -> list[TraceEvent]:
+def to_events(payload: dict[str, Any], *, capture_id: str, model: str | None = None,
+              correlator: ToolCallCorrelator | None = None) -> list[TraceEvent]:
     """Map one Claude Code hook payload to zero or more canonical events. The
     session id becomes the episode id; unknown hook names are dropped (capture
     fidelity is recorded elsewhere, §8.2)."""
@@ -40,18 +42,36 @@ def to_events(payload: dict[str, Any], *, capture_id: str, model: str | None = N
         return [ev(EventKind.USER_MESSAGE, actor="user",
                    data={"text": payload.get("prompt") or payload.get("user_prompt", "")})]
     if hook == "PreToolUse":
-        return [ev(EventKind.TOOL_CALL_STARTED, actor="model", data={
+        event = ev(EventKind.TOOL_CALL_STARTED, actor="model", data={
             "tool": {"host_name": payload.get("tool_name"), "logical_id": None},
-            "arguments": payload.get("tool_input", {})})]
+            "arguments": payload.get("tool_input", {})})
+        cid = host_call_id(payload)
+        if correlator is not None:
+            event = correlator.started(event, host_call_id=cid, tool_name=payload.get("tool_name"))
+        elif cid is not None:
+            event.payload["host_call_id"] = cid
+        return [event]
     if hook == "PostToolUse":
         response = payload.get("tool_response", payload.get("tool_result"))
-        return [ev(EventKind.TOOL_CALL_COMPLETED, actor="tool", data={
+        event = ev(EventKind.TOOL_CALL_COMPLETED, actor="tool", data={
             "tool": {"host_name": payload.get("tool_name")},
-            "result": _normalize_result(response)})]
+            "result": _normalize_result(response)})
+        cid = host_call_id(payload)
+        if correlator is not None:
+            event = correlator.finished(event, host_call_id=cid, tool_name=payload.get("tool_name"))
+        elif cid is not None:
+            event.payload["host_call_id"] = cid
+        return [event]
     if hook in ("PostToolUseFailure", "PostToolBatchFailure"):
-        return [ev(EventKind.TOOL_CALL_FAILED, actor="tool", data={
+        event = ev(EventKind.TOOL_CALL_FAILED, actor="tool", data={
             "tool": {"host_name": payload.get("tool_name")},
-            "error": payload.get("error") or payload.get("tool_response")})]
+            "error": payload.get("error") or payload.get("tool_response")})
+        cid = host_call_id(payload)
+        if correlator is not None:
+            event = correlator.finished(event, host_call_id=cid, tool_name=payload.get("tool_name"))
+        elif cid is not None:
+            event.payload["host_call_id"] = cid
+        return [event]
     if hook in ("SubagentStart", "SubagentStop"):
         kind = EventKind.HOST_SUBAGENT_STARTED if hook == "SubagentStart" else EventKind.HOST_SUBAGENT_FINISHED
         return [ev(kind, data={"agent": payload.get("subagent_type")})]
