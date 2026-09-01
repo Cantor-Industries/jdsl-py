@@ -1,7 +1,7 @@
 """Behavior-package metadata: manifest, tool contracts, and provenance
 (design §12, §22.2, §23).
 
-A `.jdslpkg` is executable policy, so its metadata is first-class: the manifest
+A `.jdsl` is executable policy, so its metadata is first-class: the manifest
 declares required capabilities and verification status, tool contracts give each
 capability a portable logical identity and effect flags, and provenance answers
 "why does this node exist?" for audit.

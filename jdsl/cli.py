@@ -22,7 +22,7 @@ app = typer.Typer(add_completion=False, help="Declarative behavior-tree agents o
 config_app = typer.Typer(help="Manage provider API keys (~/.local/share/recon/auth.json).")
 app.add_typer(config_app, name="config")
 
-package_app = typer.Typer(help="Inspect, verify, and run compiled .jdslpkg behavior packages.")
+package_app = typer.Typer(help="Inspect, verify, and run compiled .jdsl behavior packages.")
 capture_app = typer.Typer(help="List and inspect captured trace sets.")
 harness_app = typer.Typer(help="Run the local harness daemon (ingest + control plane).")
 app.add_typer(package_app, name="package")
@@ -123,7 +123,7 @@ def _mask(key: str) -> str:
 # -- package commands (§37) ---------------------------------------------------
 
 @package_app.command("inspect")
-def package_inspect(path: Path = typer.Argument(..., exists=True, help="A .jdslpkg or package dir.")) -> None:
+def package_inspect(path: Path = typer.Argument(..., exists=True, help="A .jdsl or package dir.")) -> None:
     """Show a package's manifest, capabilities, and burden metrics."""
     from jdsl.package import load_package
     pkg = load_package(path)
@@ -141,7 +141,7 @@ def package_inspect(path: Path = typer.Argument(..., exists=True, help="A .jdslp
 
 
 @package_app.command("verify")
-def package_verify(path: Path = typer.Argument(..., exists=True, help="A .jdslpkg or package dir.")) -> None:
+def package_verify(path: Path = typer.Argument(..., exists=True, help="A .jdsl or package dir.")) -> None:
     """Structurally verify a package and its digests; exit non-zero on failure."""
     from jdsl.package import PackageError, load_package
     try:
@@ -154,7 +154,7 @@ def package_verify(path: Path = typer.Argument(..., exists=True, help="A .jdslpk
 
 @package_app.command("run")
 def package_run(
-    path: Path = typer.Argument(..., exists=True, help="A .jdslpkg or package dir."),
+    path: Path = typer.Argument(..., exists=True, help="A .jdsl or package dir."),
     tools: Path = typer.Option(..., "-t", "--tools", exists=True,
                                help="A .py file exposing TOOLS (dict) and optional PREDICATES."),
     model: str = typer.Option(None, "-m", "--model", help="Model id for residual leaves."),
@@ -214,17 +214,17 @@ def capture_inspect(capture_id: str = typer.Argument(..., help="Capture id.")) -
 def compile_cmd(
     capture_id: str = typer.Argument(..., help="Capture id to compile."),
     name: str = typer.Option("behavior", "-n", "--name", help="Package name."),
-    out: Path = typer.Option(None, "-o", "--out", help="Write a .jdslpkg to this path."),
+    out: Path = typer.Option(None, "-o", "--out", help="Write a .jdsl to this path."),
 ) -> None:
     """Compile a capture into a verified behavior package (§24)."""
-    from jdsl.package import export_jdslpkg, package_digest
+    from jdsl.package import export_jdsl, package_digest
     from jdsl_harness.compiler import compile_behavior
     from jdsl_harness.store import HarnessStore
     store = HarnessStore(_store_root())
     result = compile_behavior(store.capture_episodes(capture_id), name=name)
     typer.echo(json.dumps(result.report(), indent=2, default=str))
     if out is not None:
-        path = export_jdslpkg(result.package, out)
+        path = export_jdsl(result.package, out)
         store.record_package(name, result.package.manifest.version, package_digest(result.package),
                              status="built", path=str(path))
         typer.secho(f"→ wrote {path}", fg=typer.colors.GREEN)

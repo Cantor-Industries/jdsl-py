@@ -1,10 +1,10 @@
-"""Behavior packages: the portable `.jdslpkg` artifact — manifest, IR, tool
+"""Behavior packages: the portable `.jdsl` artifact — manifest, IR, tool
 contracts, signatures, tests, and provenance (design §22, §35 PR13)."""
 
 from jdsl.package.export import (
     BehaviorPackage,
     export_dir,
-    export_jdslpkg,
+    export_jdsl,
     package_digest,
 )
 from jdsl.package.load import LoadedPackage, PackageError, load_package
@@ -24,7 +24,7 @@ __all__ = [
     "NodeProvenance",
     "BehaviorPackage",
     "export_dir",
-    "export_jdslpkg",
+    "export_jdsl",
     "package_digest",
     "LoadedPackage",
     "PackageError",

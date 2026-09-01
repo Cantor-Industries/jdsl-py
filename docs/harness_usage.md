@@ -1,7 +1,7 @@
 # Using the jdsl harness & compiler
 
 A hands-on guide to capturing frontier-model behavior and compiling it into a
-portable `.jdslpkg` that a smaller frozen model runs. Every command here is
+portable `.jdsl` that a smaller frozen model runs. Every command here is
 exercised end-to-end; for how the code maps to the design see
 [harness.md](./harness.md), and for the full rationale see
 [jdsl_behaviour_compiler.md](./jdsl_behaviour_compiler.md).
@@ -10,7 +10,7 @@ The loop is always the same four verbs:
 
 ```
 capture ──▶ inspect ──▶ compile ──▶ run
- (observe)  (lineage)   (.jdslpkg)  (small model)
+ (observe)  (lineage)   (.jdsl)  (small model)
 ```
 
 ## Install
@@ -162,10 +162,10 @@ jdsl capture inspect cap_retail
 
 ---
 
-## 3. Compile — traces → verified `.jdslpkg`
+## 3. Compile — traces → verified `.jdsl`
 
 ```bash
-jdsl compile cap_retail --name retail --out retail.jdslpkg
+jdsl compile cap_retail --name retail --out retail.jdsl
 ```
 
 The pipeline (all deterministic) runs normalize → consolidate → staticize →
@@ -236,9 +236,9 @@ TOOLS = {"lookup": lookup, "list_orders": list_orders,
 Then inspect, verify, and run:
 
 ```bash
-jdsl package inspect retail.jdslpkg      # manifest, capabilities, reads/writes, verification
-jdsl package verify  retail.jdslpkg      # structural + digest verification (exit non-zero on failure)
-jdsl package run     retail.jdslpkg --tools tools.py --input email=carol@example.com
+jdsl package inspect retail.jdsl      # manifest, capabilities, reads/writes, verification
+jdsl package verify  retail.jdsl      # structural + digest verification (exit non-zero on failure)
+jdsl package run     retail.jdsl --tools tools.py --input email=carol@example.com
 ```
 
 ```
@@ -324,7 +324,7 @@ compare_arms([
 | `jdsl capture list` | list captures in the store |
 | `jdsl capture import <file> -c <id>` | import foreign JSONL logs (Tier C) |
 | `jdsl capture inspect <id>` | exact-lineage report (§51) |
-| `jdsl compile <id> -n <name> -o <pkg>` | compile a capture to a verified `.jdslpkg` |
+| `jdsl compile <id> -n <name> -o <pkg>` | compile a capture to a verified `.jdsl` |
 | `jdsl package inspect <pkg>` | manifest, capabilities, verification |
 | `jdsl package verify <pkg>` | structural + digest verification |
 | `jdsl package run <pkg> -t tools.py [-m model] [-i k=v]` | bind host tools and run |

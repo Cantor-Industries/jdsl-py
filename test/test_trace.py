@@ -249,7 +249,7 @@ def test_rdb_zero_package_emits_no_model_events():
     from jdsl.package import load_package
 
     sink = ListTraceSink()
-    pkg = load_package("examples/harness/retail.jdslpkg")
+    pkg = load_package("examples/harness/retail.jdsl")
     ctx = pkg.as_root(mod.TOOLS).run(trace_sink=sink, email="ada@example.com")
     assert ctx.blackboard["mcp_retail_get_order_out_3"]["id"] == "O_ada_1"
     assert all(e.kind not in (EventKind.MODEL_REQUESTED, EventKind.MODEL_RESPONDED) for e in sink.events)

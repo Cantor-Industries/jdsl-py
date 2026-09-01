@@ -1,4 +1,4 @@
-"""Behavior package: export to dir/.jdslpkg, deterministic bytes, digest
+"""Behavior package: export to dir/.jdsl, deterministic bytes, digest
 verification, structural loader rules, bind + run (design §22, §40, §45)."""
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from jdsl.package import (
     ToolContract,
     ToolEffects,
     export_dir,
-    export_jdslpkg,
+    export_jdsl,
     load_package,
     package_digest,
 )
@@ -82,16 +82,16 @@ def test_export_dir_and_load_and_run(tmp_path, fake_model):
     assert ctx.blackboard["order"]["id"] == "#W2"
 
 
-def test_jdslpkg_is_deterministic(tmp_path):
-    a = export_jdslpkg(_pkg(), tmp_path / "a")
-    b = export_jdslpkg(_pkg(), tmp_path / "b")
+def test_jdsl_is_deterministic(tmp_path):
+    a = export_jdsl(_pkg(), tmp_path / "a")
+    b = export_jdsl(_pkg(), tmp_path / "b")
     assert a.read_bytes() == b.read_bytes()
     assert package_digest(_pkg()) == package_digest(_pkg())
     assert zipfile.is_zipfile(a)
 
 
-def test_jdslpkg_roundtrip(tmp_path, fake_model):
-    path = export_jdslpkg(_pkg(), tmp_path / "retail")
+def test_jdsl_roundtrip(tmp_path, fake_model):
+    path = export_jdsl(_pkg(), tmp_path / "retail")
     loaded = load_package(path)
     assert loaded.manifest.verification["status"] == "passed"
     root = loaded.as_root({"retail.order.list": lambda customer_id: [{"id": "#W2", "status": "pending"}],

@@ -156,9 +156,9 @@ if __name__ == "__main__":
 # -- CLI ----------------------------------------------------------------------
 
 def _build_pkg(path):
-    from jdsl.package import export_jdslpkg
+    from jdsl.package import export_jdsl
     from test.test_package import _pkg
-    return export_jdslpkg(_pkg(), path)
+    return export_jdsl(_pkg(), path)
 
 
 def test_cli_package_inspect_and_verify(tmp_path):
@@ -221,6 +221,6 @@ def test_cli_compile(tmp_path, monkeypatch):
 
     r = runner.invoke(app, ["compile", cap, "--name", "retail", "--out", str(tmp_path / "out")])
     assert r.exit_code == 0, r.output
-    assert (tmp_path / "out.jdslpkg").exists()
+    assert (tmp_path / "out.jdsl").exists()
     report = json.loads(r.stdout[r.stdout.index("{"):r.stdout.rindex("}") + 1])
     assert report["verification"]["status"] == "passed"

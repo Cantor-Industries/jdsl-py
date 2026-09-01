@@ -105,7 +105,7 @@ is loaded automatically.
 jdsl/          the runtime core — dsl, tree (interpreter), context, provider, render, cli
   trace/       canonical trace events, sinks, storage, redaction, replay
   ir/          Behavior IR: schema, safe guard expressions, validation, lowering
-  package/     .jdslpkg manifest, tool contracts, provenance, export + loader
+  package/     .jdsl manifest, tool contracts, provenance, export + loader
 jdsl_harness/  capture + behavior compiler (separate package; optional [harness] extra)
 plugins/       Claude Code plugin + Gemini CLI extension (trace capture)
 examples/      runnable skills — see examples/README.md
@@ -119,13 +119,13 @@ jdsl can also *compile* observed frontier-model behavior into portable policy a
 smaller frozen model runs. The harness captures canonical traces, mines and
 verifies reusable structure (exact dataflow, sequencing, guards, recovery), and
 leaves only irreducible semantic decisions as typed signatures — exported as a
-deterministic `.jdslpkg`.
+deterministic `.jdsl`.
 
 ```bash
 jdsl harness serve                 # local capture daemon
 jdsl capture inspect <id>          # exact-lineage report
-jdsl compile <id> --out retail.jdslpkg
-jdsl package run retail.jdslpkg --tools tools.py --model <small-model>
+jdsl compile <id> --out retail.jdsl
+jdsl package run retail.jdsl --tools tools.py --model <small-model>
 ```
 
 See [docs/harness_usage.md](docs/harness_usage.md) for the hands-on guide (all

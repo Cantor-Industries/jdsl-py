@@ -58,7 +58,7 @@ The recommended system has three products inside one project:
 - `jdsl-harness`: capture daemon, MCP control plane, tool proxy, host adapters, trace store.
 - `jdsl-compiler`: behavior mining, verification, lowering, package export.
 
-The recommended distribution artifact is an unpacked behavior directory during development and a deterministic `.jdslpkg` ZIP for transport.
+The recommended distribution artifact is an unpacked behavior directory during development and a deterministic `.jdsl` ZIP for transport.
 
 The package should contain no arbitrary generated Python by default.
 
@@ -542,7 +542,7 @@ This is what the user downloads after compilation.
 Example:
 
 ```text
-retail-cancellation.jdslpkg
+retail-cancellation.jdsl
 ```
 
 This package runs later with a smaller model.
@@ -578,7 +578,7 @@ The behavior package is model-neutral where possible.
                              |
                              v
 +------------------------------------------------------+
-| .jdslpkg                                             |
+| .jdsl                                             |
 | behavior IR + signatures + contracts + tests         |
 +----------------------------+-------------------------+
                              |
@@ -1817,7 +1817,7 @@ Use deterministic ZIP as transport.
 Suggested extension:
 
 ```text
-.jdslpkg
+.jdsl
 ```
 
 ### 22.1 Unpacked structure
@@ -2636,7 +2636,7 @@ Steps and model calls spent after tool failures.
 
 ### Package Portability
 
-Performance delta from the same `.jdslpkg` across different small models.
+Performance delta from the same `.jdsl` across different small models.
 
 ### Compiler Amortization
 
@@ -2912,7 +2912,7 @@ jdsl/package/
   load.py
 ```
 
-Support `.jdslpkg`.
+Support `.jdsl`.
 
 ### PR 14: benchmark harness
 
@@ -3350,7 +3350,7 @@ Mitigation:
 
 ## 45. Security model
 
-Treat a `.jdslpkg` like an executable workflow.
+Treat a `.jdsl` like an executable workflow.
 
 ### Loader rules
 
@@ -3501,7 +3501,7 @@ The MVP is complete when all of these work:
 7. Accepted candidates lower into Behavior IR.
 8. Residual decisions become typed signatures.
 9. The IR loads into the existing jdsl runtime.
-10. A `.jdslpkg` exports.
+10. A `.jdsl` exports.
 11. A frozen small model runs the package.
 12. The same package runs with a second small model.
 13. Evaluation compares against raw and text-Skill baselines.

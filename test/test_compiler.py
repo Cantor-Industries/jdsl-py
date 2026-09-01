@@ -2,14 +2,14 @@
 
 A tiny fake retail environment produces frontier-style traces; the compiler mines
 exact dataflow, fixed sequence, and the residual semantic decision, verifies by
-replay, and exports a .jdslpkg that a *different* frozen small model runs.
+replay, and exports a .jdsl that a *different* frozen small model runs.
 """
 
 from __future__ import annotations
 
 from jdsl import act, predict, ref, root, seq, store
 from jdsl.context import RunContext
-from jdsl.package import export_jdslpkg, load_package
+from jdsl.package import export_jdsl, load_package
 from jdsl.trace import ListTraceSink, segment_episodes
 from jdsl.tree import Status
 from jdsl_harness.compiler import (
@@ -232,7 +232,7 @@ def test_compile_verify_export_run(tmp_path):
     assert "email" in result.compiled.stats["inputs"]
 
     # export -> reload (fresh, structural + digest verification) -> run
-    path = export_jdslpkg(result.package, tmp_path / "retail")
+    path = export_jdsl(result.package, tmp_path / "retail")
     loaded = load_package(path)
     assert loaded.manifest.required_capabilities
 
@@ -251,7 +251,7 @@ def test_compile_verify_export_run(tmp_path):
 def test_second_small_model_runs_same_package(tmp_path):
     """Portability (§34.3): the same package runs with a different small model."""
     result = compile_behavior(_capture(4), name="retail-cancellation")
-    loaded = load_package(export_jdslpkg(result.package, tmp_path / "r"))
+    loaded = load_package(export_jdsl(result.package, tmp_path / "r"))
     env = Retail("U7", [{"id": "#W70", "status": "pending"}, {"id": "#W71", "status": "shipped"}])
     tools = {"lookup": env.lookup, "list_orders": env.list_orders, "get_order": env.get_order}
     from test.conftest import FakeModel

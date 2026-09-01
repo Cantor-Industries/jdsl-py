@@ -8,9 +8,9 @@ Branch reviewed: `harness`
 
 Primary goal:
 
-> Make the jdsl harness reliable enough to capture behavior from frontier-agent hosts, compile portable `.jdslpkg` artifacts, and prove that packages with residual decision burden above zero improve smaller frozen models such as Gemma by moving procedure out of model context and into executable policy.
+> Make the jdsl harness reliable enough to capture behavior from frontier-agent hosts, compile portable `.jdsl` artifacts, and prove that packages with residual decision burden above zero improve smaller frozen models such as Gemma by moving procedure out of model context and into executable policy.
 
-This document is intentionally implementation-focused. It assumes the current harness/compiler is real and working. The next work should harden what exists, fill the remaining execution gaps, add OpenCode as a first-class capture host, make residual signatures fully honored at runtime, add a supported model-binding path, and build the evaluation layer needed to compare `.jdslpkg` against Agent Skills and fine-tuning.
+This document is intentionally implementation-focused. It assumes the current harness/compiler is real and working. The next work should harden what exists, fill the remaining execution gaps, add OpenCode as a first-class capture host, make residual signatures fully honored at runtime, add a supported model-binding path, and build the evaluation layer needed to compare `.jdsl` against Agent Skills and fine-tuning.
 
 ---
 
@@ -107,7 +107,7 @@ Avoid introducing:
 - a new agent framework,
 - a second tree runtime,
 - a second trace format,
-- arbitrary code inside `.jdslpkg`,
+- arbitrary code inside `.jdsl`,
 - a giant generic "plugin abstraction" before three hosts need the same abstraction,
 - hidden network dependencies in core tests,
 - model-specific behavior inside Behavior IR.
@@ -141,7 +141,7 @@ jdsl/package/
     manifests
     contracts
     provenance
-    deterministic .jdslpkg export
+    deterministic .jdsl export
     package loading and verification
 
 jdsl_harness/
@@ -202,7 +202,7 @@ The test:
 1. captures a teacher behavior with a semantic `selected_index` decision,
 2. compiles a package,
 3. verifies that one model-dependent decision remains,
-4. exports and reloads the `.jdslpkg`,
+4. exports and reloads the `.jdsl`,
 5. runs it with a frozen fake small model,
 6. uses the model-produced index to drive later deterministic refs,
 7. runs the same package with a second frozen fake model.
@@ -608,7 +608,7 @@ A strong model running inside OpenCode performs tasks.
 
 The jdsl plugin records observable behavior.
 
-Those traces compile into `.jdslpkg`.
+Those traces compile into `.jdsl`.
 
 ### Experiment role 2: Agent Skills baseline
 
@@ -1489,7 +1489,7 @@ Let `jdsl package run` bind a real model object without adding a cloud-provider 
 Concept:
 
 ```bash
-uv run jdsl package run retail-semantic.jdslpkg \
+uv run jdsl package run retail-semantic.jdsl \
   --tools examples/retail_tools.py \
   --model-file examples/gemma_model.py \
   --input request="Cancel the shoes" \
@@ -1516,7 +1516,7 @@ The same mechanism works for:
 
 A model file is trusted local code supplied by the user.
 
-It is not inside `.jdslpkg`.
+It is not inside `.jdsl`.
 
 Keep the package no-code rule intact.
 
@@ -1988,7 +1988,7 @@ These metrics explain what compilation removed in actual execution.
 
 ---
 
-# Part IX: compare `.jdslpkg` against Agent Skills
+# Part IX: compare `.jdsl` against Agent Skills
 
 ## 29. OpenCode gives us a strong baseline host
 
@@ -2223,7 +2223,7 @@ Measures local example value.
 
 ## 34. Do not claim saved fine-tuning cost without a counterfactual
 
-A `.jdslpkg` with zero weight changes has obvious training cost of zero for the student.
+A `.jdsl` with zero weight changes has obvious training cost of zero for the student.
 
 That alone does not quantify how much fine-tuning was "saved."
 
@@ -2477,7 +2477,7 @@ Future local/GPU-host command shape:
 uv sync --extra local-models
 
 uv run jdsl package run \
-  retail-residual.jdslpkg \
+  retail-residual.jdsl \
   --tools examples/retail_tools.py \
   --model-file examples/gemma_model.py \
   --input email=ada@example.com \
@@ -2835,7 +2835,7 @@ Compile:
 ```bash
 uv run jdsl compile <capture> \
   --name retail-order-selection \
-  --out retail-order-selection.jdslpkg
+  --out retail-order-selection.jdsl
 ```
 
 Require:
@@ -2850,7 +2850,7 @@ verification passed
 Inspect package:
 
 ```bash
-uv run jdsl package inspect retail-order-selection.jdslpkg
+uv run jdsl package inspect retail-order-selection.jdsl
 ```
 
 Confirm:
@@ -2999,7 +2999,7 @@ If yes, scale.
 
 ## 52. The package runs the model, not the other way around
 
-Do not inject the full `.jdslpkg` into Gemma.
+Do not inject the full `.jdsl` into Gemma.
 
 The interpreter loads the package.
 
@@ -3049,7 +3049,7 @@ The first OpenCode integration should capture behavior.
 
 Do not require OpenCode to run a package.
 
-A `.jdslpkg` should remain portable.
+A `.jdsl` should remain portable.
 
 OpenCode is valuable because it gives:
 
@@ -3213,7 +3213,7 @@ It is one reproducible run showing:
 
 ```text
 OpenCode frontier trace
--> compiled verified .jdslpkg
+-> compiled verified .jdsl
 -> RDB > 0
 -> frozen Gemma solves the residual leaf
 -> deterministic jdsl structure handles the rest

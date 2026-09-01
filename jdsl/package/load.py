@@ -1,6 +1,6 @@
 """Load and bind a behavior package (design §40 runtime, §45 security model).
 
-Loading treats a `.jdslpkg` like software: verify the manifest format, verify file
+Loading treats a `.jdsl` package like software: verify the manifest format, verify file
 digests, structurally validate the IR (§32.1), and reject anything malformed
 *before* execution. Binding then attaches host-supplied tools and predicates
 (§12.1); a missing required capability fails the bind, never a run.
@@ -66,7 +66,7 @@ class LoadedPackage:
 
 
 def load_package(path: str | Path, *, verify_digests: bool = True) -> LoadedPackage:
-    """Load a package directory or `.jdslpkg` file and verify it structurally."""
+    """Load a package directory or `.jdsl` file and verify it structurally."""
     p = Path(path)
     files = _read_zip(p) if p.is_file() else _read_dir(p)
 
@@ -130,7 +130,7 @@ def _read_zip(path: Path) -> dict[str, str]:
         with zipfile.ZipFile(path) as zf:
             return {n: zf.read(n).decode("utf-8") for n in zf.namelist()}
     except zipfile.BadZipFile as e:
-        raise PackageError(f"{path} is not a valid .jdslpkg archive") from e
+        raise PackageError(f"{path} is not a valid .jdsl archive") from e
 
 
 __all__ = ["LoadedPackage", "PackageError", "load_package"]

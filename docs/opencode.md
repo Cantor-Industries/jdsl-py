@@ -1,7 +1,7 @@
 # OpenCode capture
 
 jdsl captures OpenCode as a Tier-B host hook source. OpenCode remains an evidence
-source; `.jdslpkg` packages still run through the jdsl package runtime.
+source; `.jdsl` packages still run through the jdsl package runtime.
 
 ## Requirements
 
@@ -92,14 +92,14 @@ Once the capture contains enough successful episodes:
 ```bash
 uv run jdsl compile cap_opencode \
   --name opencode-behavior \
-  --out opencode-behavior.jdslpkg
+  --out opencode-behavior.jdsl
 ```
 
 Then inspect and run the package through jdsl:
 
 ```bash
-uv run jdsl package inspect opencode-behavior.jdslpkg
-uv run jdsl package run opencode-behavior.jdslpkg --tools <bindings.py> --input <input>=<value>
+uv run jdsl package inspect opencode-behavior.jdsl
+uv run jdsl package run opencode-behavior.jdsl --tools <bindings.py> --input <input>=<value>
 ```
 
 `<bindings.py>` must define `TOOLS = {logical_id: callable}` for every capability

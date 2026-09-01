@@ -3,7 +3,7 @@
 This document maps the implementation to the design in
 [`jdsl_behaviour_compiler.md`](./jdsl_behaviour_compiler.md). The harness captures
 frontier-model behavior as canonical traces, mines and verifies reusable
-structure, and compiles it into a portable `.jdslpkg` a smaller frozen model runs.
+structure, and compiles it into a portable `.jdsl` a smaller frozen model runs.
 
 > For a task-oriented walkthrough (install, all three capture tiers, compile,
 > verify, run, metrics, troubleshooting) see
@@ -18,7 +18,7 @@ structure, and compiles it into a portable `.jdslpkg` a smaller frozen model run
 jdsl/                     dependency-light runtime core
 ├── trace/                canonical event model, sinks, storage, redaction, replay (§10, §11)
 ├── ir/                   Behavior IR: schema, safe guard expressions, validation, lowering (§21)
-└── package/              manifest, contracts, provenance, .jdslpkg export + loader (§22, §45)
+└── package/              manifest, contracts, provenance, .jdsl export + loader (§22, §45)
 
 jdsl_harness/             capture + compiler (separate package, optional extras — §36)
 ├── store.py              SQLite metadata + JSONL spool + blobs (§30)
@@ -43,7 +43,7 @@ canonical traces
   → consolidate      support / counterexamples / evidence grades E0–E5 (§14.2, §15)
   → staticize        modal skeleton → refs, guards, recovery, residual leaves (§17, §25)
   → verify           structural + trace-replay; promote replay-verified to E4 (§32)
-  → package          verified BehaviorPackage → .jdslpkg (§22)
+  → package          verified BehaviorPackage → .jdsl (§22)
 ```
 
 One call runs the whole thing:
@@ -97,15 +97,15 @@ jdsl harness serve                        # loopback ingest + store
 jdsl capture list
 jdsl capture import runs.jsonl -c cap_x   # Tier C: import foreign logs
 jdsl capture inspect <capture-id>         # the §51 exact-lineage report
-jdsl compile <capture-id> --name retail --out retail.jdslpkg
+jdsl compile <capture-id> --name retail --out retail.jdsl
 ```
 
 ## Running a package
 
 ```bash
-jdsl package inspect retail.jdslpkg   # manifest, reads/writes, verification
-jdsl package verify  retail.jdslpkg   # structural + digest verification
-jdsl package run     retail.jdslpkg --tools tools.py --model <small-model>
+jdsl package inspect retail.jdsl   # manifest, reads/writes, verification
+jdsl package verify  retail.jdsl   # structural + digest verification
+jdsl package run     retail.jdsl --tools tools.py --model <small-model>
 ```
 
 `tools.py` exposes `TOOLS = {logical_id: callable}` (and optional `PREDICATES`).
@@ -114,7 +114,7 @@ any tool (§45); a missing required capability fails the bind, never a run.
 
 ## Safety (§45)
 
-A `.jdslpkg` is executable policy, so it ships **no arbitrary code**: restricted
+A `.jdsl` is executable policy, so it ships **no arbitrary code**: restricted
 IR, typed signatures, safe guard expressions, and references to trusted host
 tools. Guards are a fixed operator set over refs/paths (`ir/expr.py`); the loader
 rejects unknown node types, unbound capabilities, bad digests, unbounded loops,

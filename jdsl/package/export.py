@@ -1,7 +1,7 @@
 """The in-memory behavior package and its export to disk (design §22, §35 PR13).
 
 The canonical development representation is an unpacked directory (§22.1); the
-transport form is a deterministic `.jdslpkg` ZIP (§22) whose bytes are a pure
+transport form is a deterministic `.jdsl` ZIP (§22) whose bytes are a pure
 function of its contents (fixed timestamps, sorted entries) so the same package
 always hashes the same. No arbitrary code ships (§22.3): only restricted IR,
 signatures, expressions, contracts, tests, and provenance.
@@ -69,11 +69,11 @@ def export_dir(pkg: BehaviorPackage, path: str | Path) -> Path:
     return root
 
 
-def export_jdslpkg(pkg: BehaviorPackage, path: str | Path) -> Path:
-    """Write the package as a deterministic `.jdslpkg` ZIP (§22)."""
+def export_jdsl(pkg: BehaviorPackage, path: str | Path) -> Path:
+    """Write the package as a deterministic `.jdsl` ZIP (§22)."""
     out = Path(path)
-    if out.suffix != ".jdslpkg":
-        out = out.with_suffix(".jdslpkg")
+    if out.suffix != ".jdsl":
+        out = out.with_suffix(".jdsl")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(_zip_bytes(pkg.files()))
     return out
@@ -126,4 +126,4 @@ def _default_readme(pkg: BehaviorPackage) -> str:
     return "\n".join(lines) + "\n"
 
 
-__all__ = ["BehaviorPackage", "export_dir", "export_jdslpkg", "package_digest"]
+__all__ = ["BehaviorPackage", "export_dir", "export_jdsl", "package_digest"]

@@ -1,4 +1,4 @@
-"""Host-tool bindings for running the compiled ``retail.jdslpkg`` behavior
+"""Host-tool bindings for running the compiled ``retail.jdsl`` behavior
 (design §12.1 binding, §40 runtime).
 
 A compiled package is portable IR: it names *logical* capabilities and the exact
