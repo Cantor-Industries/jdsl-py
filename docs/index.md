@@ -46,6 +46,8 @@ print(ctx.blackboard["category"])
 - [Concepts](concepts.md): behavior trees, the blackboard, signatures, and
   scoped context.
 - [API Reference](api.md): every public combinator and runtime object.
+- [Code Walkthrough](code/authoring.md): how the user-facing API maps to
+  `jdsl/dsl.py`, `jdsl/tree.py`, traces, IR, and package binding.
 - [Examples](examples.md): which runnable script to start from.
 - [Harness Usage](harness_usage.md): capture, inspect, compile, and run portable
   `.jdsl` packages.

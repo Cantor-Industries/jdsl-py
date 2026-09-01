@@ -4,6 +4,7 @@ repo_url: https://github.com/Cantor-Industries/jdsl-py/
 repo_name: Cantor-Industries/jdsl-py
 
 docs_dir: docs
+use_directory_urls: false
 
 nav:
   - Home: index.md
@@ -14,6 +15,11 @@ nav:
       - Concepts: concepts.md
       - API Reference: api.md
       - Providers: providers.md
+  - Code Walkthrough:
+      - Authoring Surface: code/authoring.md
+      - Runtime Interpreter: code/runtime.md
+      - Trace and Capture: code/tracing.md
+      - Package Runtime: code/packages.md
   - Tutorials:
       - Branching Triage: tutorials/branching.md
       - Tool-Using ReAct: tutorials/react-tools.md

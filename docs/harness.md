@@ -9,6 +9,17 @@ The important distinction is procedure versus judgment:
   actions
 - remaining judgment becomes a typed residual `predict` or `react` signature
 
+Source map:
+
+| Layer | Code |
+| --- | --- |
+| capture lifecycle | [`jdsl_harness/capture.py`](https://github.com/Cantor-Industries/jdsl-py/blob/harness/jdsl_harness/capture.py) |
+| event store | [`jdsl_harness/store.py`](https://github.com/Cantor-Industries/jdsl-py/blob/harness/jdsl_harness/store.py) |
+| local ingest | [`jdsl_harness/server.py`](https://github.com/Cantor-Industries/jdsl-py/blob/harness/jdsl_harness/server.py) |
+| tool gateway | [`jdsl_harness/gateway.py`](https://github.com/Cantor-Industries/jdsl-py/blob/harness/jdsl_harness/gateway.py) |
+| MCP proxy | [`jdsl_harness/mcp_proxy.py`](https://github.com/Cantor-Industries/jdsl-py/blob/harness/jdsl_harness/mcp_proxy.py) |
+| compiler | [`jdsl_harness/compiler/`](https://github.com/Cantor-Industries/jdsl-py/tree/harness/jdsl_harness/compiler) |
+
 ## Pipeline
 
 ```text

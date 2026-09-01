@@ -5,6 +5,18 @@ local harness ingest server so the compiler can later analyze the trace.
 
 They are capture tools, not execution dependencies for `.jdsl` packages.
 
+Source map:
+
+| Host/path | Implementation |
+| --- | --- |
+| ingest server | [`jdsl_harness/server.py`](https://github.com/Cantor-Industries/jdsl-py/blob/harness/jdsl_harness/server.py) |
+| correlation | [`jdsl_harness/adapters/correlation.py`](https://github.com/Cantor-Industries/jdsl-py/blob/harness/jdsl_harness/adapters/correlation.py) |
+| Claude adapter | [`jdsl_harness/adapters/claude_code.py`](https://github.com/Cantor-Industries/jdsl-py/blob/harness/jdsl_harness/adapters/claude_code.py) |
+| Gemini adapter | [`jdsl_harness/adapters/gemini_cli.py`](https://github.com/Cantor-Industries/jdsl-py/blob/harness/jdsl_harness/adapters/gemini_cli.py) |
+| OpenCode adapter | [`jdsl_harness/adapters/opencode.py`](https://github.com/Cantor-Industries/jdsl-py/blob/harness/jdsl_harness/adapters/opencode.py) |
+| MCP proxy | [`jdsl_harness/mcp_proxy.py`](https://github.com/Cantor-Industries/jdsl-py/blob/harness/jdsl_harness/mcp_proxy.py) |
+| plugin files | [`plugins/`](https://github.com/Cantor-Industries/jdsl-py/tree/harness/plugins) |
+
 ## Common Flow
 
 Start the ingest daemon:
@@ -48,6 +60,14 @@ The adapter maps host tool names, inputs, responses, and call ids into canonical
 trace events. It preserves structured MCP results where possible so lineage can
 see fields instead of opaque text.
 
+Typical mapping:
+
+| Host hook | Canonical event |
+| --- | --- |
+| pre-tool | `tool.call.started` |
+| post-tool success | `tool.call.completed` |
+| post-tool failure | `tool.call.failed` |
+
 ## Gemini CLI
 
 The Gemini CLI extension lives under `plugins/jdsl-gemini-extension/`.
@@ -61,6 +81,9 @@ POST /hook/gemini?cap=<capture_id>
 Gemini exposes model and tool-selection hook surfaces. The current jdsl shim is
 capture-oriented; enforcement and tool filtering are future work.
 
+The adapter emits the subset it can observe and marks the source as
+`gemini-cli` / `gemini-hooks`.
+
 ## OpenCode
 
 The OpenCode plugin lives under `plugins/jdsl-opencode-plugin/`.
@@ -72,6 +95,16 @@ POST /hook/opencode?cap=<capture_id>
 ```
 
 See [OpenCode Capture](opencode.md) for install and smoke-test steps.
+
+OpenCode mapping:
+
+| Envelope hook | Canonical event |
+| --- | --- |
+| `session.created` | `episode.started` |
+| `tool.execute.before` | `tool.call.started` |
+| `tool.execute.after` | `tool.call.completed` or `tool.call.failed` |
+| `session.error` | `annotation` |
+| `session.deleted` / `session.finished` / `session.ended` | `episode.finished` |
 
 ## Correlation
 

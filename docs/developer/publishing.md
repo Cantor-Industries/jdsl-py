@@ -9,6 +9,10 @@ uv run --group docs mkdocs build --strict
 The build output is `site/`, which is ignored by Git. Do not commit generated
 HTML.
 
+`use_directory_urls` is disabled, so subpages are emitted as explicit files such
+as `quickstart.html` and `compiler.html`. This avoids relying on directory index
+handling for project-page subpaths.
+
 ## GitHub Pages
 
 The workflow at `.github/workflows/docs.yml` builds the site and deploys the
