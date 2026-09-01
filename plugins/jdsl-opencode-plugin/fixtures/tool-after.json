@@ -1,0 +1,17 @@
+{
+  "schema": "jdsl.opencode-hook.v1",
+  "hook": "tool.execute.after",
+  "session_id": "ses_1",
+  "call_id": "call_1",
+  "tool": "read",
+  "result": {
+    "title": "README.md",
+    "output": "# jdsl",
+    "metadata": {
+      "filePath": "README.md"
+    }
+  },
+  "directory": "/workspace/jdsl",
+  "worktree": "/workspace/jdsl",
+  "timestamp": "2026-08-30T00:00:00.050Z"
+}
