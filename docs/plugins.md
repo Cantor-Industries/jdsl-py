@@ -5,6 +5,8 @@ local harness ingest server so the compiler can later analyze the trace.
 
 They are capture tools, not execution dependencies for `.jdsl` packages.
 
+For implementation details by host adapter, see [Host Plugins](code/plugins.md).
+
 Source map:
 
 | Host/path | Implementation |
@@ -45,6 +47,9 @@ uv run jdsl capture inspect cap_host
 Plugins fail open. If the daemon is down, slow, or rejects a malformed payload,
 the host tool call should continue. Capture must not break the user’s agent
 session.
+
+This is implemented at two levels: forwarders use short timeouts, and
+`IngestServer` returns HTTP 200 with `{ "ok": false }` for adapter errors.
 
 ## Claude Code
 

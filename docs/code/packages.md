@@ -42,6 +42,17 @@ An action node names a logical tool capability:
 }
 ```
 
+That logical capability id is the only thing the package knows. The callable is
+supplied later by the host. This is why package loading has two phases:
+
+```text
+load and verify files
+bind logical capabilities to local functions
+lower IR to runtime nodes
+```
+
+The package never imports host code by path.
+
 ## Refs
 
 Lowering turns `{"ref": "customer.id"}` into `Ref("customer.id")`. At runtime,
@@ -58,6 +69,10 @@ orders[$selected_index].id
 
 The dynamic `$selected_index` form is what lets a residual model output choose
 an item while deterministic code copies the actual id.
+
+Refs are resolved at runtime by the same mechanism used by handwritten
+`act(..., ref(...))` calls. Compiled packages do not need a separate interpreter;
+lowering turns IR refs into `Ref` objects and uses the existing `Action` node.
 
 ## Guards
 
@@ -88,6 +103,11 @@ It verifies:
 
 Only after this does binding happen.
 
+Digest verification is based on `manifest.files`. The manifest records the hash
+of every other package file; `load_package` recomputes each digest before parsing
+the behavior. The manifest itself is not included in that digest table because
+it contains the table.
+
 ## Binding
 
 `LoadedPackage.bind(tools, predicates)` requires every manifest capability to be
@@ -107,8 +127,16 @@ ctx = root.run(email="ada@example.com", request="cancel my order")
 Missing capabilities fail before execution. Package code never imports host
 tools by itself.
 
+`LoadedPackage.permissions()` splits declared tool contracts into read and write
+sets using effect flags. Hosts can show those permissions before deciding whether
+to bind a package.
+
 ## Deterministic Archives
 
 `export_jdsl` writes a zip with sorted entries and fixed ZIP timestamps. The same
 package contents produce the same bytes and digest. That makes later signing and
 review straightforward.
+
+`export_dir` writes the same logical package as an unpacked directory for local
+development. `.jdsl` is the transport format; the directory form is easier to
+inspect in a worktree.

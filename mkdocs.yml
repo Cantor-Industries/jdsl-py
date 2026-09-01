@@ -19,7 +19,14 @@ nav:
       - Authoring Surface: code/authoring.md
       - Runtime Interpreter: code/runtime.md
       - Trace and Capture: code/tracing.md
+      - Compiler Internals: code/compiler.md
       - Package Runtime: code/packages.md
+      - CLI and Providers: code/cli-config.md
+      - Host Plugins: code/plugins.md
+  - Source Reference:
+      - Runtime API: reference/runtime.md
+      - Trace and Package API: reference/trace-package.md
+      - Harness Compiler API: reference/compiler.md
   - Tutorials:
       - Branching Triage: tutorials/branching.md
       - Tool-Using ReAct: tutorials/react-tools.md
@@ -42,26 +49,91 @@ exclude_docs: |
   drafts/
 
 theme:
-  name: readthedocs
-  highlightjs: true
-  hljs_languages:
-    - bash
-    - json
-    - python
-    - text
-    - yaml
-  include_homepage_in_sidebar: true
-  navigation_depth: 4
-  prev_next_buttons_location: bottom
+  name: material
+  logo: for_respected_human.png
+  favicon: for_respected_human.png
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tooltips
+    - navigation.footer
+    - navigation.indexes
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.path
+    - search.highlight
+    - search.suggest
+    - toc.follow
+    - toc.integrate
+  palette:
+    - media: "(prefers-color-scheme)"
+      accent: lime
+      primary: black
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      accent: lime
+      primary: black
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      accent: lime
+      primary: black
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
 
 markdown_extensions:
   - admonition
   - attr_list
   - footnotes
+  - pymdownx.details
+  - pymdownx.highlight:
+      pygments_lang_class: true
+  - pymdownx.inlinehilite:
+      style_plain_text: python
+  - pymdownx.magiclink
+  - pymdownx.snippets:
+      base_path: [!relative $config_dir]
+      check_paths: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
   - toc:
-      permalink: true
+      permalink: "¤"
 
 plugins:
   - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            docstring_options:
+              ignore_init_summary: true
+            docstring_section_style: list
+            filters: ["!^_"]
+            heading_level: 3
+            inherited_members: false
+            merge_init_into_class: true
+            separate_signature: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_signature_annotations: true
+            show_source: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            summary: true
 
 strict: true

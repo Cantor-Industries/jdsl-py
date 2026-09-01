@@ -40,6 +40,11 @@ The default compiler model is `HeuristicCompilerModel`, so the current pipeline
 can run offline in tests. The design allows richer compiler-model proposal roles,
 but the public docs should treat the implemented heuristic path as the baseline.
 
+The full implementation walkthrough is in
+[Compiler Internals](code/compiler.md). That page follows the pipeline through
+`normalize.py`, `lineage.py`, `candidates.py`, `consolidate.py`,
+`staticize.py`, `residualize.py`, `verify.py`, and package assembly.
+
 ## What Compilation Removes
 
 For a retail cancellation flow, traces might show:
@@ -65,6 +70,11 @@ the exact order id through `orders[$selected_index].id`.
 
 All tiers map into the same canonical event schema. The compiler should never
 claim more than the recorded events prove.
+
+Tier A has the strongest evidence because jdsl sees structured tool calls and
+state directly. Tier B depends on host hook fidelity. Tier C is useful for
+benchmarks and migrations, but the compiler can only mine fields that exist in
+the imported records.
 
 ## Implemented Components
 

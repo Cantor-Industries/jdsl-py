@@ -47,6 +47,13 @@ Sinks assign sequence numbers and call `TraceEvent.chain(prev_hash)`. The event
 hash covers the event body plus the previous event hash, so the JSONL spool is
 tamper-evident in order.
 
+`TraceEvent` itself does not know where it will be stored. Sinks are responsible
+for stamping sequence numbers and sealing the chain. This keeps adapters simple:
+they construct events, and the store decides the final event order.
+
+`verify_chain` in `jdsl/trace/jsonl.py` can later check that every self-hash and
+previous hash still matches.
+
 ## Runtime Events
 
 With `trace_sink` set, the interpreter emits:
@@ -77,6 +84,15 @@ blobs/sha256/<digest>
 SQLite is an index. The JSONL event stream and blob store are the durable
 behavior evidence.
 
+The store deliberately uses boring storage:
+
+- JSONL is append-only evidence
+- SQLite is a rebuildable metadata index
+- blobs are content-addressed files
+
+That matters for compilation because raw evidence should not be rewritten when
+the compiler learns a better interpretation.
+
 ## Ingest Server
 
 `IngestServer` exposes loopback HTTP endpoints:
@@ -92,6 +108,15 @@ behavior evidence.
 
 Bad hook payloads return `{ "ok": false }` with HTTP 200. Capture should fail
 open so observation does not break the host agent loop.
+
+The server also separates two jobs:
+
+| Plane | Code | Purpose |
+| --- | --- | --- |
+| data plane | `IngestServer` HTTP endpoints | Fast local event ingestion from hooks/proxies. |
+| control plane | `CaptureCoordinator`, CLI, optional MCP server | Start/finish captures, inspect lineage, compile. |
+
+That split is why plugin hooks can be small and failure-tolerant.
 
 ## Capture Fidelity
 

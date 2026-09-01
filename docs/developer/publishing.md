@@ -1,6 +1,8 @@
 # Publishing
 
-The documentation is a MkDocs site using the built-in `readthedocs` theme.
+The documentation is a MkDocs site using `mkdocs-material`, configured in the
+same style as tinygrad's docs: Material navigation features, source-rendered
+`mkdocstrings` reference pages, and richer Python Markdown extensions.
 
 ```bash
 uv run --group docs mkdocs build --strict

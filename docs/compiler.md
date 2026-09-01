@@ -31,6 +31,9 @@ usually created by:
 Each episode is an ordered event stream with tool calls, model events,
 blackboard writes, and optional outcomes.
 
+For the implementation-level pass-by-pass explanation, see
+[Compiler Internals](code/compiler.md).
+
 ## Normalize
 
 `jdsl_harness.compiler.normalize` converts each episode into a `NormEpisode`.
@@ -95,6 +98,12 @@ Observed residual decisions are emitted as typed signatures and `predict` or
 This is where the compiler makes the main jdsl tradeoff: a value should become a
 model decision only if it is not safely represented as a constant, exact ref,
 guard, fixed action, or bounded recovery path.
+
+Repeated tool calls are treated as separate call slots. This prevents a coding
+trace such as `bash("git status")`, then `bash("git diff")`, then
+`bash("git commit ...")` from becoming one vague `command` input. A slot becomes
+a runtime input only when that specific slot varies across episodes and no exact
+dataflow source explains it.
 
 ## Verify
 

@@ -23,6 +23,14 @@ If the root has a model id and no explicit model object was passed,
 `LanguageModel.from_config()` is used. If a trace sink is present, runtime node
 ids are assigned and episode events are emitted.
 
+The important detail is that `Root.run` always returns the context, not just a
+status. User code reads outputs from `ctx.blackboard`, inspects provenance with
+`ctx.blackboard.activity`, and can attach a trace sink for compilation.
+
+Programmatic execution can also bypass `Root.run` and call `root.tick(ctx)` with
+a hand-built `RunContext`. The compiler tests use that path when running a loaded
+package with a fake model.
+
 ## Status
 
 Only two statuses exist:
@@ -75,6 +83,15 @@ The blackboard write uses the action label as provenance:
 act(search_titles) -> titles
 ```
 
+Refs are resolved in two passes:
+
+1. direct blackboard key lookup, such as `ref("customer")`
+2. restricted path lookup through `jdsl.ir.expr.resolve_path`, such as
+   `ref("orders[$selected_index].id")`
+
+That second pass is what lets compiled packages wire tool ids without asking the
+model to copy them.
+
 ## Predict
 
 `Predict` is a stateless one-shot model call. It reads declared input fields from
@@ -101,6 +118,10 @@ cannot be parsed, the leaf returns `FAILURE`.
 Compiled signatures may attach output schemas. In that case `Predict._coerce`
 validates/coerces values before writing them.
 
+This design keeps memory explicit. A later leaf sees earlier results only if
+they were written to the blackboard and named in its signature. That makes traces
+and compiled packages easier to audit because every model input field is visible.
+
 ## React
 
 `React` is a model-driven tool loop inside one leaf.
@@ -113,6 +134,17 @@ validates/coerces values before writing them.
 
 Unknown tools and tool exceptions become error observations inside the loop.
 The leaf fails if no final answer arrives.
+
+`React` derives each tool schema from the wrapped Python function signature. It
+maps common Python annotations to JSON Schema types, marks parameters without
+defaults as required, then calls `LanguageModel.converse`. Anthropic and
+OpenAI-compatible providers use different wire formats, but `React` sees the
+same provider-neutral `ModelTurn` and `ToolCall` objects.
+
+When tracing is enabled, the internal loop is not hidden. `React` emits
+`react.started`, `toolset.exposed`, `model.requested`, `model.responded`, every
+tool-call event, and `react.finished`. The compiler can then mine the internal
+trajectory instead of seeing only the final answer.
 
 ## Scoped Context
 
