@@ -99,8 +99,13 @@ Then inspect and run the package through jdsl:
 
 ```bash
 uv run jdsl package inspect opencode-behavior.jdslpkg
-uv run jdsl package run opencode-behavior.jdslpkg --tools tools.py --input key=value
+uv run jdsl package run opencode-behavior.jdslpkg --tools <bindings.py> --input <input>=<value>
 ```
+
+`<bindings.py>` must define `TOOLS = {logical_id: callable}` for every capability
+shown by `package inspect`. The input names are the keys printed in the compile
+report's `stats.inputs`; for example, if compile reports `"inputs": ["command"]`,
+run with `--input command='...'`.
 
 ## Troubleshooting
 
