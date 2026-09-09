@@ -5,7 +5,7 @@
 </p>
 
 > Declarative **behavior-tree agents** as clean Python combinators, run by a
-> **tree-walking interpreter** over Claude / DeepSeek / OpenAI — with
+> **tree-walking interpreter** over DeepSeek / Anthropic / OpenAI — with
 > **DSPy-style signatures** on the LLM leaves.
 
 Determinism lives in the tree (`seq` / `sel` / `act`); the model enters only at
@@ -66,6 +66,25 @@ Triage steers the model with the tree; `react` lets the model steer your tools.
 Full version: [examples/trip.py](examples/trip.py).
 
 ## Install & run
+
+### Quick install (curl)
+
+```bash
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash
+```
+
+Or with options:
+```bash
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.1.0 --no-modify-path
+```
+
+Requires Python ≥ 3.11. After install:
+```bash
+jdsl about                 # banner + quickstart
+jdsl run examples/greeter.py
+```
+
+### Development (uv)
 
 Requires [uv](https://docs.astral.sh/uv/) and Python ≥ 3.11.
 
@@ -134,7 +153,7 @@ for the design-to-code map.
 
 ## Docs
 
-- [docs/index.md](docs/index.md) — MkDocs homepage
+- [docs/index.md](https://cantor-industries.github.io/jdsl-py/) — MkDocs homepage
 - [docs/quickstart.md](docs/quickstart.md) — install and first runs
 - [docs/examples.md](docs/examples.md) — guide to the runnable examples
 - [docs/concepts.md](docs/concepts.md) — behavior trees, the blackboard, signatures, why no codegen
