@@ -21,8 +21,8 @@ Options:
         --no-modify-path    Don't modify shell config files (.zshrc, .bashrc, etc.)
 
 Examples:
-    curl -fsSL https://jdsl.ai/install | bash
-    curl -fsSL https://jdsl.ai/install | bash -s -- --version 0.1.0
+    curl -fsSL https://raw.githubusercontent.com/marsrover/jdsl-py/harness/install.sh | bash
+    curl -fsSL https://raw.githubusercontent.com/marsrover/jdsl-py/harness/install.sh | bash -s -- --version 0.1.0
     ./install --binary /path/to/jdsl
 EOF
 }

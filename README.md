@@ -70,12 +70,12 @@ Full version: [examples/trip.py](examples/trip.py).
 ### Quick install (curl)
 
 ```bash
-curl -fsSL https://jdsl.ai/install | bash
+curl -fsSL https://raw.githubusercontent.com/marsrover/jdsl-py/harness/install.sh | bash
 ```
 
 Or with options:
 ```bash
-curl -fsSL https://jdsl.ai/install | bash -s -- --version 0.1.0 --no-modify-path
+curl -fsSL https://raw.githubusercontent.com/marsrover/jdsl-py/harness/install.sh | bash -s -- --version 0.1.0 --no-modify-path
 ```
 
 Requires Python ≥ 3.11. After install:
