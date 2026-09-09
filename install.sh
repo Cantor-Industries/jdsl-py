@@ -104,11 +104,11 @@ else
     esac
 
     if [ -z "$requested_version" ]; then
-        url="https://github.com/marsrover/jdsl-py/releases/latest/download/jdsl-$os-$arch.tar.gz"
+        url="https://cantorindustries.com/jdsl-py/jdsl-$os-$arch.tar.gz"
         specific_version=$(curl -s https://api.github.com/repos/marsrover/jdsl-py/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' || echo "unknown")
     else
         requested_version="${requested_version#v}"
-        url="https://github.com/marsrover/jdsl-py/releases/download/v${requested_version}/jdsl-$os-$arch.tar.gz"
+        url="https://cantorindustries.com/jdsl-py/jdsl-$os-$arch.tar.gz"
         specific_version=$requested_version
     fi
 fi
@@ -134,8 +134,47 @@ else
     mkdir -p "$tmp_dir"
     curl -# -L -o "$tmp_dir/jdsl.tar.gz" "$url"
     tar -xzf "$tmp_dir/jdsl.tar.gz" -C "$tmp_dir"
-    mv "$tmp_dir/jdsl" "$INSTALL_DIR"
-    chmod 755 "${INSTALL_DIR}/jdsl"
+    if [ -f "$tmp_dir/bin/jdsl" ]; then
+        # Binary package with lib/ source: install binary and source dirs
+        mkdir -p "$INSTALL_DIR"
+        mv "$tmp_dir/bin/jdsl" "$INSTALL_DIR"
+        chmod 755 "${INSTALL_DIR}/jdsl"
+        if [ -d "$tmp_dir/lib" ]; then
+            mkdir -p "${INSTALL_DIR}/../lib"
+            cp -r "$tmp_dir/lib" "${INSTALL_DIR}/../lib/"
+        fi
+        # Ensure dotenv dependency is installed for binary package
+        pip install python-dotenv 2>/dev/null || pip3 install python-dotenv 2>/dev/null || echo -e "${ORANGE}Warning: python-dotenv not installed; binary may fail${NC}"
+    elif [ -f "$tmp_dir/jdsl" ]; then
+        mv "$tmp_dir/jdsl" "$INSTALL_DIR"
+        chmod 755 "${INSTALL_DIR}/jdsl"
+        # If source package dirs included alongside binary, install them too
+        if [ -d "$tmp_dir/jdsl_pkg" ]; then
+            mkdir -p "${INSTALL_DIR}/../lib"
+            cp -r "$tmp_dir/jdsl_pkg" "${INSTALL_DIR}/../lib/"
+        fi
+    elif [ -d "$tmp_dir/bin" ] && [ -d "$tmp_dir/lib" ]; then
+        # Already handled above; this catches any extra cases
+        mkdir -p "$INSTALL_DIR"
+        cp -r "$tmp_dir/bin/jdsl" "$INSTALL_DIR/"
+        chmod 755 "${INSTALL_DIR}/jdsl"
+        if [ -d "$tmp_dir/lib" ]; then
+            mkdir -p "${INSTALL_DIR}/../lib"
+            cp -r "$tmp_dir/lib" "${INSTALL_DIR}/../lib/"
+        fi
+    elif [ -d "$tmp_dir/jdsl" ]; then
+        # Source package: install with pip and create wrapper binary
+        pip install "$tmp_dir/jdsl" 2>/dev/null || pip3 install "$tmp_dir/jdsl" 2>/dev/null || { echo -e "${ORANGE}pip install failed; try 'pip install .' from source${NC}"; exit 1; }
+        # Create wrapper binary that uses installed package
+        echo '#!/usr/bin/env python3
+from jdsl.cli import app
+if __name__ == "__main__":
+    app()' > "${INSTALL_DIR}/jdsl"
+        chmod 755 "${INSTALL_DIR}/jdsl"
+    else
+        echo -e "${RED}Error: Expected binary 'jdsl' or source package in tar${NC}"
+        exit 1
+    fi
     rm -rf "$tmp_dir"
 fi
 
@@ -203,6 +242,8 @@ echo -e "${GREEN} / / /__\/ /    \ \___\/ / \ \/___/ /  /_______/\__/ ${NC}"
 echo -e "${GREEN}\/_______/      \/_____/   \_____\/   \_______\/  ${NC}"
 
 echo -e "${MUTED}jdsl installed at ${NC}$INSTALL_DIR/jdsl"
+echo -e ""
+echo -e "${ORANGE}Note: Run 'source ~/.bashrc' (or restart your shell) to use 'jdsl' immediately.${NC}"
 echo -e ""
 echo -e "${MUTED}Quick start:${NC}"
 echo -e "  jdsl run examples/greeter.py"
