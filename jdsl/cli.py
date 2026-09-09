@@ -252,5 +252,44 @@ def harness_serve(
         typer.echo("stopped.")
 
 
+def _print_install_banner():
+    green = "\033[0;32m"
+    muted = "\033[0;2m"
+    nc = "\033[0m"
+    typer.echo(f"{green}        _        _            _            _     {nc}")
+    typer.echo(f"{green}       /\\ \\     /\\ \\         / /\\         _\\ \\   {nc}")
+    typer.echo(f"{green}       \\ \\ \\   /  \\ \\____   / /  \\       /\\__ \\  {nc}")
+    typer.echo(f"{green}        /\\ \\_\\ / /\\ \\_____\\ / / /\\ \\__   / /_ \\_\\ {nc}")
+    typer.echo(f"{green}       / /\\_// / /\\/___  // / /\\ \\___\\ / / /\\/_/ {nc}")
+    typer.echo(f"{green}  _   / / /  / / /   / / / \\ \\ \\ \/___// / /      {nc}")
+    typer.echo(f"{green} /\\ \\ / / /  / / /   / / /   \\ \\ \\     / / /       {nc}")
+    typer.echo(f"{green} \\ \\_\\/ / /  / / /   / / /_    \\ \\ \\   / / / ____   {nc}")
+    typer.echo(f"{green}  / / /_/ / /  \\ \\__/ / //_\\__/ / /  / /_/_/ ___/\\ {nc}")
+    typer.echo(f"{green} / / /__\\/ /    \\ \\___\\/ / \\ \/___/ /  /_______/\\__/ {nc}")
+    typer.echo(f"{green}\\/_______/      \/_____/   \\_____\\/   \\_______\\/  {nc}")
+    typer.echo(f"{muted}Quick start:{nc}")
+    typer.echo(f"  jdsl run examples/greeter.py")
+    typer.echo(f"")
+    typer.echo(f"{muted}For API keys:{nc}")
+    typer.echo(f"  echo 'ANTHROPIC_API_KEY=sk-...' >> .env")
+    typer.echo(f"")
+    typer.echo(f"{muted}Docs: {nc}https://github.com/marsrover/jdsl-py")
+    typer.echo("")
+
+
+@app.callback()
+def main():
+    """Declarative behavior-tree agents over Claude / DeepSeek / OpenAI."""
+    # After any subcommand runs, show the banner once on first run or via --about
+    pass
+
+
+@app.command("about")
+def about():
+    """Show jdsl info and quickstart."""
+    typer.secho("jdsl — Declarative behavior-tree agents", fg=typer.colors.CYAN, bold=True)
+    _print_install_banner()
+
+
 if __name__ == "__main__":  # pragma: no cover
     app()

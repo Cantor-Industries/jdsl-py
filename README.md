@@ -67,6 +67,25 @@ Full version: [examples/trip.py](examples/trip.py).
 
 ## Install & run
 
+### Quick install (curl)
+
+```bash
+curl -fsSL https://jdsl.ai/install | bash
+```
+
+Or with options:
+```bash
+curl -fsSL https://jdsl.ai/install | bash -s -- --version 0.1.0 --no-modify-path
+```
+
+Requires Python ≥ 3.11. After install:
+```bash
+jdsl about                 # banner + quickstart
+jdsl run examples/greeter.py
+```
+
+### Development (uv)
+
 Requires [uv](https://docs.astral.sh/uv/) and Python ≥ 3.11.
 
 ```bash
