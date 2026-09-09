@@ -5,7 +5,7 @@
 ```bash
 uv sync            # installs jdsl (editable) + dev tools
 uv run pytest      # run the suite
-uv run ruff check jdsl examples test
+uv run ruff check jdsl jdsl_harness examples test
 ```
 
 Python ≥ 3.11, [uv](https://docs.astral.sh/uv/) for everything.
@@ -21,8 +21,8 @@ ceremony. Specifics:
 - Prefer a plain function to a class; prefer a combinator to a config object.
 - Keep the public surface (`jdsl/__init__.py`) small and obvious.
 
-Run `uv run ruff check jdsl examples test` before opening a PR; CI expects it
-clean.
+Run `uv run ruff check jdsl jdsl_harness examples test` before opening a PR; CI
+expects it clean.
 
 ## Tests are required
 

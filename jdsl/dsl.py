@@ -12,6 +12,8 @@ from jdsl.context import Ref
 from jdsl.tree import (
     Action,
     Check,
+    Guard,
+    GuardCall,
     Invert,
     Node,
     OneShot,
@@ -54,10 +56,20 @@ def tool(fn: Callable[P, R] | None = None, *, name: str | None = None, descripti
     return wrap(fn) if fn is not None else wrap
 
 
+def _ident(node: Node, node_id: str | None) -> Node:
+    """Attach an optional stable id to a node (§20). Returns the node for chaining."""
+    if node_id is not None: node.node_id = node_id
+    return node
+
+
 def act(fn: Callable[P, Any], *args: P.args, **kwargs: P.kwargs) -> Action:
     """Leaf calling fn(*args, **kwargs). Literal args are type-checked; a ref(...)
-    arg resolves from the blackboard at run time. Wrap with store to capture the result."""
-    return Action(fn=fn, args=args, kwargs=kwargs)
+    arg resolves from the blackboard at run time. Wrap with store to capture the result.
+
+    Pass an `id=` (as a kwarg) to give the node a stable compiled identity (§20);
+    it is popped before the call so it never reaches the tool."""
+    node_id = kwargs.pop("id", None)
+    return _ident(Action(fn=fn, args=args, kwargs=kwargs), node_id)  # type: ignore[arg-type]
 
 
 def ref(name: str) -> Ref:
@@ -71,62 +83,79 @@ def store(node: Action, key: str) -> Action:
     return node
 
 
-def seq(*children: Node, context: str | None = None) -> Sequence:
+def seq(*children: Node, context: str | None = None, id: str | None = None) -> Sequence:
     """Run children in order; fail fast (AND)."""
-    return Sequence(children=list(children), context_system=context)
+    return _ident(Sequence(children=list(children), context_system=context), id)  # type: ignore[return-value]
 
 
-def sel(*children: Node, context: str | None = None) -> Selector:
+def sel(*children: Node, context: str | None = None, id: str | None = None) -> Selector:
     """Try children until one succeeds (OR)."""
-    return Selector(children=list(children), context_system=context)
+    return _ident(Selector(children=list(children), context_system=context), id)  # type: ignore[return-value]
 
 
-def check(key: str, equals: Any) -> Check:
+def check(key: str, equals: Any, *, id: str | None = None) -> Check:
     """Guard leaf: succeeds iff blackboard[key] == equals."""
-    return Check(key=key, equals=equals)
+    return _ident(Check(key=key, equals=equals), id)  # type: ignore[return-value]
 
 
-def repeat(child: Node, *, until: Node | None = None, max: int = 3, context: str | None = None) -> Repeat:
+def guard(expression: dict[str, Any], *, id: str | None = None) -> Guard:
+    """Compiled state predicate over the blackboard using the restricted expression
+    language (§21.2), e.g. guard({"in": [{"ref": "order.status"}, ["pending"]]})."""
+    return _ident(Guard(expression=expression), id)  # type: ignore[return-value]
+
+
+def guard_call(predicate: Callable[..., Any], arguments: dict[str, Any] | None = None, *,
+               predicate_id: str | None = None, id: str | None = None) -> GuardCall:
+    """Guard backed by a trusted runtime predicate (§21.2). arguments may contain
+    ref(...) values resolved from the blackboard at run time."""
+    node = GuardCall(predicate=predicate, arguments=arguments or {}, predicate_id=predicate_id)
+    return _ident(node, id)  # type: ignore[return-value]
+
+
+def repeat(child: Node, *, until: Node | None = None, max: int = 3, context: str | None = None,
+           id: str | None = None) -> Repeat:
     """Run child up to `max` times, stopping early when `until` (e.g. a check) succeeds."""
-    return Repeat(child=child, until=until, max=max, context_system=context)
+    return _ident(Repeat(child=child, until=until, max=max, context_system=context), id)  # type: ignore[return-value]
 
 
-def invert(child: Node, *, context: str | None = None) -> Invert:
+def invert(child: Node, *, context: str | None = None, id: str | None = None) -> Invert:
     """Flip a child's status: SUCCESS <-> FAILURE (e.g. invert(check(...)))."""
-    return Invert(child=child, context_system=context)
+    return _ident(Invert(child=child, context_system=context), id)  # type: ignore[return-value]
 
 
-def optional(child: Node, *, context: str | None = None) -> Optional:
+def optional(child: Node, *, context: str | None = None, id: str | None = None) -> Optional:
     """Fail-soft wrapper: run the child but always succeed, so it can't abort a seq."""
-    return Optional(child=child, context_system=context)
+    return _ident(Optional(child=child, context_system=context), id)  # type: ignore[return-value]
 
 
-def timeout(child: Node, *, seconds: float = 30.0, context: str | None = None) -> Timeout:
+def timeout(child: Node, *, seconds: float = 30.0, context: str | None = None, id: str | None = None) -> Timeout:
     """Bound a child to `seconds` of wall-clock time; FAILURE if it overruns."""
-    return Timeout(child=child, seconds=seconds, context_system=context)
+    return _ident(Timeout(child=child, seconds=seconds, context_system=context), id)  # type: ignore[return-value]
 
 
-def oneshot(child: Node, *, context: str | None = None) -> OneShot:
+def oneshot(child: Node, *, context: str | None = None, id: str | None = None) -> OneShot:
     """Run the child at most once per run; replay its status on later ticks."""
-    return OneShot(child=child, context_system=context)
+    return _ident(OneShot(child=child, context_system=context), id)  # type: ignore[return-value]
 
 
-def predict(signature: str, *, instructions: str | None = None, context: str | None = None) -> Predict:
+def predict(signature: str, *, instructions: str | None = None, context: str | None = None,
+            id: str | None = None) -> Predict:
     """DSPy-style LLM leaf from a signature like "question -> answer"."""
     inputs, outputs = _parse_signature(signature)
-    return Predict(inputs=inputs, outputs=outputs, instructions=instructions, context_system=context)
+    return _ident(Predict(inputs=inputs, outputs=outputs, instructions=instructions,  # type: ignore[return-value]
+                          context_system=context), id)
 
 
 def react(signature: str, *, tools: list[Any], instructions: str | None = None,
-          max_steps: int = 6, context: str | None = None) -> React:
+          max_steps: int = 6, context: str | None = None, id: str | None = None) -> React:
     """Agentic LLM leaf: the model reasons and calls the given @tools in a loop
     (native function-calling) until it answers. Signature is "inputs -> answer"
     with a single output field."""
     inputs, outputs = _parse_signature(signature)
     if len(outputs) != 1:
         raise ValueError(f"react signature {signature!r} must have exactly one output (the answer).")
-    return React(inputs=inputs, outputs=outputs, tools=list(tools),
-                 instructions=instructions, max_steps=max_steps, context_system=context)
+    return _ident(React(inputs=inputs, outputs=outputs, tools=list(tools),  # type: ignore[return-value]
+                        instructions=instructions, max_steps=max_steps, context_system=context), id)
 
 
 def root(name: str, *, system: str | None = None) -> Root:

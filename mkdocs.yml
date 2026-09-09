@@ -1,0 +1,138 @@
+site_name: jdsl docs
+site_url: https://cantor-industries.github.io/jdsl-py/
+repo_url: https://github.com/Cantor-Industries/jdsl-py/
+repo_name: Cantor-Industries/jdsl-py
+
+docs_dir: docs
+
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Examples: examples.md
+  - CLI: cli.md
+  - Runtime:
+      - Concepts: concepts.md
+      - API Reference: api.md
+      - Providers: providers.md
+  - Code Walkthrough:
+      - Authoring Surface: code/authoring.md
+      - Runtime Interpreter: code/runtime.md
+      - Trace and Capture: code/tracing.md
+      - Compiler Internals: code/compiler.md
+      - Package Runtime: code/packages.md
+      - CLI and Providers: code/cli-config.md
+      - Host Plugins: code/plugins.md
+  - Source Reference:
+      - Runtime API: reference/runtime.md
+      - Trace and Package API: reference/trace-package.md
+      - Harness Compiler API: reference/compiler.md
+  - Tutorials:
+      - Branching Triage: tutorials/branching.md
+      - Tool-Using ReAct: tutorials/react-tools.md
+      - Refinement Loops: tutorials/refinement.md
+  - Harness & Compiler:
+      - Overview: harness.md
+      - Compiler Pipeline: compiler.md
+      - Usage: harness_usage.md
+      - Behavior Packages: packages.md
+      - Plugins: plugins.md
+      - OpenCode Capture: opencode.md
+  - Developer:
+      - Repository Layout: developer/layout.md
+      - Tracing Model: developer/tracing.md
+      - Publishing: developer/publishing.md
+
+exclude_docs: |
+  *_next_steps.md
+  *_experiment.ipynb
+  drafts/
+
+theme:
+  name: material
+  logo: for_respected_human.png
+  favicon: for_respected_human.png
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tooltips
+    - navigation.footer
+    - navigation.indexes
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.path
+    - search.highlight
+    - search.suggest
+    - toc.follow
+    - toc.integrate
+  palette:
+    - media: "(prefers-color-scheme)"
+      accent: lime
+      primary: black
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      accent: lime
+      primary: black
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      accent: lime
+      primary: black
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - footnotes
+  - pymdownx.details
+  - pymdownx.highlight:
+      pygments_lang_class: true
+  - pymdownx.inlinehilite:
+      style_plain_text: python
+  - pymdownx.magiclink
+  - pymdownx.snippets:
+      base_path: [!relative $config_dir]
+      check_paths: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+  - toc:
+      permalink: "¤"
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            docstring_options:
+              ignore_init_summary: true
+            docstring_section_style: list
+            filters: ["!^_"]
+            heading_level: 3
+            inherited_members: false
+            merge_init_into_class: true
+            separate_signature: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_signature_annotations: true
+            show_source: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            summary: true
+
+strict: true

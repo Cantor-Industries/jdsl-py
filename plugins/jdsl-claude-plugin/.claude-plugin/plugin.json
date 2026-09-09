@@ -1,0 +1,7 @@
+{
+  "name": "jdsl-harness",
+  "version": "0.1.0",
+  "description": "Capture Claude Code tool trajectories into the jdsl behavior harness for compilation into portable behavior packages.",
+  "author": { "name": "Cantor Industries" },
+  "hooks": "./hooks/hooks.json"
+}

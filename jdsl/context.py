@@ -4,11 +4,14 @@ the window as the tree is walked."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # avoid an import cycle with provider
     from jdsl.provider import LanguageModel
+    from jdsl.trace.events import EventSource, TraceEvent
+    from jdsl.trace.sink import TraceSink
 
 
 @dataclass
@@ -31,6 +34,10 @@ class Blackboard(dict[str, Any]):
         super().__init__()
         self.activity: list[Write] = []
         self._writer: dict[str, str] = {}
+        # optional trace hook: RunContext installs a callback so every write can be
+        # emitted as a blackboard.write event (§35 PR1) without the blackboard
+        # needing to know about the trace layer. None => no capture, no overhead.
+        self.on_write: Callable[[Write], None] | None = None
         for k, v in {**(initial or {}), **kwargs}.items():
             self.set(k, v, writer="input")
 
@@ -39,7 +46,10 @@ class Blackboard(dict[str, Any]):
         overwrote = key in self and self._writer.get(key) not in (None, writer)
         super().__setitem__(key, value)
         self._writer[key] = writer
-        self.activity.append(Write(key, value, writer, prev, overwrote))
+        record = Write(key, value, writer, prev, overwrote)
+        self.activity.append(record)
+        if self.on_write is not None:
+            self.on_write(record)
         return value
 
     def __setitem__(self, key: str, value: Any) -> None: self.set(key, value)
@@ -92,10 +102,55 @@ class RunContext:
     model_id: str | None = None
     state: dict[int, Any] = field(default_factory=dict)  # per-run scratch for stateful nodes (oneshot)
 
+    # -- trace plane (design §35 PR1) -----------------------------------------
+    # A sink for canonical trace events; the default drops everything so the
+    # interpreter behaves exactly as before when nobody is capturing. capture_id
+    # and episode_id scope the events this run emits.
+    trace_sink: TraceSink | None = None
+    capture_id: str = "cap_local"
+    episode_id: str = "ep_local"
+    trace_source: EventSource | None = None
+    _event_tail: str | None = field(default=None, repr=False)
+
     def __post_init__(self) -> None:
         # accept a plain dict for convenience; upgrade it to a tracked Blackboard.
         if not isinstance(self.blackboard, Blackboard):
             self.blackboard = Blackboard(self.blackboard)
+        if self.trace_sink is not None:
+            self._install_trace()
+
+    def _install_trace(self) -> None:
+        from jdsl.trace.events import EventKind, EventSource
+
+        if self.trace_source is None:
+            self.trace_source = EventSource()
+
+        def _on_write(record: Write) -> None:
+            self.emit(EventKind.BLACKBOARD_WRITE, actor="system", payload={
+                "key": record.key,
+                "value": record.value,
+                "writer": record.writer,
+                "overwrote": record.overwrote,
+            })
+
+        self.blackboard.on_write = _on_write
+
+    @property
+    def tracing(self) -> bool:
+        from jdsl.trace.sink import NullTraceSink
+        return self.trace_sink is not None and not isinstance(self.trace_sink, NullTraceSink)
+
+    def emit(self, kind: str, *, payload: dict[str, Any] | None = None, actor: str = "system",
+             parent_event_id: str | None = None, blob_refs: list[str] | None = None) -> TraceEvent | None:
+        """Emit one canonical trace event on this run's sink. No-op (returns None)
+        when there is no sink. The sink assigns sequence + hash chain."""
+        if self.trace_sink is None:
+            return None
+        from jdsl.trace.events import TraceEvent
+        event = TraceEvent.new(kind, self.capture_id, self.episode_id, payload=payload,
+                               actor=actor, source=self.trace_source,
+                               parent_event_id=parent_event_id, blob_refs=blob_refs)
+        return self.trace_sink.emit(event)
 
     def require_model(self) -> LanguageModel:
         if self.model is None:

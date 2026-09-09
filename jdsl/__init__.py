@@ -5,6 +5,8 @@ from jdsl.context import Blackboard, ContextWindow, ModelTurn, Ref, RunContext, 
 from jdsl.dsl import (
     act,
     check,
+    guard,
+    guard_call,
     invert,
     oneshot,
     optional,
@@ -21,10 +23,25 @@ from jdsl.dsl import (
 )
 from jdsl.provider import LanguageModel
 from jdsl.render import render
+from jdsl.trace import (
+    BlobStore,
+    EventKind,
+    EventSource,
+    JsonlTraceSink,
+    ListTraceSink,
+    NullTraceSink,
+    Redactor,
+    SafeSink,
+    TraceEvent,
+    read_events,
+    segment_episodes,
+)
 from jdsl.tree import (
     Action,
     Check,
     Decorator,
+    Guard,
+    GuardCall,
     Invert,
     Node,
     OneShot,
@@ -37,6 +54,7 @@ from jdsl.tree import (
     Sequence,
     Status,
     Timeout,
+    assign_runtime_ids,
 )
 
 __all__ = [
@@ -46,6 +64,8 @@ __all__ = [
     "sel",
     "repeat",
     "check",
+    "guard",
+    "guard_call",
     "predict",
     "react",
     "invert",
@@ -61,6 +81,8 @@ __all__ = [
     "Node",
     "Action",
     "Check",
+    "Guard",
+    "GuardCall",
     "Repeat",
     "Sequence",
     "Selector",
@@ -79,4 +101,16 @@ __all__ = [
     "ToolCall",
     "ModelTurn",
     "Write",
+    "assign_runtime_ids",
+    "TraceEvent",
+    "EventKind",
+    "EventSource",
+    "NullTraceSink",
+    "ListTraceSink",
+    "JsonlTraceSink",
+    "SafeSink",
+    "BlobStore",
+    "Redactor",
+    "read_events",
+    "segment_episodes",
 ]

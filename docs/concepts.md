@@ -1,11 +1,12 @@
 # Concepts
 
-jdsl is two ideas glued together:
+jdsl combines two ideas:
 
 1. A **behavior tree** gives you deterministic, auditable control flow.
 2. A **DSPy-style signature** gives you a typed LLM call at the leaves.
 
-Determinism lives in the tree; the model lives only where you put a `predict`.
+Determinism lives in the tree. The model lives only where you put a `predict`
+or `react`.
 
 ## The tree
 
@@ -18,12 +19,13 @@ A skill is a tree of nodes. Every node `tick`s to a `Status` — `SUCCESS` or
 | `selector` | Run children left to right; stop at the first `SUCCESS` (OR). |
 | `action` | Call a Python function. "Didn't raise" = `SUCCESS`. |
 | `check` | Compare a blackboard value; `SUCCESS` iff it matches. |
-| `predict` | Call the model against a signature; `SUCCESS` iff it answered. |
+| `predict` | Call the model against a signature; `SUCCESS` iff it produced valid output. |
+| `react` | Let the model choose among a scoped tool set until it returns a final answer. |
 | `root` | The entry point: one child plus name / system prompt / model. |
 
 This is the classic behavior-tree vocabulary from robotics and game AI. It is a
-good fit when you want *mostly scripted* flow with a few model-decided branch
-points — not a free-roaming ReAct agent.
+good fit when you want mostly scripted flow with a few model-decided branch
+points.
 
 ## The blackboard
 
@@ -45,7 +47,7 @@ seq(
 )
 ```
 
-## Signatures (the DSPy part)
+## Signatures
 
 A `predict` leaf is declared by a signature string:
 
@@ -55,25 +57,44 @@ A `predict` leaf is declared by a signature string:
 "context, question -> answer, confidence"
 ```
 
-Left of `->` are input fields (read from the blackboard); right are output
-fields (written back). At run time the leaf renders the inputs into a prompt,
-asks the model to return exactly those output keys as JSON, parses them, and
-writes them onto the blackboard. Because the output is structured, a `selector`
-can branch on it deterministically with `check`.
+Left of `->` are input fields read from the blackboard. Right of `->` are output
+fields written back to it.
 
-That split — **behavior-tree determinism for control flow, a signature for the
-LLM leaf** — is the whole point.
+For one output field, jdsl stores the model reply as plain text after stripping
+outer whitespace. For multiple output fields, jdsl asks for a JSON object and
+parses it leniently from the response. Because the output is structured, a
+`selector` can branch on it deterministically with `check`.
+
+That split is the point: behavior-tree determinism for control flow, a signature
+for each model leaf.
+
+## `predict` vs `react`
+
+Use `predict` when the model should answer one local question and write fields:
+
+```python
+predict("ticket -> category, urgency")
+```
+
+Use `react` when the model should choose among tools and chain tool results
+inside one leaf:
+
+```python
+react("question -> answer", tools=[search, fetch, summarize], max_steps=8)
+```
+
+The outer tree stays deterministic either way. `react` only moves the agentic
+tool loop into a leaf.
 
 ## Why no codegen
 
-The TypeScript ancestor of this project *compiled* behavior-tree object literals
-into Effect service modules on disk (via an in-memory TypeScript language
-service and an AST factory). jdsl interprets the tree in memory instead. That
-deletes a large amount of machinery and is what lets the authoring API be plain
-nested function calls with real argument type-checking (`act` is typed with
-`ParamSpec`). The one thing you give up: a `ref` argument can't be statically
-checked against the tool signature, because its value is only known at run time
-— the same tradeoff DSPy makes with field values.
+The TypeScript ancestor of this project compiled object literals into generated
+service modules. jdsl interprets the tree in memory instead. That keeps the
+authoring API as plain nested Python calls and lets `act` keep useful type
+checking for literal arguments.
+
+The tradeoff: a `ref(...)` argument is only known at run time, so it cannot be
+statically checked against the tool signature.
 
 ## Execution model
 
@@ -85,6 +106,18 @@ checked against the tool signature, because its value is only known at run time
    descends into its child,
 3. each node with a `context=` pushes its own system fragment for the duration
    of its subtree (scoped, then popped),
-4. returns the final `RunContext` — read results off `ctx.blackboard`.
+4. returns the final `RunContext`; read results from `ctx.blackboard`.
 
 The interpreter is synchronous today.
+
+## Failure Model
+
+Every node returns `Status.SUCCESS` or `Status.FAILURE`.
+
+- A Python tool that raises propagates the exception.
+- A Python tool that returns `Status.FAILURE` lets parent selectors recover.
+- `predict` fails on empty output, unparseable multi-output JSON, or schema
+  validation failure in compiled signatures.
+- `react` fails if the model gives no final answer or reaches `max_steps`.
+- `optional(child)` runs the child but reports success.
+- `invert(child)` flips success and failure.

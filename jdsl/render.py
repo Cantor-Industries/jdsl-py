@@ -11,9 +11,15 @@ from jdsl.tree import Node
 
 def render(node: Node) -> str:
     """An ASCII-tree rendering of `node` and its descendants."""
-    lines = [node.label()]
+    lines = [_label(node)]
     _walk(node, "", lines)
     return "\n".join(lines)
+
+
+def _label(node: Node) -> str:
+    """A node's label, suffixed with its stable author id (§20) when it has one,
+    so `jdsl show` reveals the ids a compiled package refers to."""
+    return node.label() + (f"  #{node.node_id}" if node.node_id else "")
 
 
 def _walk(node: Node, prefix: str, lines: list[str]) -> None:
@@ -22,7 +28,7 @@ def _walk(node: Node, prefix: str, lines: list[str]) -> None:
         last = i == len(children) - 1
         connector = "└─ " if last else "├─ "
         tag = f"{edge}: " if edge else ""
-        lines.append(f"{prefix}{connector}{tag}{child.label()}")
+        lines.append(f"{prefix}{connector}{tag}{_label(child)}")
         _walk(child, prefix + ("   " if last else "│  "), lines)
 
 
