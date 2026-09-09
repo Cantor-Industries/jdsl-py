@@ -18,7 +18,7 @@ from jdsl import config
 from jdsl.render import render
 from jdsl.tree import Root
 
-app = typer.Typer(add_completion=False, help="Declarative behavior-tree agents over Claude.")
+app = typer.Typer(add_completion=False, help="Declarative behavior-tree agents. Read docs at https://cantor-industries.github.io/jdsl-py/ to understand what jdsl is.")
 config_app = typer.Typer(help="Manage provider API keys (~/.local/share/recon/auth.json).")
 app.add_typer(config_app, name="config")
 
@@ -273,13 +273,13 @@ def _print_install_banner():
     typer.echo(f"{muted}For API keys:{nc}")
     typer.echo(f"  echo 'ANTHROPIC_API_KEY=sk-...' >> .env")
     typer.echo(f"")
-    typer.echo(f"{muted}Docs: {nc}https://github.com/marsrover/jdsl-py")
+    typer.echo(f"{muted}Docs: {nc}https://cantor-industries.github.io/jdsl-py/")
     typer.echo("")
 
 
 @app.callback()
 def main():
-    """Declarative behavior-tree agents over Claude / DeepSeek / OpenAI."""
+    """Declarative behavior-tree agents. Read docs at https://cantor-industries.github.io/jdsl-py/ to understand what jdsl is."""
     # After any subcommand runs, show the banner once on first run or via --about
     pass
 

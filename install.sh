@@ -141,7 +141,11 @@ else
         chmod 755 "${INSTALL_DIR}/jdsl"
         if [ -d "$tmp_dir/lib" ]; then
             mkdir -p "${INSTALL_DIR}/../lib"
-            cp -r "$tmp_dir/lib" "${INSTALL_DIR}/../lib/"
+            if [ -d "$tmp_dir/lib/jdsl" ]; then
+                cp -r "$tmp_dir/lib/jdsl" "${INSTALL_DIR}/../lib/"
+            else
+                cp -r "$tmp_dir/lib" "${INSTALL_DIR}/../lib/"
+            fi
         fi
         # Ensure dotenv dependency is installed for binary package
         pip install python-dotenv 2>/dev/null || pip3 install python-dotenv 2>/dev/null || echo -e "${ORANGE}Warning: python-dotenv not installed; binary may fail${NC}"
@@ -160,7 +164,11 @@ else
         chmod 755 "${INSTALL_DIR}/jdsl"
         if [ -d "$tmp_dir/lib" ]; then
             mkdir -p "${INSTALL_DIR}/../lib"
-            cp -r "$tmp_dir/lib" "${INSTALL_DIR}/../lib/"
+            if [ -d "$tmp_dir/lib/jdsl" ]; then
+                cp -r "$tmp_dir/lib/jdsl" "${INSTALL_DIR}/../lib/"
+            else
+                cp -r "$tmp_dir/lib" "${INSTALL_DIR}/../lib/"
+            fi
         fi
     elif [ -d "$tmp_dir/jdsl" ]; then
         # Source package: install with pip and create wrapper binary
@@ -251,5 +259,5 @@ echo -e ""
 echo -e "${MUTED}For API keys:${NC}"
 echo -e "  echo 'ANTHROPIC_API_KEY=sk-...' >> .env"
 echo -e ""
-echo -e "${MUTED}Docs: ${NC}https://github.com/marsrover/jdsl-py"
+echo -e "${MUTED}Docs: ${NC}https://cantor-industries.github.io/jdsl-py/"
 echo -e ""

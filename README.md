@@ -5,7 +5,7 @@
 </p>
 
 > Declarative **behavior-tree agents** as clean Python combinators, run by a
-> **tree-walking interpreter** over Claude / DeepSeek / OpenAI — with
+> **tree-walking interpreter** over DeepSeek / Anthropic / OpenAI — with
 > **DSPy-style signatures** on the LLM leaves.
 
 Determinism lives in the tree (`seq` / `sel` / `act`); the model enters only at
@@ -153,7 +153,7 @@ for the design-to-code map.
 
 ## Docs
 
-- [docs/index.md](docs/index.md) — MkDocs homepage
+- [docs/index.md](https://cantor-industries.github.io/jdsl-py/) — MkDocs homepage
 - [docs/quickstart.md](docs/quickstart.md) — install and first runs
 - [docs/examples.md](docs/examples.md) — guide to the runnable examples
 - [docs/concepts.md](docs/concepts.md) — behavior trees, the blackboard, signatures, why no codegen
