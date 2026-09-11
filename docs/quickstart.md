@@ -4,7 +4,19 @@ This page gets you from a fresh checkout to a running skill.
 
 ## Install
 
-jdsl uses Python 3.11 or newer and `uv`.
+Quick install with curl:
+
+```bash
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash
+```
+
+Requires Python ≥ 3.11. After install:
+
+```bash
+jdsl run examples/greeter.py
+```
+
+Development setup with `uv`:
 
 ```bash
 uv sync

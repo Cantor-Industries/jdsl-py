@@ -11,6 +11,14 @@ reusable parts into executable jdsl policy.
 
 ## Install
 
+Quick install (curl):
+
+```bash
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash
+```
+
+Development setup (uv):
+
 ```bash
 uv sync
 uv sync --extra harness

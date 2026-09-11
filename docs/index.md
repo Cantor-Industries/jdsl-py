@@ -76,10 +76,28 @@ directly.
 
 ## Install
 
+Quick install (curl):
+
+```bash
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash
+```
+
+Or with options:
+
+```bash
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.1.0 --no-modify-path
+```
+
+Requires Python ≥ 3.11. After install:
+
+```bash
+jdsl run examples/greeter.py
+```
+
+Development setup (uv):
+
 ```bash
 uv sync
-uv run jdsl run examples/greeter.py
-uv run pytest
 ```
 
 LLM-backed examples read provider keys from `.env` or stored config. See
