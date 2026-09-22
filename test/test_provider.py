@@ -90,6 +90,29 @@ def test_to_openai_shapes_tool_calls_and_results():
     assert out[2] == {"role": "tool", "tool_call_id": "c1", "content": "2.1M"}
 
 
+def test_tinker_completion_request_is_bounded(monkeypatch):
+    class Response:
+        choices = [type("Choice", (), {"text": "ok"})()]
+
+    seen = {}
+
+    class Completions:
+        def create(self, **kwargs):
+            seen.update(kwargs)
+            return Response()
+
+    class Client:
+        completions = Completions()
+
+    monkeypatch.setattr("openai.OpenAI", lambda **kwargs: Client())
+    assert provider._tinker_generate(
+        api_key="k", provider="tinker", model="thinkingmachines/Inkling",
+        system="", messages=[{"role": "user", "content": "hello"}],
+    ) == "ok"
+    assert seen["max_tokens"] == 256
+    assert "stop" not in seen
+
+
 def test_to_anthropic_shapes_tool_use_and_result():
     out = provider._to_anthropic(_history())
     assert out[0] == {"role": "user", "content": "hi"}

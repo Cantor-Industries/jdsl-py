@@ -111,7 +111,11 @@ def _tinker_generate(*, api_key, provider, model, system, messages) -> str:
     client = openai.OpenAI(api_key=api_key, base_url=config.BASE_URLS[provider])
     prompt = _to_completion_prompt(system, messages)
     try:
-        response = client.completions.create(model=model, prompt=prompt, max_tokens=16000)
+        response = client.completions.create(
+            model=model,
+            prompt=prompt,
+            max_tokens=256,
+        )
     except (openai.AuthenticationError, openai.PermissionDeniedError, openai.RateLimitError) as err:
         raise _RetryableAuthError from err
     return response.choices[0].text or ""

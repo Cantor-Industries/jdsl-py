@@ -53,8 +53,12 @@ For Tinker, set `TINKER_API_KEY` and use a base model such as
 root("classify").model("thinkingmachines/Inkling")
 ```
 
-Tinker currently supports JDSL `predict` leaves. `react` leaves require chat
-tool calling and fail explicitly for Tinker models.
+Tinker currently supports bounded text generation for JDSL `predict` leaves.
+The base `thinkingmachines/Inkling` model is not instruction-tuned: it may
+continue with unrelated text after a correct prefix, so it is not suitable for
+exact branching or structured behavior contracts without a compatible
+instruction-tuned model or provider-side constrained decoding. `react` leaves
+require chat tool calling and fail explicitly for Tinker models.
 
 ## Routing and Rotation
 
