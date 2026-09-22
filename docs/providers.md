@@ -11,6 +11,7 @@ from the id:
 | `deepseek-*` | `deepseek` | OpenAI SDK with `https://api.deepseek.com` |
 | `gpt-*`, `o1/o3/o4-*` | `openai` | OpenAI SDK |
 | `gemini-*` | `google` | provider slot exists; backend is not wired yet |
+| `thinkingmachines/*`, `inkling*` | `tinker` | OpenAI SDK text completions |
 
 ```python
 root("S").model("deepseek-chat")   # DeepSeek
@@ -18,7 +19,9 @@ root("S").model("claude-opus-4-8") # Anthropic
 ```
 
 DeepSeek is OpenAI-compatible, so it runs through the OpenAI SDK with a DeepSeek
-base URL. OpenAI-compatible calls use `temperature=0` for stable structured
+base URL. Tinker base models use the OpenAI SDK's `completions.create` endpoint
+with a plain-text prompt; they do not use `chat.completions` or function
+calling. OpenAI-compatible chat calls use `temperature=0` for stable structured
 output.
 
 ## Keys
@@ -28,7 +31,7 @@ Keys are resolved per provider, in order:
 1. Stored config at `~/.local/share/recon/auth.json`
    (`{"<provider>": {"api_keys": [...]}}`).
 2. The provider's environment variable: `ANTHROPIC_API_KEY`,
-   `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, or `GOOGLE_API_KEY`.
+   `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, or `TINKER_API_KEY`.
 
 A `.env` in the working directory is loaded automatically via `python-dotenv`,
 so adding `DEEPSEEK_API_KEY=...` to `.env` is enough. `.env` is gitignored; do
@@ -42,6 +45,16 @@ jdsl config list
 ```
 
 `config list` masks key values.
+
+For Tinker, set `TINKER_API_KEY` and use a base model such as
+`thinkingmachines/Inkling`:
+
+```python
+root("classify").model("thinkingmachines/Inkling")
+```
+
+Tinker currently supports JDSL `predict` leaves. `react` leaves require chat
+tool calling and fail explicitly for Tinker models.
 
 ## Routing and Rotation
 

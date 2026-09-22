@@ -1,6 +1,6 @@
-"""The LLM backend. LanguageModel.generate dispatches by model-id prefix
-(claude*→Anthropic, deepseek*/gpt*/o*→OpenAI-compatible), pulls the key from a
-per-provider RoundRobinRouter, and rotates it on auth/rate-limit failures."""
+"""The LLM backend. LanguageModel.generate dispatches by model-id prefix,
+pulls keys from per-provider routers, and rotates them on auth/rate-limit
+failures. Tinker base models use its OpenAI-compatible text-completions API."""
 
 from __future__ import annotations
 
@@ -35,7 +35,12 @@ class LanguageModel:
         model = model_id or DEFAULT_MODEL
         provider = config.provider_for_model(model)
         router = self._router(provider)
-        backend = _anthropic_generate if provider == "anthropic" else _openai_compatible_generate
+        if provider == "anthropic":
+            backend = _anthropic_generate
+        elif provider == "tinker":
+            backend = _tinker_generate
+        else:
+            backend = _openai_compatible_generate
         last_error: Exception | None = None
         for _ in range(_MAX_ATTEMPTS):
             try:
@@ -54,6 +59,8 @@ class LanguageModel:
         ModelTurn: final text, or tool calls to run and feed back. Used by react."""
         model = model_id or DEFAULT_MODEL
         provider = config.provider_for_model(model)
+        if provider == "tinker":
+            raise RuntimeError("Tinker models support predict/generate only; react requires chat tool calling.")
         router = self._router(provider)
         backend = _anthropic_converse if provider == "anthropic" else _openai_converse
         last_error: Exception | None = None
@@ -91,6 +98,23 @@ def _openai_compatible_generate(*, api_key, provider, model, system, messages) -
     except (openai.AuthenticationError, openai.PermissionDeniedError, openai.RateLimitError) as err:
         raise _RetryableAuthError from err
     return response.choices[0].message.content or ""
+
+
+def _tinker_generate(*, api_key, provider, model, system, messages) -> str:
+    """Generate from Tinker's base-model completions endpoint.
+
+    Tinker accepts a single text prompt for base models; its endpoint does not
+    support the chat-completions request used by the other OpenAI-compatible
+    providers.
+    """
+    import openai
+    client = openai.OpenAI(api_key=api_key, base_url=config.BASE_URLS[provider])
+    prompt = _to_completion_prompt(system, messages)
+    try:
+        response = client.completions.create(model=model, prompt=prompt, max_tokens=16000)
+    except (openai.AuthenticationError, openai.PermissionDeniedError, openai.RateLimitError) as err:
+        raise _RetryableAuthError from err
+    return response.choices[0].text or ""
 
 
 def _anthropic_converse(*, api_key, provider, model, system, messages, tools) -> ModelTurn:
@@ -165,6 +189,22 @@ def _to_openai(messages: list[dict]) -> list[dict]:
         else:  # tool result
             out.append({"role": "tool", "tool_call_id": m["tool_call_id"], "content": m["content"]})
     return out
+
+
+def _to_completion_prompt(system: str, messages: list[dict]) -> str:
+    """Render neutral conversation history as the plain text Tinker expects."""
+    lines: list[str] = []
+    if system:
+        lines.append(f"System: {system}")
+    for message in messages:
+        role = message["role"]
+        label = {"user": "User", "assistant": "Assistant", "tool": "Tool"}.get(role, role.title())
+        content = message.get("content", "")
+        if role == "tool" and message.get("name"):
+            label = f"Tool ({message['name']})"
+        lines.append(f"{label}: {content}")
+    lines.append("Assistant:")
+    return "\n".join(lines)
 
 
 __all__ = ["LanguageModel", "DEFAULT_MODEL"]

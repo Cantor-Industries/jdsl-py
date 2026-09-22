@@ -11,12 +11,27 @@ from jdsl.router import NoKeysError
 def test_generate_dispatches_by_model_prefix(isolated_config, monkeypatch):
     config.add_keys("anthropic", ["k"])
     config.add_keys("deepseek", ["k"])
+    config.add_keys("tinker", ["k"])
     monkeypatch.setattr(provider, "_anthropic_generate", lambda **kw: "ANTHROPIC")
     monkeypatch.setattr(provider, "_openai_compatible_generate", lambda **kw: f"OAI:{kw['provider']}")
+    monkeypatch.setattr(provider, "_tinker_generate", lambda **kw: f"TINKER:{kw['provider']}")
 
     lm = provider.LanguageModel()
     assert lm.generate(system="", messages=[], model_id="claude-opus-4-8") == "ANTHROPIC"
     assert lm.generate(system="", messages=[], model_id="deepseek-chat") == "OAI:deepseek"
+    assert lm.generate(system="", messages=[], model_id="thinkingmachines/Inkling") == "TINKER:tinker"
+
+
+def test_tinker_completion_prompt():
+    assert provider._to_completion_prompt("be concise", [{"role": "user", "content": "hello"}]) == (
+        "System: be concise\nUser: hello\nAssistant:"
+    )
+
+
+def test_tinker_converse_is_explicitly_unsupported(isolated_config):
+    config.add_keys("tinker", ["k"])
+    with pytest.raises(RuntimeError, match="predict/generate only"):
+        provider.LanguageModel().converse(system="", messages=[], tools=[], model_id="thinkingmachines/Inkling")
 
 
 def test_generate_rotates_key_on_auth_error(isolated_config, monkeypatch):
