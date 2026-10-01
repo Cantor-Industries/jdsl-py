@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -252,6 +253,13 @@ def harness_serve(
         typer.echo("stopped.")
 
 
+@app.command("tui")
+def tui() -> None:
+    """Open the local harness dashboard."""
+    from jdsl.tui import run
+    run()
+
+
 def _print_install_banner():
     green = "\033[0;32m"
     muted = "\033[0;2m"
@@ -289,6 +297,63 @@ def about():
     """Show jdsl info and quickstart."""
     typer.secho("jdsl — Declarative behavior-tree agents", fg=typer.colors.CYAN, bold=True)
     _print_install_banner()
+
+
+@app.command("uninstall")
+def uninstall(
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt."),
+) -> None:
+    """Remove the curl-installed CLI while preserving captures and credentials."""
+    install_root = Path.home() / ".jdsl"
+    if not install_root.exists():
+        typer.echo("No curl-installed jdsl CLI found.")
+        return
+    if not yes and not typer.confirm(f"Remove {install_root} and its PATH entry?", default=False):
+        typer.echo("Cancelled.")
+        return
+
+    shutil.rmtree(install_root)
+    removed = _remove_install_path_entries()
+    typer.secho("Removed the curl-installed jdsl CLI.", fg=typer.colors.GREEN)
+    if removed:
+        typer.echo("Removed its PATH entry from: " + ", ".join(removed))
+    typer.echo("Harness captures and provider credentials were preserved.")
+
+
+def _remove_install_path_entries() -> list[str]:
+    install_dir = Path.home() / ".jdsl" / "bin"
+    config_home = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config"))
+    shell = Path(os.environ.get("SHELL", "sh")).name
+    if shell == "fish":
+        files = [Path.home() / ".config/fish/config.fish"]
+    elif shell == "zsh":
+        zdotdir = Path(os.environ.get("ZDOTDIR") or Path.home())
+        files = [zdotdir / ".zshrc", zdotdir / ".zshenv", config_home / "zsh/.zshrc", config_home / "zsh/.zshenv"]
+    elif shell == "bash":
+        files = [Path.home() / ".bashrc", Path.home() / ".bash_profile", Path.home() / ".profile",
+                 config_home / "bash/.bashrc", config_home / "bash/.bash_profile"]
+    else:
+        files = [Path.home() / ".bashrc", Path.home() / ".bash_profile", config_home / "bash/.bashrc",
+                 config_home / "bash/.bash_profile"]
+
+    removed: list[str] = []
+    path_line = f"export PATH={install_dir}:$PATH"
+    fish_line = f"fish_add_path {install_dir}"
+    for path in dict.fromkeys(files):
+        if not path.is_file():
+            continue
+        lines = path.read_text(encoding="utf-8").splitlines()
+        filtered: list[str] = []
+        for line in lines:
+            if line.strip() in (path_line, fish_line):
+                if filtered and filtered[-1].strip() == "# jdsl":
+                    filtered.pop()
+                continue
+            filtered.append(line)
+        if filtered != lines:
+            path.write_text("\n".join(filtered).rstrip() + "\n", encoding="utf-8")
+            removed.append(str(path))
+    return removed
 
 
 if __name__ == "__main__":  # pragma: no cover

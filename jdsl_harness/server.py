@@ -152,7 +152,7 @@ def _mcp_server(name: str) -> Any:
         return FastMCP(name)
     except ImportError as e:  # pragma: no cover - exercised only with mcp installed
         raise RuntimeError(
-            "the MCP control plane needs the 'mcp' package: uv sync --extra harness") from e
+            "the MCP control plane needs the 'mcp' package: pip install 'jdsl[harness]'" ) from e
 
 
 def build_mcp_server(store: HarnessStore, name: str = "jdsl-harness") -> Any:

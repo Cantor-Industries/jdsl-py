@@ -1,6 +1,6 @@
 # Quickstart
 
-This page gets you from a fresh checkout to a running skill.
+This page gets you from a fresh install to a running skill or harness capture.
 
 ## Install
 
@@ -16,14 +16,41 @@ Requires Python ≥ 3.11. After install:
 jdsl run examples/greeter.py
 ```
 
+The curl install includes the harness dependency, so the capture and compiler
+commands are available from the same `jdsl` installation.
+
+To replace an older curl installation, either run `jdsl uninstall` first or use
+the installer directly when the old CLI does not have that command:
+
+```bash
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --uninstall
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.1.0
+```
+
+Uninstall removes the CLI and its PATH entry but preserves harness captures and
+provider credentials.
+
 Development setup with `uv`:
 
 ```bash
 uv sync
+uv run jdsl --help
 uv run pytest
 ```
 
 The test suite is offline. Provider calls are faked in tests.
+
+For a complete harness capture, start the local ingest server and then follow
+[Harness Usage](harness_usage.md). Host plugins are installed separately because
+Claude Code, Gemini CLI, and OpenCode each have their own plugin directory.
+
+For an interactive workflow, use the harness dashboard:
+
+```bash
+jdsl tui
+```
+
+See [Harness TUI](tui.md) for the capture-to-package flow.
 
 ## Run a Deterministic Skill
 

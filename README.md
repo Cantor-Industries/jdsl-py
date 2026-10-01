@@ -78,11 +78,22 @@ Or with options:
 curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.1.0 --no-modify-path
 ```
 
-Requires Python ≥ 3.11. After install:
+Requires Python ≥ 3.11. The curl installer includes the harness dependency as
+well as the runtime CLI. After install:
 ```bash
 jdsl about                 # banner + quickstart
 jdsl run examples/greeter.py
 ```
+
+Upgrade a previous curl installation with:
+
+```bash
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --uninstall
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.1.0
+```
+
+The installed CLI also supports `jdsl uninstall`; captures and provider
+credentials are preserved.
 
 ### Development (uv)
 
