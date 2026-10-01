@@ -1,7 +1,8 @@
-# Harness TUI
+# JDSL TUI
 
-The TUI is the easiest way to operate a local capture and compilation session.
-It is a dashboard over the existing harness APIs, not a second runtime.
+The TUI currently focuses on authoring skills. It edits the restricted Behavior
+IR used by `.jdsl` packages; harness capture and compilation remain available
+through their separate CLI and APIs.
 
 ## Start
 
@@ -18,39 +19,27 @@ uv sync
 uv run jdsl tui
 ```
 
-The dashboard uses `JDSL_HARNESS_HOME` when set, otherwise it stores data under
-`~/.local/share/jdsl-harness`.
+## Author a Skill
 
-## Capture Workflow
+Launching `jdsl tui` opens the skill editor directly. Select a node and
+configure its properties, then add children from the node palette. The
+editor supports sequence, selector, action, guard, predict, react, and repeat
+nodes. Predict and react leaves expose their signature inputs, output,
+instructions, model/provider hint, and react tool set.
 
-1. Select **Start server**. The dashboard displays the local ingest URL. If
-	port `8848` is busy, it automatically selects an available port.
-2. Select **New capture**. The generated capture id is placed in the form.
-3. Set `JDSL_INGEST_URL` and `JDSL_CAPTURE_ID` in the host environment.
-4. Install or enable the Claude Code, Gemini CLI, or OpenCode plugin.
-5. Drive the host through successful task episodes.
-6. Select **Inspect** to view episode, deterministic-candidate, and residual counts.
-7. Select **Finish capture** when the capture is complete.
-8. Select **Stop server** when the host is no longer sending events.
-9. Select **Compile** to write the `.jdsl` package.
+**Validate** runs the same structural checks used by the package loader.
+**Save .jdsl** writes a portable package and loads it again to verify the
+serialized artifact. The output contains restricted IR and capability contracts,
+not arbitrary Python code.
 
-Host plugins remain separate because each host owns its own plugin format and
-installation directory. The TUI shows the connection details but does not alter
-the host's configuration implicitly.
+The optional **Run** action accepts a Python tools module defining `TOOLS` and
+an optional `PREDICATES` mapping, plus comma-separated `key=value` inputs. Runs
+use the normal package binding/runtime path and capture node exit statuses in
+memory; `[ok]` and `[!!]` markers show successful and failed nodes in the tree.
 
-## Controls
+Harness capture and compilation remain available through the commands documented
+in [Harness Usage](harness_usage.md). They are intentionally outside this TUI
+while the skill authoring workflow is being developed.
 
-| Control | Purpose |
-| --- | --- |
-| Start server | Starts the loopback ingest server in the TUI process. |
-| Stop server | Stops the loopback server. An active capture must be finished first. |
-| New capture | Creates a capture through `CaptureCoordinator`. |
-| Finish capture | Closes the selected capture. |
-| Inspect | Runs the existing lineage report. |
-| Compile | Builds, verifies, exports, and records a package. |
-| `r` | Refreshes the capture list. |
-| `q` | Exits and stops the local server. |
-
-The TUI reports replay coverage and residual decision burden after compilation.
-Those are evidence and structural metrics; held-out task evaluation is still
-required before treating a package as generally correct.
+The authoring shell is implemented in `jdsl/tui.py`; the tree editor and
+package workbench live in `jdsl/tui_skill.py`.
