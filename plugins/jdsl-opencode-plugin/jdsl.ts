@@ -18,6 +18,10 @@ function endpoint(): string {
   return `${base}/hook/opencode?cap=${cap}`
 }
 
+function token(): string {
+  return env("JDSL_CAPTURE_TOKEN", "")
+}
+
 async function forward(payload: Record<string, unknown>): Promise<void> {
   const timeout = Math.max(1, Number(env("JDSL_HOOK_TIMEOUT", "0.5")) * 1000)
   const controller = new AbortController()
@@ -25,7 +29,7 @@ async function forward(payload: Record<string, unknown>): Promise<void> {
   try {
     await fetch(endpoint(), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-JDSL-Capture-Token": token() },
       body: JSON.stringify(payload),
       signal: controller.signal,
     })

@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import json
 import threading
+import time
+from collections import defaultdict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
@@ -25,6 +27,13 @@ from jdsl_harness.adapters import claude_code, gemini_cli, opencode
 from jdsl_harness.adapters.correlation import ToolCallCorrelator
 from jdsl_harness.capture import CaptureCoordinator
 from jdsl_harness.store import HarnessStore
+
+
+class _HTTPError(Exception):
+    def __init__(self, status: int, message: str) -> None:
+        super().__init__(message)
+        self.status = status
+        self.message = message
 
 
 class IngestServer:
@@ -40,11 +49,22 @@ class IngestServer:
     The hook itself fails open for observation (§7.2): a bad request never 500s the
     agent — it returns a 200 with an error note so the host loop keeps moving."""
 
-    def __init__(self, store: HarnessStore, *, host: str = "127.0.0.1", port: int = 8848) -> None:
+    def __init__(self, store: HarnessStore, *, host: str = "127.0.0.1", port: int = 8848,
+                 max_body_bytes: int = 1_048_576, rate_limit: int = 120,
+                 rate_window_seconds: float = 60.0) -> None:
+        if host not in {"127.0.0.1", "localhost", "::1"}:
+            raise ValueError("IngestServer only permits loopback hosts")
+        if max_body_bytes < 1 or rate_limit < 1 or rate_window_seconds <= 0:
+            raise ValueError("ingest limits must be positive")
         self.store = store
         self.coord = CaptureCoordinator(store)
         self.host = host
         self.port = port
+        self.max_body_bytes = max_body_bytes
+        self.rate_limit = rate_limit
+        self.rate_window_seconds = rate_window_seconds
+        self._rate_lock = threading.Lock()
+        self._requests: dict[str, deque[float]] = defaultdict(deque)
         self._httpd: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._claude_correlator = ToolCallCorrelator()
@@ -60,8 +80,18 @@ class IngestServer:
 
             def _json(self) -> dict[str, Any]:
                 length = int(self.headers.get("Content-Length", 0) or 0)
+                if length > server.max_body_bytes:
+                    raise _HTTPError(413, "request body is too large")
+                if not length:
+                    raise _HTTPError(400, "request body is required")
                 raw = self.rfile.read(length) if length else b"{}"
-                return json.loads(raw or b"{}")
+                try:
+                    payload = json.loads(raw)
+                except json.JSONDecodeError as error:
+                    raise _HTTPError(400, f"malformed JSON: {error.msg}") from error
+                if not isinstance(payload, dict):
+                    raise _HTTPError(400, "request body must be a JSON object")
+                return payload
 
             def _reply(self, code: int, body: dict[str, Any]) -> None:
                 data = json.dumps(body).encode("utf-8")
@@ -76,28 +106,60 @@ class IngestServer:
                 q = parse_qs(urlparse(self.path).query)
                 return (q.get("cap") or ["cap_ingest"])[0]
 
+            def _token(self) -> str | None:
+                from urllib.parse import parse_qs, urlparse
+                header = self.headers.get("X-JDSL-Capture-Token")
+                q = parse_qs(urlparse(self.path).query)
+                return header or (q.get("token") or [None])[0]
+
+            def _check_origin(self) -> None:
+                origin = self.headers.get("Origin")
+                if origin and origin not in {"null", f"http://{server.host}",
+                                             f"http://{server.host}:{server.port}"}:
+                    raise _HTTPError(403, "origin is not allowed")
+
+            def _authorize(self, capture_id: str) -> None:
+                if not server.store.authorize_capture(capture_id, self._token()):
+                    raise _HTTPError(401, "missing or invalid capture token")
+                now = time.monotonic()
+                with server._rate_lock:
+                    requests = server._requests[capture_id]
+                    cutoff = now - server.rate_window_seconds
+                    while requests and requests[0] <= cutoff:
+                        requests.popleft()
+                    if len(requests) >= server.rate_limit:
+                        raise _HTTPError(429, "capture request rate limit exceeded")
+                    requests.append(now)
+
             def do_POST(self) -> None:  # noqa: N802
                 try:
-                    payload = self._json()
+                    self._check_origin()
                     path = self.path.split("?", 1)[0]
+                    payload = self._json()
                     if path == "/ingest":
                         event = TraceEvent.from_dict(payload)
+                        self._authorize(event.capture_id)
                         server.store.ingest(event)
                     elif path == "/hook/claude":
+                        self._authorize(self._cap())
                         for e in claude_code.to_events(payload, capture_id=self._cap(),
                                                        correlator=server._claude_correlator):
                             server.store.ingest(e)
                     elif path == "/hook/gemini":
+                        self._authorize(self._cap())
                         for e in gemini_cli.to_events(payload, capture_id=self._cap(),
                                                       correlator=server._gemini_correlator):
                             server.store.ingest(e)
                     elif path == "/hook/opencode":
+                        self._authorize(self._cap())
                         for e in opencode.to_events(payload, capture_id=self._cap(),
                                                     correlator=server._opencode_correlator):
                             server.store.ingest(e)
                     else:
                         return self._reply(404, {"error": "unknown endpoint"})
                     self._reply(200, {"ok": True})
+                except _HTTPError as error:
+                    self._reply(error.status, {"ok": False, "error": error.message})
                 except Exception as err:  # noqa: BLE001 — fail open (§7.2)
                     self._reply(200, {"ok": False, "error": str(err)})
 
@@ -164,7 +226,8 @@ def build_mcp_server(store: HarnessStore, name: str = "jdsl-harness") -> Any:
 
     @mcp.tool()
     def jdsl_capture_start(host: str = "jdsl", adapter: str = "runtime", note: str = "") -> dict:
-        return {"capture_id": coord.start(host=host, adapter=adapter, note=note)}
+        session = coord.start_session(host=host, adapter=adapter, note=note)
+        return {"capture_id": session.capture_id, "capture_token": session.token}
 
     @mcp.tool()
     def jdsl_capture_finish(capture_id: str) -> dict:

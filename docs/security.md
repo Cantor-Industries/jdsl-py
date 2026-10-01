@@ -17,7 +17,7 @@ side effects are possible.
 
 | Asset or boundary | Current exposure | Current control | Remaining risk |
 | --- | --- | --- | --- |
-| Ingest daemon | Local HTTP server receives canonical events and host hook payloads. | Loopback default; malformed hook requests fail open to the host with an error response. | No shared-secret authentication, Origin/Host validation, request-size limit, or rate limit yet. A local process can submit or read capture data. |
+| Ingest daemon | Local HTTP server receives canonical events and host hook payloads. | Loopback-only binding, per-capture tokens, allowed-origin checks, request-size limits, and per-capture rate limits. Malformed adapter requests fail open to the host with an error response; authentication failures are rejected. | Capture listing and summaries are still local unauthenticated reads, and there is no multi-user authorization model. |
 | Captured events | Tool arguments, results, messages, state references, and blobs may contain secrets, PII, or attacker-controlled text. | `Redactor` supports secret patterns, key names, and configured JSON paths. | Redaction is not automatically applied to every durable store write. Operators must not treat captures as sanitized by default. |
 | SQLite and JSONL store | Capture metadata and append-only event spools are written under `JDSL_HARNESS_HOME`. | Local filesystem permissions and hash-chained trace events. | No retention policy, quota, repair command, or multi-user isolation. |
 | Compiler input | Normalization and candidate extraction consume captured events. | The baseline compiler is heuristic and deterministic; compiled structure is built from a closed Behavior IR vocabulary. | Captured content is still untrusted data. Model-backed compiler roles need evidence delimiting and deterministic proposal verification before use. |
@@ -33,7 +33,7 @@ side effects are possible.
   OpenCode. Host-side shims fail open so telemetry failure does not block the
   host operation.
 - **Local process or browser:** may reach a loopback HTTP service unless the
-  operator adds external isolation. The current daemon has no session token.
+  operator adds external isolation. Event writes require the per-capture token.
 - **Captured task or tool result:** may contain prompt-injection text. It is
   evidence for compilation, not trusted compiler instructions.
 - **Package author or distributor:** may provide a malformed or unsafe policy;
@@ -45,7 +45,7 @@ side effects are possible.
 
 The current harness does not claim to provide:
 
-- a network-exposed secure ingest service;
+- a network-exposed or multi-user secure ingest service;
 - a sandbox for Python tool bindings or model adapters;
 - automatic secret removal from every capture path;
 - cryptographic package signing or publisher identity;
@@ -56,13 +56,11 @@ The current harness does not claim to provide:
 
 The next security changes should be delivered as independently tested slices:
 
-1. Authenticate and constrain ingest requests with per-capture tokens, origin
-   checks, size limits, and rate limits.
-2. Apply shared redaction before durable persistence and record the policy in
+1. Apply shared redaction before durable persistence and record the policy in
    capture metadata.
-3. Harden package loading and resource limits, with distinct validation errors.
-4. Enforce runtime effect policies, dry-run behavior, and per-run budgets.
-5. Add package signatures and provenance that records capture, compiler, redaction,
+2. Harden package loading and resource limits, with distinct validation errors.
+3. Enforce runtime effect policies, dry-run behavior, and per-run budgets.
+4. Add package signatures and provenance that records capture, compiler, redaction,
    and verification identities.
 
 Each change should add happy-path and failure-path tests and update this threat

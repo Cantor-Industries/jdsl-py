@@ -12,6 +12,10 @@ Run the harness daemon so the forwarders have somewhere to post:
 jdsl harness serve          # listens on http://127.0.0.1:8848 by default
 ```
 
+Create a capture with `jdsl capture start` and export both the printed capture
+id and token before enabling a forwarder. The token is sent in the
+`X-JDSL-Capture-Token` header.
+
 Forwarders **fail open** (§7.2): if the daemon is not running, the hook still exits
 0 with empty output and never blocks or fails a tool call. Capture is best-effort.
 
@@ -27,7 +31,8 @@ Environment:
 | var | default | meaning |
 |-----|---------|---------|
 | `JDSL_INGEST_URL` | `http://127.0.0.1:8848` | ingest daemon base URL |
-| `JDSL_CAPTURE_ID` | `cap_claude` | route events into a named capture |
+| `JDSL_CAPTURE_ID` | from `capture start` | route events into a named capture |
+| `JDSL_CAPTURE_TOKEN` | from `capture start` | authenticate the capture session |
 | `JDSL_HOOK_TIMEOUT` | `0.5` | max seconds to wait on the hot path |
 
 ## Gemini CLI (`jdsl-gemini-extension/`)
@@ -48,7 +53,8 @@ Environment:
 | var | default | meaning |
 |-----|---------|---------|
 | `JDSL_INGEST_URL` | `http://127.0.0.1:8848` | ingest daemon base URL |
-| `JDSL_CAPTURE_ID` | `cap_opencode` | route events into a named capture |
+| `JDSL_CAPTURE_ID` | from `capture start` | route events into a named capture |
+| `JDSL_CAPTURE_TOKEN` | from `capture start` | authenticate the capture session |
 | `JDSL_HOOK_TIMEOUT` | `0.5` | max seconds to wait on the hot path |
 
 See [`docs/opencode.md`](../docs/opencode.md) for install and smoke-test steps.

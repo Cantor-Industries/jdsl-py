@@ -14,6 +14,7 @@ Design constraints it honors:
 Config via environment:
     JDSL_INGEST_URL   default http://127.0.0.1:8848
     JDSL_CAPTURE_ID   default cap_gemini   (route events into a named capture)
+    JDSL_CAPTURE_TOKEN required token returned when the capture starts
     JDSL_HOOK_TIMEOUT default 0.5 seconds  (never wait long on the hot path)
 """
 
@@ -34,13 +35,15 @@ def main() -> int:
 
     base = os.environ.get("JDSL_INGEST_URL", "http://127.0.0.1:8848").rstrip("/")
     cap = os.environ.get("JDSL_CAPTURE_ID", "cap_gemini")
+    token = os.environ.get("JDSL_CAPTURE_TOKEN", "")
     timeout = float(os.environ.get("JDSL_HOOK_TIMEOUT", "0.5"))
     url = f"{base}/hook/gemini?cap={cap}"
 
     try:
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data, method="POST",
-                                     headers={"Content-Type": "application/json"})
+                                     headers={"Content-Type": "application/json",
+                                              "X-JDSL-Capture-Token": token})
         urllib.request.urlopen(req, timeout=timeout).read()
     except Exception:
         pass  # daemon not running / slow — capture is best-effort (§7.2)

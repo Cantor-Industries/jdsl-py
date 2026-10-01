@@ -11,15 +11,19 @@ The shared pattern is:
 host hook payload
   -> small plugin/forwarder
   -> POST http://127.0.0.1:8848/hook/<host>?cap=<capture_id>
+  X-JDSL-Capture-Token: <capture_token>
   -> host adapter
   -> canonical TraceEvent
   -> HarnessStore
 ```
 
-The local ingest server is implemented in
+The capture id and token come from `jdsl capture start`. The token is retained
+only as a hash by the store and must be sent in the
+`X-JDSL-Capture-Token` header. The local ingest server is implemented in
 [`jdsl_harness/server.py`](https://github.com/Cantor-Industries/jdsl-py/blob/harness/jdsl_harness/server.py).
-It returns HTTP 200 with `{ "ok": false }` for malformed hook payloads so capture
-does not break the host agent session.
+It rejects missing or invalid credentials, origins, oversized requests, and
+rate-limit violations. Authenticated malformed adapter payloads return HTTP 200
+with `{ "ok": false }` so capture does not break the host agent session.
 
 ## Correlation
 

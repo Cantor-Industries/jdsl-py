@@ -11,6 +11,7 @@ The coordinator never depends on MCP; the MCP server is a thin shell over it.
 
 from __future__ import annotations
 
+import secrets
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -28,12 +29,17 @@ class CaptureCoordinator:
 
     # -- lifecycle (§28.1) ----------------------------------------------------
 
-    def start(self, *, host: str = "jdsl", adapter: str = "runtime", note: str = "") -> str:
+    def start_session(self, *, host: str = "jdsl", adapter: str = "runtime", note: str = "") -> CaptureSession:
         capture_id = "cap_" + uuid.uuid4().hex[:12]
-        self.store.start_capture(capture_id, host=host, adapter=adapter, note=note)
+        token = secrets.token_urlsafe(32)
+        self.store.start_capture(capture_id, host=host, adapter=adapter, note=note, token=token)
         self.store.sink(capture_id).emit(TraceEvent.new(
             EventKind.CAPTURE_STARTED, capture_id, "_capture", payload={"host": host, "adapter": adapter}))
-        return capture_id
+        return CaptureSession(capture_id=capture_id, token=token)
+
+    def start(self, *, host: str = "jdsl", adapter: str = "runtime", note: str = "") -> str:
+        """Start a token-protected capture and return its id for compatibility."""
+        return self.start_session(host=host, adapter=adapter, note=note).capture_id
 
     def finish(self, capture_id: str) -> None:
         self.store.sink(capture_id).emit(TraceEvent.new(
@@ -114,4 +120,10 @@ def _fidelity(events: list[TraceEvent]) -> str:
     return "F0"
 
 
-__all__ = ["CaptureCoordinator"]
+@dataclass(frozen=True)
+class CaptureSession:
+    capture_id: str
+    token: str
+
+
+__all__ = ["CaptureCoordinator", "CaptureSession"]

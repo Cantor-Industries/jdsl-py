@@ -37,11 +37,17 @@ OpenCode loads plugins from `.opencode/plugins/` and
 
 ```bash
 export JDSL_HARNESS_HOME=/tmp/jdsl-opencode
-export JDSL_CAPTURE_ID=cap_opencode
 export JDSL_INGEST_URL=http://127.0.0.1:8848
 export JDSL_HOOK_TIMEOUT=0.5
 
 uv run jdsl harness serve
+```
+
+In another shell, create the authenticated capture and export its credentials:
+
+```bash
+eval "$(uv run jdsl capture start --host opencode --adapter plugin \
+  | sed -n 's/^capture_id=/export JDSL_CAPTURE_ID=/p; s/^capture_token=/export JDSL_CAPTURE_TOKEN=/p')"
 ```
 
 In another shell:
@@ -64,6 +70,8 @@ The plugin forwards a stable `jdsl.opencode-hook.v1` envelope to:
 ```text
 POST /hook/opencode?cap=<capture_id>
 ```
+
+The capture token is sent in the `X-JDSL-Capture-Token` header.
 
 The Python adapter maps:
 

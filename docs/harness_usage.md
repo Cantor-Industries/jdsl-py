@@ -87,6 +87,14 @@ Start the local ingest daemon:
 jdsl harness serve
 ```
 
+Start a capture in the same harness store and keep the printed token private:
+
+```bash
+uv run jdsl capture start --host claude-code --adapter hooks
+# capture_id=cap_...
+# capture_token=...
+```
+
 Then install a host shim:
 
 ```text
@@ -103,7 +111,8 @@ Common environment:
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `JDSL_INGEST_URL` | `http://127.0.0.1:8848` | ingest daemon base URL |
-| `JDSL_CAPTURE_ID` | host-specific | capture id to route into |
+| `JDSL_CAPTURE_ID` | from `capture start` | capture id to route into |
+| `JDSL_CAPTURE_TOKEN` | from `capture start` | per-capture token sent in `X-JDSL-Capture-Token` |
 | `JDSL_HOOK_TIMEOUT` | `0.5` | max seconds to wait in the hook |
 
 See [OpenCode Capture](opencode.md) for OpenCode-specific steps.

@@ -7,11 +7,13 @@ It observes OpenCode session and tool hooks, converts them into the stable
 
 ```bash
 export JDSL_HARNESS_HOME=/tmp/jdsl-opencode
-export JDSL_CAPTURE_ID=cap_opencode
 export JDSL_INGEST_URL=http://127.0.0.1:8848
 export JDSL_HOOK_TIMEOUT=0.5
 
 uv run jdsl harness serve
+# In another shell:
+uv run jdsl capture start --host opencode --adapter plugin
+# Export the printed capture_id and capture_token.
 ```
 
 Install project-locally during development:

@@ -19,7 +19,11 @@ from jdsl import config
 from jdsl.render import render
 from jdsl.tree import Root
 
-app = typer.Typer(add_completion=False, help="Declarative behavior-tree agents. Read docs at https://cantor-industries.github.io/jdsl-py/ to understand what jdsl is.")
+app = typer.Typer(
+    add_completion=False,
+    help=("Declarative behavior-tree agents. Read docs at "
+          "https://cantor-industries.github.io/jdsl-py/ to understand what jdsl is."),
+)
 config_app = typer.Typer(help="Manage provider API keys (~/.local/share/recon/auth.json).")
 app.add_typer(config_app, name="config")
 
@@ -178,6 +182,21 @@ def package_run(
 
 # -- capture commands (§37) ---------------------------------------------------
 
+@capture_app.command("start")
+def capture_start(
+    host: str = typer.Option("host", help="Source host name."),
+    adapter: str = typer.Option("hook", help="Capture adapter name."),
+    note: str = typer.Option("", help="Optional capture note."),
+) -> None:
+    """Start a token-protected capture and print hook credentials."""
+    from jdsl_harness.capture import CaptureCoordinator
+    from jdsl_harness.store import HarnessStore
+    session = CaptureCoordinator(HarnessStore(_store_root())).start_session(
+        host=host, adapter=adapter, note=note)
+    typer.echo(f"capture_id={session.capture_id}")
+    typer.echo(f"capture_token={session.token}")
+    typer.echo("Export both values to the host hook environment.")
+
 @capture_app.command("list")
 def capture_list() -> None:
     """List captures in the local harness store."""
@@ -269,25 +288,28 @@ def _print_install_banner():
     typer.echo(f"{green}       \\ \\ \\   /  \\ \\____   / /  \\       /\\__ \\  {nc}")
     typer.echo(f"{green}        /\\ \\_\\ / /\\ \\_____\\ / / /\\ \\__   / /_ \\_\\ {nc}")
     typer.echo(f"{green}       / /\\_// / /\\/___  // / /\\ \\___\\ / / /\\/_/ {nc}")
-    typer.echo(f"{green}  _   / / /  / / /   / / / \\ \\ \\ \/___// / /      {nc}")
+    typer.echo(f"{green}  _   / / /  / / /   / / / \\ \\ \\ \\/___// / /      {nc}")
     typer.echo(f"{green} /\\ \\ / / /  / / /   / / /   \\ \\ \\     / / /       {nc}")
     typer.echo(f"{green} \\ \\_\\/ / /  / / /   / / /_    \\ \\ \\   / / / ____   {nc}")
     typer.echo(f"{green}  / / /_/ / /  \\ \\__/ / //_\\__/ / /  / /_/_/ ___/\\ {nc}")
-    typer.echo(f"{green} / / /__\\/ /    \\ \\___\\/ / \\ \/___/ /  /_______/\\__/ {nc}")
-    typer.echo(f"{green}\\/_______/      \/_____/   \\_____\\/   \\_______\\/  {nc}")
+    typer.echo(f"{green} / / /__\\/ /    \\ \\___\\/ / \\ \\/___/ /  /_______/\\__/ {nc}")
+    typer.echo(f"{green}\\/_______/      \\/_____/   \\_____\\/   \\_______\\/  {nc}")
     typer.echo(f"{muted}Quick start:{nc}")
-    typer.echo(f"  jdsl run examples/greeter.py")
-    typer.echo(f"")
+    typer.echo("  jdsl run examples/greeter.py")
+    typer.echo("")
     typer.echo(f"{muted}For API keys:{nc}")
-    typer.echo(f"  echo 'ANTHROPIC_API_KEY=sk-...' >> .env")
-    typer.echo(f"")
+    typer.echo("  echo 'ANTHROPIC_API_KEY=sk-...' >> .env")
+    typer.echo("")
     typer.echo(f"{muted}Docs: {nc}https://cantor-industries.github.io/jdsl-py/")
     typer.echo("")
 
 
 @app.callback()
 def main():
-    """Declarative behavior-tree agents. Read docs at https://cantor-industries.github.io/jdsl-py/ to understand what jdsl is."""
+    """Declarative behavior-tree agents.
+
+    Read docs at https://cantor-industries.github.io/jdsl-py/.
+    """
     # After any subcommand runs, show the banner once on first run or via --about
     pass
 
