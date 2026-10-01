@@ -40,5 +40,5 @@ VERSION_RELEASE.md
 site/
 docs/*_next_steps.md
 docs/*_experiment.ipynb
-docs/drafts/
+docs/draft/
 jdsl-linux-x64.tar.gz

@@ -33,29 +33,52 @@ values before printing them.
 
 ## Harness Commands
 
+Remove a curl-installed JDSL CLI while preserving captures and credentials:
+
+```bash
+jdsl uninstall
+jdsl uninstall --yes
+```
+
+For older installations that do not have the command yet, use the installer
+directly:
+
+```bash
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --uninstall
+```
+
+Open the interactive harness dashboard:
+
+```bash
+jdsl tui
+```
+
+The dashboard starts the local server, creates captures, inspects lineage, and
+compiles packages. See [Harness TUI](tui.md) for the host-plugin handoff.
+
 Run the local ingest server:
 
 ```bash
-uv run jdsl harness serve
+jdsl harness serve
 ```
 
 List and inspect captures:
 
 ```bash
-uv run jdsl capture list
-uv run jdsl capture inspect cap_retail
+jdsl capture list
+jdsl capture inspect cap_retail
 ```
 
 Import generic JSONL traces:
 
 ```bash
-uv run jdsl capture import runs.jsonl --capture cap_imported
+jdsl capture import runs.jsonl --capture cap_imported
 ```
 
 Compile:
 
 ```bash
-uv run jdsl compile cap_imported --name retail --out retail.jdsl
+jdsl compile cap_imported --name retail --out retail.jdsl
 ```
 
 ## Package Commands

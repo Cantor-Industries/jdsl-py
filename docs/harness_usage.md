@@ -11,13 +11,27 @@ reusable parts into executable jdsl policy.
 
 ## Install
 
+Quick install (curl):
+
 ```bash
-uv sync
-uv sync --extra harness
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash
 ```
 
-The `harness` extra is needed for the live MCP control plane and MCP examples.
-The compiler and tests use fake models and can run offline.
+Development setup (uv):
+
+```bash
+uv sync
+```
+
+The published CLI includes the harness dependency by default. The compiler and
+tests use fake models and can run offline.
+
+For an existing lightweight/library installation that intentionally omitted the
+default harness dependency, install it explicitly with:
+
+```bash
+python -m pip install 'jdsl[harness]'
+```
 
 ## Store Location
 
@@ -63,7 +77,7 @@ MCP proxy path when you need transparent tool-call recording.
 Start the local ingest daemon:
 
 ```bash
-uv run jdsl harness serve
+jdsl harness serve
 ```
 
 Then install a host shim:

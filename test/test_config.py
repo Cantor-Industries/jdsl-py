@@ -15,6 +15,8 @@ from jdsl import config
         ("gpt-4o", "openai"),
         ("o3-mini", "openai"),
         ("gemini-2.0", "google"),
+        ("thinkingmachines/Inkling", "tinker"),
+        ("inkling-base", "tinker"),
         ("something-unknown", "anthropic"),  # default
     ],
 )
@@ -47,6 +49,11 @@ def test_keys_for_falls_back_to_env(isolated_config, monkeypatch):
 
 def test_keys_for_empty_when_nothing(isolated_config):
     assert config.keys_for("openai") == []
+
+
+def test_keys_for_tinker_env(monkeypatch, isolated_config):
+    monkeypatch.setenv("TINKER_API_KEY", "env-key")
+    assert config.keys_for("tinker") == ["env-key"]
 
 
 def test_auth_path_under_xdg(isolated_config):

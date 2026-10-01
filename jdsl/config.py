@@ -12,17 +12,22 @@ from dotenv import load_dotenv
 
 load_dotenv()  # so DEEPSEEK_API_KEY etc. are picked up without exporting
 
-SUPPORTED_PROVIDERS = ("anthropic", "openai", "deepseek", "google")
+SUPPORTED_PROVIDERS = ("anthropic", "openai", "deepseek", "google", "tinker")
 
 ENV_KEYS = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
     "deepseek": "DEEPSEEK_API_KEY",
     "google": "GOOGLE_API_KEY",
+    "tinker": "TINKER_API_KEY",
 }
 
 # OpenAI-compatible base URLs (Anthropic uses its own SDK, so it's absent).
-BASE_URLS = {"deepseek": "https://api.deepseek.com", "openai": None}
+BASE_URLS = {
+    "deepseek": "https://api.deepseek.com",
+    "openai": None,
+    "tinker": "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1",
+}
 
 
 def provider_for_model(model_id: str) -> str:
@@ -31,6 +36,7 @@ def provider_for_model(model_id: str) -> str:
     if name.startswith("deepseek"): return "deepseek"
     if name.startswith(("gpt", "o1", "o3", "o4")): return "openai"
     if name.startswith("gemini"): return "google"
+    if name.startswith(("thinkingmachines/", "inkling")): return "tinker"
     return "anthropic"
 
 

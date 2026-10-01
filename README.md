@@ -65,6 +65,23 @@ answer: About 6.1 hours.
 Triage steers the model with the tree; `react` lets the model steer your tools.
 Full version: [examples/trip.py](examples/trip.py).
 
+## Skill authoring TUI
+
+JDSL includes a compact terminal workbench for building restricted behavior
+trees without writing the initial Python DSL:
+
+```bash
+uv run jdsl tui
+```
+
+<p align="center">
+  <img src="docs/tui.png" alt="JDSL skill authoring TUI" width="960" />
+</p>
+
+Add sequence, selector, action, guard, predict, react, and repeat nodes; edit
+their properties; validate the tree; and save a portable `.jdsl` package. See
+the [TUI guide](docs/tui.md) for the authoring workflow.
+
 ## Install & run
 
 ### Quick install (curl)
@@ -78,11 +95,22 @@ Or with options:
 curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.1.0 --no-modify-path
 ```
 
-Requires Python ≥ 3.11. After install:
+Requires Python ≥ 3.11. The curl installer includes the harness dependency as
+well as the runtime CLI. After install:
 ```bash
 jdsl about                 # banner + quickstart
 jdsl run examples/greeter.py
 ```
+
+Upgrade a previous curl installation with:
+
+```bash
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --uninstall
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.1.0
+```
+
+The installed CLI also supports `jdsl uninstall`; captures and provider
+credentials are preserved.
 
 ### Development (uv)
 
@@ -159,6 +187,7 @@ for the design-to-code map.
 - [docs/concepts.md](docs/concepts.md) — behavior trees, the blackboard, signatures, why no codegen
 - [docs/api.md](docs/api.md) — full combinator + node reference
 - [docs/providers.md](docs/providers.md) — models, keys, `.env`, routing
+- [docs/tui.md](docs/tui.md) — skill authoring TUI
 - [docs/harness_usage.md](docs/harness_usage.md) — hands-on: capture, compile, verify, run
 - [docs/harness.md](docs/harness.md) — capture harness and behavior compiler overview
 - [docs/packages.md](docs/packages.md) — `.jdsl` package format and binding

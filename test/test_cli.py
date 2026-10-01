@@ -64,3 +64,22 @@ def test_run_file_without_skills_exits_nonzero(tmp_path):
     f.write_text("x = 1\n")
     r = runner.invoke(app, ["run", str(f)])
     assert r.exit_code == 1
+
+
+def test_uninstall_removes_cli_and_preserves_harness_data(tmp_path, monkeypatch):
+    monkeypatch.setattr("pathlib.Path.home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setenv("SHELL", "/bin/bash")
+    install_root = tmp_path / ".jdsl"
+    install_root.mkdir()
+    harness_data = tmp_path / ".local/share/jdsl-harness"
+    harness_data.mkdir(parents=True)
+    (harness_data / "keep.txt").write_text("capture", encoding="utf-8")
+    bashrc = tmp_path / ".bashrc"
+    bashrc.write_text("# jdsl\nexport PATH=" + str(install_root / "bin") + ":$PATH\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["uninstall", "--yes"])
+
+    assert result.exit_code == 0
+    assert not install_root.exists()
+    assert "# jdsl" not in bashrc.read_text(encoding="utf-8")
+    assert (harness_data / "keep.txt").read_text(encoding="utf-8") == "capture"

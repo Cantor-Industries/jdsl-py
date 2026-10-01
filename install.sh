@@ -18,6 +18,7 @@ Options:
     -h, --help              Display this help message
     -v, --version <version> Install a specific version (e.g., 0.1.0)
     -b, --binary <path>     Install from a local binary instead of downloading
+        --uninstall         Remove the installed jdsl CLI and PATH entry
         --no-modify-path    Don't modify shell config files (.zshrc, .bashrc, etc.)
 
 Examples:
@@ -30,6 +31,7 @@ EOF
 requested_version=${VERSION:-}
 no_modify_path=false
 binary_path=""
+uninstall=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -55,6 +57,10 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        --uninstall)
+            uninstall=true
+            shift
+            ;;
         --no-modify-path)
             no_modify_path=true
             shift
@@ -67,6 +73,34 @@ while [[ $# -gt 0 ]]; do
 done
 
 INSTALL_DIR=$HOME/.jdsl/bin
+
+remove_path_entries() {
+    local file="$1"
+    [[ -f "$file" ]] || return 0
+    sed -i \
+        -e "\\|^[[:space:]]*export PATH=$INSTALL_DIR:\\$PATH[[:space:]]*$|d" \
+        -e "\\|^[[:space:]]*fish_add_path $INSTALL_DIR[[:space:]]*$|d" \
+        "$file"
+}
+
+if [[ "$uninstall" == "true" ]]; then
+    rm -rf "$HOME/.jdsl"
+    XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+    current_shell=$(basename "${SHELL:-sh}")
+    case "$current_shell" in
+        fish) config_files="$HOME/.config/fish/config.fish" ;;
+        zsh) config_files="${ZDOTDIR:-$HOME}/.zshrc ${ZDOTDIR:-$HOME}/.zshenv $XDG_CONFIG_HOME/zsh/.zshrc $XDG_CONFIG_HOME/zsh/.zshenv" ;;
+        bash) config_files="$HOME/.bashrc $HOME/.bash_profile $HOME/.profile $XDG_CONFIG_HOME/bash/.bashrc $XDG_CONFIG_HOME/bash/.bash_profile" ;;
+        *) config_files="$HOME/.bashrc $HOME/.bash_profile $XDG_CONFIG_HOME/bash/.bashrc $XDG_CONFIG_HOME/bash/.bash_profile" ;;
+    esac
+    for file in $config_files; do
+        remove_path_entries "$file"
+    done
+    echo -e "${GREEN}jdsl CLI removed from ${NC}$HOME/.jdsl"
+    echo -e "${MUTED}Harness captures and provider credentials were preserved.${NC}"
+    exit 0
+fi
+
 mkdir -p "$INSTALL_DIR"
 
 if [ -n "$binary_path" ]; then
@@ -186,6 +220,18 @@ if __name__ == "__main__":
     rm -rf "$tmp_dir"
 fi
 
+# The published CLI includes the harness control plane. Source installs get this
+# through package metadata; binary archives need the Python transport installed
+# beside them explicitly.
+if command -v python3 >/dev/null 2>&1 && ! python3 -c 'import mcp, textual' >/dev/null 2>&1; then
+    echo -e "${ORANGE}Installing jdsl harness and TUI dependencies...${NC}"
+    if ! python3 -m pip install --user "mcp>=1.2" "textual>=0.50"; then
+        echo -e "${RED}Error: Could not install the jdsl harness/TUI dependencies.${NC}"
+        echo -e "${MUTED}Install them manually with: python3 -m pip install --user 'mcp>=1.2' 'textual>=0.50'${NC}"
+        exit 1
+    fi
+fi
+
 XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 current_shell=$(basename "$SHELL")
 case $current_shell in
@@ -255,6 +301,7 @@ echo -e "${ORANGE}Note: Run 'source ~/.bashrc' (or restart your shell) to use 'j
 echo -e ""
 echo -e "${MUTED}Quick start:${NC}"
 echo -e "  jdsl run examples/greeter.py"
+echo -e "  jdsl harness serve"
 echo -e ""
 echo -e "${MUTED}For API keys:${NC}"
 echo -e "  echo 'ANTHROPIC_API_KEY=sk-...' >> .env"
