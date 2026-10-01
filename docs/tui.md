@@ -4,6 +4,14 @@ The TUI currently focuses on authoring skills. It edits the restricted Behavior
 IR used by `.jdsl` packages; harness capture and compilation remain available
 through their separate CLI and APIs.
 
+<p align="center">
+	<img src="tui.png" alt="JDSL skill authoring TUI" width="960" />
+</p>
+
+The workbench keeps the tree visible on the left and the selected node's
+properties on the right. The properties form scrolls independently on smaller
+terminals.
+
 ## Start
 
 After the curl install:

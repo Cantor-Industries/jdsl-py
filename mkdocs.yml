@@ -10,7 +10,7 @@ nav:
   - Quickstart: quickstart.md
   - Examples: examples.md
   - CLI: cli.md
-  - Harness TUI: tui.md
+  - Skill Authoring TUI: tui.md
   - Runtime:
       - Concepts: concepts.md
       - API Reference: api.md
