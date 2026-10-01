@@ -33,6 +33,7 @@ nav:
       - Refinement Loops: tutorials/refinement.md
   - Harness & Compiler:
       - Overview: harness.md
+      - Security Model: security.md
       - Compiler Pipeline: compiler.md
       - Usage: harness_usage.md
       - Behavior Packages: packages.md

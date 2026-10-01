@@ -9,6 +9,9 @@ capture -> inspect -> compile -> run
 Use this when you have successful tool-using trajectories and want to turn the
 reusable parts into executable jdsl policy.
 
+This guide covers the current CLI/API harness. The TUI is presently focused on
+authoring skills and does not start the ingest server or manage captures.
+
 ## Install
 
 Quick install (curl):
@@ -44,6 +47,10 @@ export JDSL_HARNESS_HOME=/tmp/jdsl-harness
 If unset, the default is `~/.local/share/jdsl-harness`.
 
 ## 1. Capture
+
+Choose one capture tier. Tier A is the highest-fidelity path when the execution
+is already using jdsl; Tier B is for supported host hooks; Tier C is for logs
+that already exist.
 
 ### Tier A: jdsl-Native or Gateway
 
@@ -139,6 +146,11 @@ The report includes verification status, required capabilities, declared run
 inputs, exact dataflow refs, deterministic coverage, and residual decision
 burden.
 
+The default compiler is deterministic and heuristic. It staticizes supported
+structure from the evidence and leaves unexplained semantic choices as model
+signatures. It does not infer arbitrary Python code or guarantee behavior on
+tasks outside the captured evidence.
+
 ## 4. Run
 
 Inspect and verify the package:
@@ -177,6 +189,10 @@ uv run jdsl package run retail.jdsl --tools tools.py \
 
 If the package contains residual model leaves, pass `--model <model-id>` or bind
 a model programmatically. Deterministic packages run without a model.
+
+Package execution is capability-bound: every required logical tool must be
+present in `TOOLS` before the package starts. The package itself never imports
+host code by path.
 
 ## Metrics
 
