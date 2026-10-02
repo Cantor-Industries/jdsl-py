@@ -9,6 +9,9 @@ capture -> inspect -> compile -> run
 Use this when you have successful tool-using trajectories and want to turn the
 reusable parts into executable jdsl policy.
 
+This guide covers the current CLI/API harness. The TUI is presently focused on
+authoring skills and does not start the ingest server or manage captures.
+
 ## Install
 
 Quick install (curl):
@@ -45,6 +48,10 @@ If unset, the default is `~/.local/share/jdsl-harness`.
 
 ## 1. Capture
 
+Choose one capture tier. Tier A is the highest-fidelity path when the execution
+is already using jdsl; Tier B is for supported host hooks; Tier C is for logs
+that already exist.
+
 ### Tier A: jdsl-Native or Gateway
 
 A jdsl skill can record itself when you attach a trace sink:
@@ -80,6 +87,14 @@ Start the local ingest daemon:
 jdsl harness serve
 ```
 
+Start a capture in the same harness store and keep the printed token private:
+
+```bash
+uv run jdsl capture start --host claude-code --adapter hooks
+# capture_id=cap_...
+# capture_token=...
+```
+
 Then install a host shim:
 
 ```text
@@ -96,7 +111,8 @@ Common environment:
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `JDSL_INGEST_URL` | `http://127.0.0.1:8848` | ingest daemon base URL |
-| `JDSL_CAPTURE_ID` | host-specific | capture id to route into |
+| `JDSL_CAPTURE_ID` | from `capture start` | capture id to route into |
+| `JDSL_CAPTURE_TOKEN` | from `capture start` | per-capture token sent in `X-JDSL-Capture-Token` |
 | `JDSL_HOOK_TIMEOUT` | `0.5` | max seconds to wait in the hook |
 
 See [OpenCode Capture](opencode.md) for OpenCode-specific steps.
@@ -139,6 +155,11 @@ The report includes verification status, required capabilities, declared run
 inputs, exact dataflow refs, deterministic coverage, and residual decision
 burden.
 
+The default compiler is deterministic and heuristic. It staticizes supported
+structure from the evidence and leaves unexplained semantic choices as model
+signatures. It does not infer arbitrary Python code or guarantee behavior on
+tasks outside the captured evidence.
+
 ## 4. Run
 
 Inspect and verify the package:
@@ -177,6 +198,10 @@ uv run jdsl package run retail.jdsl --tools tools.py \
 
 If the package contains residual model leaves, pass `--model <model-id>` or bind
 a model programmatically. Deterministic packages run without a model.
+
+Package execution is capability-bound: every required logical tool must be
+present in `TOOLS` before the package starts. The package itself never imports
+host code by path.
 
 ## Metrics
 

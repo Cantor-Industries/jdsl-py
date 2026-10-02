@@ -27,11 +27,18 @@ Start the ingest daemon:
 uv run jdsl harness serve
 ```
 
+Create an authenticated capture session:
+
+```bash
+uv run jdsl capture start --host claude-code --adapter hooks
+export JDSL_CAPTURE_ID=cap_...
+export JDSL_CAPTURE_TOKEN=...
+```
+
 Set capture environment:
 
 ```bash
 export JDSL_INGEST_URL=http://127.0.0.1:8848
-export JDSL_CAPTURE_ID=cap_host
 export JDSL_HOOK_TIMEOUT=0.5
 ```
 
@@ -62,8 +69,9 @@ POST /hook/claude?cap=<capture_id>
 ```
 
 The adapter maps host tool names, inputs, responses, and call ids into canonical
-trace events. It preserves structured MCP results where possible so lineage can
-see fields instead of opaque text.
+trace events. It sends the per-capture token in the
+`X-JDSL-Capture-Token` header and preserves structured MCP results where
+possible so lineage can see fields instead of opaque text.
 
 Typical mapping:
 

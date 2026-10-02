@@ -9,6 +9,68 @@ The important distinction is procedure versus judgment:
   actions
 - remaining judgment becomes a typed residual `predict` or `react` signature
 
+## Current State
+
+The harness is an implemented local capture and compilation pipeline. The
+supported path is:
+
+```text
+trace or import events
+  -> local store
+  -> lineage inspection
+  -> heuristic compiler
+  -> validated .jdsl package
+  -> host-bound package runtime
+```
+
+Currently implemented:
+
+- Tier A native capture through `TraceSink`, `CaptureCoordinator`,
+  `ToolGateway`, and the MCP proxy.
+- Tier B loopback HTTP ingestion for Claude Code, Gemini CLI, and OpenCode hook
+  payloads. The host adapters normalize payloads into canonical trace events.
+- Tier C generic JSONL import for foreign execution logs.
+- SQLite metadata, append-only JSONL event spools, and filesystem blobs under
+  `JDSL_HARNESS_HOME` or `~/.local/share/jdsl-harness`.
+- Capture lifecycle, episode outcomes, summaries, and exact value-lineage
+  reports through the coordinator, HTTP endpoints, and optional MCP control
+  plane.
+- Offline heuristic compilation into restricted Behavior IR, typed residual
+  signatures, capability contracts, provenance, replay tests, and deterministic
+  `.jdsl` archives.
+- Package digest verification, structural IR validation, host capability
+  binding, and execution through `jdsl package run`.
+
+The TUI is intentionally **not** a harness console at this stage. `jdsl tui`
+is currently the skill-authoring workbench; use the CLI or Python APIs for
+capture, inspection, compilation, and package execution.
+
+The harness does not yet provide universal correctness proof. Replay verification
+shows fidelity to captured evidence, while held-out task evaluation is still
+required. Host hook fidelity also depends on the payload each host exposes, and
+the heuristic compiler chooses a representative successful trajectory rather
+than solving arbitrary workflows.
+
+## Capability Status
+
+| Area | Status | Current boundary |
+| --- | --- | --- |
+| Native trace capture and lifecycle | Implemented | `TraceSink`, `CaptureCoordinator`, and `HarnessStore` support local captures and episode outcomes. |
+| Host hook ingestion | Implemented | Claude Code, Gemini CLI, and OpenCode adapters accept their current hook envelopes through the loopback daemon. |
+| Generic log import | Implemented | JSONL records can be imported and compiled; source fidelity depends on the fields present. |
+| Redaction | Experimental | `Redactor` supports patterns, secret-like key names, and configured paths, but is not automatically applied to every durable write. |
+| Lineage and candidate extraction | Implemented | Exact flows, controls, semantic decisions, retries, and support/counterexample evidence are reported. |
+| Heuristic compilation | Implemented | The modal successful trajectory becomes restricted Behavior IR; unexplained choices remain residual signatures. |
+| Multi-trajectory branching | Planned | The current staticizer does not merge arbitrary divergent trajectories into a learned branch tree. |
+| Package validation and binding | Implemented | Digests, format, IR structure, signatures, capabilities, and safe guard expressions are checked before binding. |
+| Package hardening and signing | Planned | Archive resource limits, signatures, trusted keys, and policy enforcement are not yet shipped. |
+| Runtime budgets and dry run | Planned | Tool/model/effect budgets and non-executing policy inspection are not yet enforced. |
+| Evaluation runner | Planned | Replay evidence exists; paired held-out evaluation against baselines is not yet a supported workflow. |
+| TUI | Implemented, scoped | `jdsl tui` is currently the skill-authoring workbench; harness capture remains in the CLI/API. |
+
+Security details and explicit non-goals are tracked in
+[Harness Security Model](security.md).
+
 Source map:
 
 | Layer | Code |

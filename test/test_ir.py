@@ -136,6 +136,29 @@ def test_lower_and_run(fake_model):
     assert ctx.blackboard["order"]["id"] == "#W2"
 
 
+def test_signature_alias_source_and_examples_reach_model_prompt(fake_model):
+    signature = Signature(
+        id="classify",
+        inputs={"customer": SignatureInput(source="customer.profile", schema={"type": "string"})},
+        output=SignatureOutput(name="category"),
+        instruction="Classify the customer.",
+        examples=[{"input": {"customer": "VIP"}, "output": {"category": "priority"}}],
+    )
+    ir = BehaviorIR(
+        root=IRPredict(type="predict", id="classify", signature="classify"),
+        signatures={signature.id: signature},
+    )
+    model = fake_model("standard")
+    tree = lower(ir, RuntimeBindings())
+    ctx = RunContext(blackboard={"customer": {"profile": "VIP"}}, model=model)
+
+    assert tree.tick(ctx) is Status.SUCCESS
+    prompt = model.calls[0]["messages"][0]["content"]
+    assert "Input: {\"customer\": \"VIP\"}" in prompt
+    assert "Output: {\"category\": \"priority\"}" in prompt
+    assert "- customer: 'VIP'" in prompt
+
+
 def test_missing_capability_fails_before_run():
     from jdsl.ir import BindingError
     with pytest.raises(BindingError):

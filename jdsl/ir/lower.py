@@ -130,18 +130,22 @@ def _lower_args(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _lower_predict(sig: Signature) -> Predict:
-    inputs = tuple(inp.field_name() for inp in sig.inputs.values())
+    inputs = tuple(sig.inputs)
+    sources = {alias: item.source for alias, item in sig.inputs.items()}
     outputs = (sig.output.name,) if sig.output else ()
     schemas = {sig.output.name: sig.output.schema} if sig.output else None
     return Predict(inputs=inputs, outputs=outputs, instructions=sig.instruction or None,
-                   output_schemas=schemas, signature_id=sig.id)
+                   output_schemas=schemas, signature_id=sig.id,
+                   input_sources=sources, examples=sig.examples)
 
 
 def _lower_react(sig: Signature, b: RuntimeBindings) -> React:
-    inputs = tuple(inp.field_name() for inp in sig.inputs.values())
+    inputs = tuple(sig.inputs)
+    sources = {alias: item.source for alias, item in sig.inputs.items()}
     outputs = (sig.output.name,) if sig.output else ("answer",)
     tools = [b.tool(t) for t in sig.tools]
-    return React(inputs=inputs, outputs=outputs, tools=tools, instructions=sig.instruction or None)
+    return React(inputs=inputs, outputs=outputs, tools=tools, instructions=sig.instruction or None,
+                 input_sources=sources, examples=sig.examples)
 
 
 __all__ = ["RuntimeBindings", "BindingError", "lower", "lower_node"]

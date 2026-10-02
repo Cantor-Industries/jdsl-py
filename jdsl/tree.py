@@ -282,6 +282,8 @@ class Predict(Node):
     context_system: str | None = None
     output_schemas: dict[str, dict[str, Any]] | None = None
     signature_id: str | None = None
+    input_sources: dict[str, str] | None = None
+    examples: list[dict[str, Any]] = field(default_factory=list)
 
     def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
@@ -353,7 +355,7 @@ class Predict(Node):
             "kind": "predict",
             "model_id": ctx.model_id,
             "input_fields": list(self.inputs),
-            "inputs": {name: ctx.blackboard.get(name) for name in self.inputs},
+            "inputs": self._input_values(ctx),
             "output_fields": list(self.outputs),
             "outputs": [{"name": name, "schema": (self.output_schemas or {}).get(name)}
                         for name in self.outputs],
@@ -410,17 +412,13 @@ class Predict(Node):
         return f"predict({', '.join(self.inputs)} -> {', '.join(self.outputs)})"
 
     def _build_prompt(self, ctx: RunContext) -> str:
-        lines: list[str] = []
-        if self.instructions: lines.append(self.instructions)
-        if self.inputs:
-            lines.append("Given these inputs:")
-            lines += [f"- {name}: {ctx.blackboard.get(name)!r}" for name in self.inputs]
-        if len(self.outputs) == 1:
-            lines.append(f"Provide {self.outputs[0]} as your entire response — no preamble, no labels, no JSON.")
-        else:
-            lines.append(f"Respond with ONLY a JSON object containing exactly these keys: "
-                         f"{', '.join(self.outputs)}. No prose, no code fences.")
-        return "\n".join(lines)
+        return render_signature_prompt(
+            self.instructions, self.inputs, self.outputs, self.examples,
+            values=self._input_values(ctx),
+        )
+
+    def _input_values(self, ctx: RunContext) -> dict[str, Any]:
+        return _resolve_signature_inputs(self.inputs, self.input_sources, ctx)
 
     @staticmethod
     def _parse(text: str) -> dict[str, Any] | None:
@@ -473,6 +471,53 @@ def _ms_float(t0: float) -> float:
     return round((time.monotonic() - t0) * 1000, 3)
 
 
+def _resolve_signature_inputs(
+    names: tuple[str, ...], sources: dict[str, str] | None, ctx: RunContext
+) -> dict[str, Any]:
+    from jdsl.ir.expr import _MISSING, resolve_path
+
+    values: dict[str, Any] = {}
+    for name in names:
+        source = (sources or {}).get(name, name).removeprefix("blackboard.")
+        value = resolve_path(source, ctx.blackboard)
+        values[name] = None if value is _MISSING else value
+    return values
+
+
+def render_signature_prompt(
+    instruction: str | None,
+    inputs: tuple[str, ...],
+    outputs: tuple[str, ...],
+    examples: list[dict[str, Any]],
+    *,
+    values: dict[str, Any] | None = None,
+    react: bool = False,
+) -> str:
+    """Render the signature prompt consistently for runtime and editor preview."""
+    lines: list[str] = []
+    if instruction:
+        lines.append(instruction)
+    if examples:
+        lines.append("Examples:")
+    for example in examples:
+        lines.append(f"Input: {json.dumps(example.get('input', {}), sort_keys=True, default=str)}")
+        lines.append(f"Output: {json.dumps(example.get('output', {}), sort_keys=True, default=str)}")
+    if inputs:
+        lines.append("Given these inputs:")
+        values = values or {}
+        lines.extend(f"- {name}: {values.get(name)!r}" for name in inputs)
+    if react:
+        lines.append("Use the available tools as needed, then give your final answer as plain text.")
+    elif len(outputs) == 1:
+        lines.append(f"Provide {outputs[0]} as your entire response — no preamble, no labels, no JSON.")
+    else:
+        lines.append(
+            f"Respond with ONLY a JSON object containing exactly these keys: "
+            f"{', '.join(outputs)}. No prose, no code fences."
+        )
+    return "\n".join(lines)
+
+
 def assign_runtime_ids(root: Node) -> None:
     """Assign path-derived `_runtime_id`s to every node lacking an author id (§20).
 
@@ -500,6 +545,8 @@ class React(Node):
     instructions: str | None = None
     max_steps: int = 6
     context_system: str | None = None
+    input_sources: dict[str, str] | None = None
+    examples: list[dict[str, Any]] = field(default_factory=list)
 
     def _tick(self, ctx: RunContext) -> Status:
         # PR2: react is the largest trace gap in the runtime — its internal tool
@@ -564,13 +611,11 @@ class React(Node):
         return self._run_with_context(ctx, body)
 
     def _build_prompt(self, ctx: RunContext) -> str:
-        lines: list[str] = []
-        if self.instructions: lines.append(self.instructions)
-        if self.inputs:
-            lines.append("Given these inputs:")
-            lines += [f"- {name}: {ctx.blackboard.get(name)!r}" for name in self.inputs]
-        lines.append("Use the available tools as needed, then give your final answer as plain text.")
-        return "\n".join(lines)
+        return render_signature_prompt(
+            self.instructions, self.inputs, self.outputs, self.examples,
+            values=_resolve_signature_inputs(self.inputs, self.input_sources, ctx),
+            react=True,
+        )
 
     def label(self) -> str:
         names = ", ".join(t.name for t in self.tools)

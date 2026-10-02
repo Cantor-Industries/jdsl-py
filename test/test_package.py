@@ -27,6 +27,7 @@ from jdsl.package import (
     export_dir,
     export_jdsl,
     load_package,
+    load_package_object,
     package_digest,
 )
 from jdsl.package.manifest import NodeProvenance
@@ -98,6 +99,14 @@ def test_jdsl_roundtrip(tmp_path, fake_model):
                            "retail.order.get": lambda order_id: {"id": "#W2", "status": "pending"}})
     ctx = RunContext(blackboard={"customer": {"id": "U17"}, "request": "cancel"}, model=fake_model("0"))
     assert root.tick(ctx) is Status.SUCCESS
+
+
+def test_in_memory_package_uses_verified_loader_path():
+    loaded = load_package_object(_pkg())
+
+    assert loaded.name == "retail-cancellation"
+    assert loaded.ir.signatures["resolve_target_order"].output.name == "selected_index"
+    assert loaded.root_dir is None
 
 
 def test_digest_tamper_rejected(tmp_path):

@@ -1,0 +1,102 @@
+Screen {
+    background: $background;
+    color: $foreground;
+    layout: vertical;
+}
+
+Header, Footer {
+    background: $deep;
+    color: $foreground;
+}
+
+#brand {
+    height: 3;
+    padding: 0 2;
+    background: $surface;
+    border: tall $primary;
+    color: $foreground;
+    opacity: 0;
+}
+
+.brand-title, .panel-title {
+    color: $fg-bright;
+    text-style: bold;
+}
+
+#skill-workspace { height: 1fr; }
+#skill-tree-panel { height: 1fr; }
+#skill-tree-panel > Vertical { width: 2fr; margin-right: 1; }
+#skill-properties-panel {
+    width: 3fr;
+    height: 1fr;
+    padding: 1;
+    background: $surface;
+    border: round $faint;
+}
+#skill-properties-scroll { height: 1fr; }
+#skill-problems { height: 4; padding: 0 1; color: $error; overflow-y: auto; }
+#skill-tree {
+    height: 1fr;
+    padding: 1;
+    background: $surface;
+    border: round $faint;
+}
+#skill-tree:focus, #skill-properties-panel:focus { border: round $primary; }
+#skill-properties { height: auto; }
+.field-row { height: 3; }
+.field-row Input { width: 1fr; margin-right: 1; }
+.field-row Input:last-child { margin-right: 0; }
+#action-arguments, #guard-fields { height: auto; }
+.argument-row { height: 3; }
+.argument-row Input { width: 1fr; }
+.argument-row Select { width: 1fr; }
+.argument-row .argument-ref-tag { width: 10; color: $ref; text-style: bold; }
+.argument-row Button { width: 10; }
+.table-heading { color: $fg-soft; text-style: bold; }
+.guard-operands { height: 3; }
+.guard-operands Input { width: 2fr; }
+.guard-operands Select { width: 1fr; }
+.editor-error { color: $error; height: auto; }
+#node-arguments-raw, #node-expression-raw { height: 1fr; min-height: 6; }
+.signature-input-row { height: 3; }
+.signature-input-row Input { width: 1fr; }
+.signature-input-row Button { width: 10; }
+#signature-inputs-raw, #signature-output-schema, #signature-instruction,
+#signature-examples, #signature-validator, #signature-context-policy { height: 7; }
+#signature-preview { height: auto; max-height: 12; padding: 0 1; background: $well; color: $fg-soft; }
+#signature-tools-list { height: 7; }
+#skill-properties Label { color: $fg-soft; }
+#skill-status {
+    height: 3;
+    padding: 1;
+    color: $fg-bright;
+    background: $deep;
+    border: round $faint;
+}
+.panel-title { padding-bottom: 1; }
+.actions { height: auto; padding: 1 0; }
+.actions Button { margin-right: 1; }
+Button.-primary { background: $primary; color: $background; }
+Button.-success { background: $success; color: $background; }
+Input, TextArea { background: $well; color: $foreground; }
+Tree > .tree--guides { color: $faint; }
+Tree:focus > .tree--cursor { background: $selection; }
+#run-panel { height: 8; padding: 0 1; background: $surface; border: round $faint; }
+#run-log { height: 1fr; background: $well; }
+#trust-dialog { width: 90%; max-width: 70; height: auto; max-height: 80%; padding: 1 2; background: $surface; border: round $primary; }
+#save-dialog, #template-dialog, #help-dialog, #tour-dialog {
+    width: 90%;
+    max-width: 78;
+    height: auto;
+    max-height: 100%;
+    padding: 0 1;
+    background: $surface;
+    border: round $primary;
+}
+#open-dialog, #definitions-dialog { width: 90%; max-width: 78; height: 90%; max-height: 100%; padding: 1; background: $surface; border: round $primary; }
+#package-tree { height: 1fr; }
+#definitions-tools-table, #definitions-signatures-table { height: 6; }
+#recovery-banner { height: 3; padding: 0 1; background: $panel; }
+#empty-state { height: auto; padding: 1; background: $surface; border: round $faint; }
+#recent-files { height: 6; }
+.dialog-title { color: $fg-bright; text-style: bold; }

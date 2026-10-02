@@ -6,12 +6,15 @@ from __future__ import annotations
 import json
 import sys
 import urllib.request
+from urllib.error import HTTPError
 
+import pytest
 from typer.testing import CliRunner
 
 from jdsl.cli import app
 from jdsl.trace import ListTraceSink, segment_episodes
 from jdsl.trace.events import EventKind, TraceEvent
+from jdsl_harness.capture import CaptureCoordinator
 from jdsl_harness.mcp_proxy import MCPProxy, ProxiedTool, StdioUpstream, build_stdio_proxy_server
 from jdsl_harness.server import IngestServer
 from jdsl_harness.store import HarnessStore
@@ -19,11 +22,24 @@ from jdsl_harness.store import HarnessStore
 runner = CliRunner()
 
 
-def _post(url: str, body: dict) -> dict:
+def _post(url: str, body: dict, *, headers: dict[str, str] | None = None) -> dict:
     req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST",
-                                 headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=5) as resp:
-        return json.loads(resp.read())
+                                 headers={"Content-Type": "application/json", **(headers or {})})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return json.loads(resp.read())
+    except HTTPError as error:
+        return json.loads(error.read())
+
+
+def _post_raw(url: str, body: bytes, *, headers: dict[str, str] | None = None) -> dict:
+    req = urllib.request.Request(url, data=body, method="POST",
+                                 headers={"Content-Type": "application/json", **(headers or {})})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return json.loads(resp.read())
+    except HTTPError as error:
+        return json.loads(error.read())
 
 
 def _get(url: str) -> dict:
@@ -35,34 +51,39 @@ def _get(url: str) -> dict:
 
 def test_ingest_server_records_canonical_and_hooks(tmp_path):
     store = HarnessStore(tmp_path / "h")
+    session = CaptureCoordinator(store).start_session(host="test", adapter="pytest")
+    auth = {"X-JDSL-Capture-Token": session.token}
     with IngestServer(store, port=0) as server:
         # a raw canonical event
-        ev = TraceEvent.new(EventKind.USER_MESSAGE, "cap_x", "ep_1", payload={"text": "hi"})
-        assert _post(server.url + "/ingest", ev.to_dict())["ok"]
+        ev = TraceEvent.new(EventKind.USER_MESSAGE, session.capture_id, "ep_1", payload={"text": "hi"})
+        assert _post(server.url + "/ingest", ev.to_dict(), headers=auth)["ok"]
         # a Claude hook payload for the same capture
-        assert _post(server.url + "/hook/claude?cap=cap_x",
+        assert _post(server.url + f"/hook/claude?cap={session.capture_id}",
                      {"hook_event_name": "PreToolUse", "session_id": "ep_1",
-                      "tool_name": "get_order", "tool_input": {"order_id": "#W1"}})["ok"]
-        summary = _get(server.url + "/capture/cap_x/summary")
+                      "tool_name": "get_order", "tool_input": {"order_id": "#W1"}},
+                     headers=auth)["ok"]
+        summary = _get(server.url + f"/capture/{session.capture_id}/summary")
         caps = _get(server.url + "/captures")
 
     assert summary["events"] >= 2
-    assert any(c["capture_id"] == "cap_x" for c in caps["captures"])
+    assert any(c["capture_id"] == session.capture_id for c in caps["captures"])
 
 
 def test_ingest_server_records_opencode_hook_with_correlation(tmp_path):
     store = HarnessStore(tmp_path / "h")
+    session = CaptureCoordinator(store).start_session(host="test", adapter="pytest")
+    auth = {"X-JDSL-Capture-Token": session.token}
     with IngestServer(store, port=0) as server:
-        assert _post(server.url + "/hook/opencode?cap=cap_open",
+        assert _post(server.url + f"/hook/opencode?cap={session.capture_id}",
                      {"schema": "jdsl.opencode-hook.v1", "hook": "tool.execute.before",
                       "session_id": "ses_1", "call_id": "call_1", "tool": "read",
-                      "args": {"filePath": "README.md"}})["ok"]
-        assert _post(server.url + "/hook/opencode?cap=cap_open",
+                      "args": {"filePath": "README.md"}}, headers=auth)["ok"]
+        assert _post(server.url + f"/hook/opencode?cap={session.capture_id}",
                      {"schema": "jdsl.opencode-hook.v1", "hook": "tool.execute.after",
                       "session_id": "ses_1", "call_id": "call_1", "tool": "read",
-                      "result": "hello"})["ok"]
+                      "result": "hello"}, headers=auth)["ok"]
 
-    events = store.capture_events("cap_open")
+    events = store.capture_events(session.capture_id)
     start = next(e for e in events if e.kind == EventKind.TOOL_CALL_STARTED)
     done = next(e for e in events if e.kind == EventKind.TOOL_CALL_COMPLETED)
     assert done.parent_event_id == start.event_id
@@ -86,10 +107,60 @@ def test_build_mcp_control_plane_across_sdk_versions(tmp_path):
 
 def test_ingest_fails_open_on_bad_payload(tmp_path):
     store = HarnessStore(tmp_path / "h")
+    session = CaptureCoordinator(store).start_session()
     with IngestServer(store, port=0) as server:
         # malformed event: server returns 200 with ok=False (never 500), §7.2
-        resp = _post(server.url + "/ingest", {"kind": None})
+        resp = _post(server.url + "/ingest", {"kind": None},
+                     headers={"X-JDSL-Capture-Token": session.token})
     assert resp["ok"] is False
+
+
+def test_ingest_rejects_missing_and_wrong_tokens(tmp_path):
+    store = HarnessStore(tmp_path / "h")
+    session = CaptureCoordinator(store).start_session()
+    event = TraceEvent.new(EventKind.USER_MESSAGE, session.capture_id, "ep", payload={"text": "hi"})
+    with IngestServer(store, port=0) as server:
+        missing = _post(server.url + "/ingest", event.to_dict())
+        wrong = _post(server.url + "/ingest", event.to_dict(),
+                      headers={"X-JDSL-Capture-Token": "wrong"})
+    assert missing == {"ok": False, "error": "missing or invalid capture token"}
+    assert wrong == missing
+
+
+def test_ingest_rejects_bad_origin_and_oversized_body(tmp_path):
+    store = HarnessStore(tmp_path / "h")
+    session = CaptureCoordinator(store).start_session()
+    event = TraceEvent.new(EventKind.USER_MESSAGE, session.capture_id, "ep", payload={"text": "hi"})
+    auth = {"X-JDSL-Capture-Token": session.token}
+    with IngestServer(store, port=0, max_body_bytes=32) as server:
+        origin = _post(server.url + "/ingest", event.to_dict(),
+                       headers={**auth, "Origin": "https://evil.example"})
+        oversized = _post(server.url + "/ingest", {"payload": "x" * 100}, headers=auth)
+    assert origin["error"] == "origin is not allowed"
+    assert oversized["error"] == "request body is too large"
+
+
+def test_ingest_rejects_malformed_json_and_non_loopback_bind(tmp_path):
+    store = HarnessStore(tmp_path / "h")
+    with IngestServer(store, port=0) as server:
+        malformed = _post_raw(server.url + "/ingest", b"{not-json")
+    assert malformed["error"].startswith("malformed JSON:")
+
+    with pytest.raises(ValueError, match="loopback"):
+        IngestServer(store, host="0.0.0.0")
+
+
+def test_ingest_rate_limits_each_capture(tmp_path):
+    store = HarnessStore(tmp_path / "h")
+    session = CaptureCoordinator(store).start_session()
+    auth = {"X-JDSL-Capture-Token": session.token}
+    with IngestServer(store, port=0, rate_limit=1, rate_window_seconds=60) as server:
+        first = _post(server.url + f"/hook/claude?cap={session.capture_id}",
+                      {"hook_event_name": "SessionStart", "session_id": "ep"}, headers=auth)
+        second = _post(server.url + f"/hook/claude?cap={session.capture_id}",
+                       {"hook_event_name": "SessionStart", "session_id": "ep"}, headers=auth)
+    assert first["ok"] is True
+    assert second["error"] == "capture request rate limit exceeded"
 
 
 # -- MCP proxy recording ------------------------------------------------------
@@ -201,6 +272,15 @@ def test_cli_capture_import_and_compile(tmp_path, monkeypatch):
     assert report["verification"]["status"] == "passed"
     # email varies across imported episodes with no dataflow -> a declared input
     assert "email" in report["stats"]["inputs"]
+
+
+def test_cli_capture_start_prints_credentials(tmp_path, monkeypatch):
+    monkeypatch.setenv("JDSL_HARNESS_HOME", str(tmp_path / "store"))
+    result = runner.invoke(app, ["capture", "start", "--host", "pytest", "--adapter", "hook"])
+    assert result.exit_code == 0, result.output
+    values = dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line)
+    assert values["capture_id"].startswith("cap_")
+    assert len(values["capture_token"]) >= 32
 
 
 def test_cli_compile(tmp_path, monkeypatch):

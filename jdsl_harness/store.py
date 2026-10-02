@@ -14,6 +14,8 @@ Layout under `root/`::
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import sqlite3
 import threading
 from collections.abc import Iterator
@@ -34,7 +36,8 @@ CREATE TABLE IF NOT EXISTS captures (
     status       TEXT,
     created_at   TEXT,
     finished_at  TEXT,
-    note         TEXT
+    note         TEXT,
+    token_hash   TEXT
 );
 CREATE TABLE IF NOT EXISTS episodes (
     episode_id   TEXT PRIMARY KEY,
@@ -92,6 +95,9 @@ class HarnessStore:
     def _init_db(self) -> None:
         conn = self._conn()
         conn.executescript(_SCHEMA)
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(captures)")}
+        if "token_hash" not in columns:
+            conn.execute("ALTER TABLE captures ADD COLUMN token_hash TEXT")
         conn.commit()
 
     # -- captures -------------------------------------------------------------
@@ -100,14 +106,23 @@ class HarnessStore:
         return self.root / "captures" / f"{capture_id}.jsonl"
 
     def start_capture(self, capture_id: str, *, host: str = "jdsl", adapter: str = "runtime",
-                      note: str = "") -> None:
+                      note: str = "", token: str | None = None) -> None:
         from jdsl.trace.events import _now_iso
         conn = self._conn()
         conn.execute(
-            "INSERT OR REPLACE INTO captures(capture_id, host, adapter, status, created_at, note) "
-            "VALUES(?,?,?,?,?,?)",
-            (capture_id, host, adapter, "recording", _now_iso(), note))
+            "INSERT OR REPLACE INTO captures(capture_id, host, adapter, status, created_at, note, token_hash) "
+            "VALUES(?,?,?,?,?,?,?)",
+            (capture_id, host, adapter, "recording", _now_iso(), note, _token_hash(token) if token else None))
         conn.commit()
+
+    def authorize_capture(self, capture_id: str, token: str | None) -> bool:
+        """Return whether a capture exists and its session token matches."""
+        if not token:
+            return False
+        row = self._conn().execute(
+            "SELECT token_hash FROM captures WHERE capture_id=?", (capture_id,)).fetchone()
+        stored = row["token_hash"] if row else None
+        return bool(stored and hmac.compare_digest(stored, _token_hash(token)))
 
     def finish_capture(self, capture_id: str) -> None:
         from jdsl.trace.events import _now_iso
@@ -201,3 +216,7 @@ class _IndexingSink:
 
 
 __all__ = ["HarnessStore"]
+
+
+def _token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()

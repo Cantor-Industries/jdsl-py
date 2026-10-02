@@ -11,7 +11,6 @@ dependencies = [
     "mcp>=1.2",
     "openai>=1.40",
     "python-dotenv>=1.0",
-    "textual>=0.50",
     "typer>=0.12",
 ]
 
@@ -24,12 +23,16 @@ jdsl = "jdsl.cli:app"
 harness = [
     "mcp>=1.2",
 ]
+tui = [
+    "textual>=0.50",
+]
 
 [dependency-groups]
 dev = [
     "pytest>=8",
     "pytest-timeout>=2.3",
     "ruff>=0.6",
+    "textual>=0.50",
 ]
 docs = [
     "mkdocs>=1.6,<2",

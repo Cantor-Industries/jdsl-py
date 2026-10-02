@@ -71,7 +71,7 @@ JDSL includes a compact terminal workbench for building restricted behavior
 trees without writing the initial Python DSL:
 
 ```bash
-uv run jdsl tui
+uv run --extra tui jdsl tui
 ```
 
 <p align="center">
@@ -81,6 +81,12 @@ uv run jdsl tui
 Add sequence, selector, action, guard, predict, react, and repeat nodes; edit
 their properties; validate the tree; and save a portable `.jdsl` package. See
 the [TUI guide](docs/tui.md) for the authoring workflow.
+
+The workbench uses the Gruvbox Material palette, adapted from
+[sainnhe/gruvbox-material](https://github.com/sainnhe/gruvbox-material) and
+[curbol/omarchy-gruvbox-material](https://github.com/curbol/omarchy-gruvbox-material).
+Truecolor terminals are recommended (`COLORTERM=truecolor`). Use `Ctrl+M` to
+toggle reduced motion and `Ctrl+G` to switch between ASCII-safe and Unicode glyphs.
 
 ## Install & run
 
