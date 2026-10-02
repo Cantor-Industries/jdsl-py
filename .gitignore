@@ -31,6 +31,7 @@ htmlcov/
 
 # Compiled behavior packages: build outputs / scratch compile dirs.
 # (Committed example fixtures live under examples/ and are tracked explicitly.)
+*.jdsl
 /pkgs/
 /pkgs.jdslpkg
 
