@@ -7,7 +7,7 @@ from jdsl.package.export import (
     export_jdsl,
     package_digest,
 )
-from jdsl.package.load import LoadedPackage, PackageError, load_package
+from jdsl.package.load import LoadedPackage, PackageError, load_package, load_package_object
 from jdsl.package.manifest import (
     PACKAGE_FORMAT,
     Manifest,
@@ -29,4 +29,5 @@ __all__ = [
     "LoadedPackage",
     "PackageError",
     "load_package",
+    "load_package_object",
 ]

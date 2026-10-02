@@ -9,16 +9,20 @@ digests, structurally validate the IR (§32.1), and reject anything malformed
 from __future__ import annotations
 
 import json
+import tempfile
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from jdsl.ir.lower import RuntimeBindings, lower
 from jdsl.ir.schema import BehaviorIR, Signature
 from jdsl.ir.validate import validate_ir
 from jdsl.package.export import _sha256
 from jdsl.package.manifest import PACKAGE_FORMAT, Manifest, NodeProvenance, ToolContract
+
+if TYPE_CHECKING:
+    from jdsl.package.export import BehaviorPackage
 from jdsl.tree import Node, Root
 
 _SUPPORTED_FORMATS = {PACKAGE_FORMAT}
@@ -63,6 +67,20 @@ class LoadedPackage:
         """Wrap the bound tree in a Root so it runs like any authored skill (§40)."""
         root = Root(name=self.manifest.name, child=self.bind(tools, predicates), model_id=model_id)
         return root
+
+
+def load_package_object(package: BehaviorPackage) -> LoadedPackage:
+    """Verify an in-memory package through the normal serialized loader path."""
+    from jdsl.package.export import BehaviorPackage, export_dir
+
+    if not isinstance(package, BehaviorPackage):
+        raise TypeError("package must be a BehaviorPackage")
+    with tempfile.TemporaryDirectory(prefix="jdsl-verify-") as temporary_directory:
+        package_path = Path(temporary_directory) / "package"
+        export_dir(package, package_path)
+        loaded = load_package(package_path)
+        loaded.root_dir = None
+        return loaded
 
 
 def load_package(path: str | Path, *, verify_digests: bool = True) -> LoadedPackage:
@@ -133,4 +151,4 @@ def _read_zip(path: Path) -> dict[str, str]:
         raise PackageError(f"{path} is not a valid .jdsl archive") from e
 
 
-__all__ = ["LoadedPackage", "PackageError", "load_package"]
+__all__ = ["LoadedPackage", "PackageError", "load_package", "load_package_object"]
