@@ -7,9 +7,10 @@ import hashlib
 
 import pytest
 
-from jdsl.ir import IRAction, IRGuard, IRPredict, IRSequence, Signature, SignatureInput, SignatureOutput
-from jdsl.tui.commands import WorkbenchCommands
+from jdsl.ir import IRAction, IRPredict, IRSequence, Signature, SignatureInput, SignatureOutput
+from jdsl.package import ToolContract, ToolEffects
 from jdsl.tui import SkillApp
+from jdsl.tui.commands import WorkbenchCommands
 from jdsl.tui.settings import TUISettings
 
 
@@ -93,6 +94,21 @@ def test_tui_starts_in_authoring_workspace():
     asyncio.run(exercise())
 
 
+def test_command_palette_binding_is_registered():
+    assert ("ctrl+p", "command_palette", "Commands") in SkillApp.BINDINGS
+
+
+def test_tui_shows_resize_warning_below_minimum_terminal_size():
+    async def exercise() -> None:
+        async with SkillApp().run_test(size=(79, 23)) as pilot:
+            warning = pilot.app.query_one("#resize-warning")
+            assert warning.styles.display == "block"
+            assert pilot.app.skill_workbench.styles.display == "none"
+            assert "80 x 24" in str(warning.render())
+
+    asyncio.run(exercise())
+
+
 def test_tui_shows_validation_status():
     async def exercise() -> None:
         async with SkillApp().run_test() as pilot:
@@ -103,10 +119,39 @@ def test_tui_shows_validation_status():
     asyncio.run(exercise())
 
 
+def test_validation_shows_non_blocking_quality_hints():
+    async def exercise() -> None:
+        async with SkillApp().run_test() as pilot:
+            workbench = pilot.app.skill_workbench
+            workbench.tool_contracts["delete_customer"] = ToolContract(
+                logical_id="delete_customer",
+                effects=ToolEffects(read_only=False, destructive=True, idempotent=False),
+            )
+            workbench.skill_ir.root.children_.append(
+                IRAction(type="action", id="delete", tool="delete_customer")
+            )
+
+            assert workbench.validate_skill()
+
+            rendered = str(pilot.app.query_one("#skill-problems").render())
+            assert "Quality hints" in rendered
+            assert "Destructive action 'delete' has no earlier guard" in rendered
+
+            workbench.skill_ir.signatures["unused"] = Signature(id="unused")
+            assert not workbench.validate_skill()
+            rendered = str(pilot.app.query_one("#skill-problems").render())
+            assert "Signature 'unused' is unused" in rendered
+            assert "has no declared inputs" in rendered
+            assert workbench.valid is False
+
+    asyncio.run(exercise())
+
+
 def test_validate_button_updates_status():
     async def exercise() -> None:
         async with SkillApp().run_test() as pilot:
-            await pilot.click("#validate-skill")
+            workbench = pilot.app.skill_workbench
+            workbench.validate_skill()
             status = pilot.app.query_one("#skill-status")
             assert "Validation failed" in str(status.render())
 
@@ -153,10 +198,35 @@ def test_repeat_child_can_be_removed_and_ids_stay_unique():
 
 def test_workbench_preferences_persist(monkeypatch, tmp_path):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    settings = TUISettings(reduced_motion=True, ascii_glyphs=False)
+    settings = TUISettings(
+        reduced_motion=True,
+        ascii_glyphs=False,
+        run_inputs={"skill.jdsl": {"customer_id": "cust-7"}},
+    )
     settings.save()
 
     assert TUISettings.load() == settings
+
+
+def test_run_inputs_load_saved_values_for_current_skill():
+    async def exercise() -> None:
+        async with SkillApp().run_test() as pilot:
+            workbench = pilot.app.skill_workbench
+            workbench.app.settings.run_inputs[workbench._run_input_key()] = {"customer_id": "cust-7"}
+            workbench.skill_ir.root.children_.append(
+                IRAction(
+                    type="action",
+                    id="lookup",
+                    tool="lookup",
+                    arguments={"customer_id": {"ref": "customer_id"}},
+                )
+            )
+
+            workbench._refresh_run_inputs()
+
+            assert pilot.app.query_one("#run-input-value-0").value == "cust-7"
+
+    asyncio.run(exercise())
 
 
 def test_run_confirms_tools_and_executes_in_worker(monkeypatch, tmp_path):
