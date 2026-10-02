@@ -274,8 +274,13 @@ def harness_serve(
 
 @app.command("tui")
 def tui() -> None:
-    """Open the local harness dashboard."""
-    from jdsl.tui import run
+    """Open the local skill-authoring workbench."""
+    try:
+        from jdsl.tui import run
+    except ModuleNotFoundError as error:
+        if error.name == "textual":
+            raise typer.BadParameter("install the TUI with `pip install jdsl[tui]`") from error
+        raise
     run()
 
 

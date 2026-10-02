@@ -14,9 +14,10 @@ terminals.
 
 ## Start
 
-After the curl install:
+Install the optional TUI dependency:
 
 ```bash
+pip install 'jdsl[tui]'
 jdsl tui
 ```
 
@@ -24,7 +25,7 @@ From a checkout:
 
 ```bash
 uv sync
-uv run jdsl tui
+uv run --extra tui jdsl tui
 ```
 
 ## Author a Skill
@@ -35,19 +36,27 @@ editor supports sequence, selector, action, guard, predict, react, and repeat
 nodes. Predict and react leaves expose their signature inputs, output,
 instructions, model/provider hint, and react tool set.
 
-**Validate** runs the same structural checks used by the package loader.
-**Save .jdsl** writes a portable package and loads it again to verify the
-serialized artifact. The output contains restricted IR and capability contracts,
-not arbitrary Python code.
+Inspector changes apply after a short pause. **Validate** runs the same
+structural checks used by the package loader. **Save** writes a portable package
+and loads it again to verify the serialized artifact. **Open** loads a verified
+package, and **New** starts a blank skill; both prompt before discarding dirty
+edits. The output contains restricted IR and capability contracts, not arbitrary
+Python code.
 
-The optional **Run** action accepts a Python tools module defining `TOOLS` and
-an optional `PREDICATES` mapping, plus comma-separated `key=value` inputs. Runs
-use the normal package binding/runtime path and capture node exit statuses in
-memory; `[ok]` and `[!!]` markers show successful and failed nodes in the tree.
+**Run** accepts a Python tools module defining `TOOLS` and an optional
+`PREDICATES` mapping, plus comma-separated `key=value` inputs. The workbench
+asks before importing a tools module and remembers approval by file path and
+content hash. Runs execute in a worker, with progress and node status streamed
+to the trace panel. Tool arguments and results are not printed in that log.
+
+`Ctrl+S` saves, `Ctrl+O` opens, `Ctrl+N` creates a skill, `Ctrl+R` runs,
+`Ctrl+Z` undoes, and `Ctrl+Shift+Z` redoes. `Ctrl+M` toggles reduced motion;
+`Ctrl+G` switches ASCII-safe and Unicode node glyphs. Truecolor terminals are
+recommended (`COLORTERM=truecolor`).
 
 Harness capture and compilation remain available through the commands documented
 in [Harness Usage](harness_usage.md). They are intentionally outside this TUI
 while the skill authoring workflow is being developed.
 
-The authoring shell is implemented in `jdsl/tui.py`; the tree editor and
-package workbench live in `jdsl/tui_skill.py`.
+The app, theme, settings, run panel, trust dialog, and workbench are grouped in
+`jdsl/tui/`. `jdsl.tui_skill` remains as a compatibility import for older callers.

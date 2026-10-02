@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import builtins
+
 from typer.testing import CliRunner
 
 from jdsl.cli import app
@@ -64,6 +66,21 @@ def test_run_file_without_skills_exits_nonzero(tmp_path):
     f.write_text("x = 1\n")
     r = runner.invoke(app, ["run", str(f)])
     assert r.exit_code == 1
+
+
+def test_tui_without_optional_extra_shows_install_hint(monkeypatch):
+    original_import = builtins.__import__
+
+    def import_without_tui(name, *args, **kwargs):
+        if name == "jdsl.tui":
+            raise ModuleNotFoundError("No module named 'textual'", name="textual")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_tui)
+    result = runner.invoke(app, ["tui"])
+
+    assert result.exit_code == 2
+    assert "jdsl[tui]" in result.output
 
 
 def test_uninstall_removes_cli_and_preserves_harness_data(tmp_path, monkeypatch):
