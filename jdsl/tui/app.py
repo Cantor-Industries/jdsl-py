@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 
 from textual.app import App, ComposeResult
-from textual.containers import Vertical
+from textual.events import Resize
 from textual.widgets import Footer, Header, Static
 
 from jdsl.tui.commands import WorkbenchCommands
@@ -15,9 +15,10 @@ from jdsl.tui.theme import GRUVBOX_MATERIAL
 from jdsl.tui.workbench import SkillWorkbench
 
 
-class SkillApp(App[None]):
+class JDSLApp(App[None]):
     """Author and run restricted JDSL behavior trees."""
 
+    TITLE = "JDSL"
     CSS_PATH = "workbench.tcss"
     COMMANDS = [WorkbenchCommands]
     BINDINGS = [
@@ -27,6 +28,7 @@ class SkillApp(App[None]):
         ("ctrl+n", "new_skill", "New"),
         ("ctrl+r", "run_skill", "Run"),
         ("ctrl+f", "find_node", "Find node"),
+        ("ctrl+p", "command_palette", "Commands"),
         ("ctrl+up", "move_up", "Move up"),
         ("ctrl+down", "move_down", "Move down"),
         ("ctrl+alt+left", "outdent_node", "Outdent"),
@@ -51,16 +53,12 @@ class SkillApp(App[None]):
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
-        with Vertical(id="brand"):
-            yield Static("JDSL  /  SKILL AUTHORING WORKBENCH", classes="brand-title")
+        yield Static("Terminal too small. Resize to at least 80 x 24.", id="resize-warning")
         yield self.skill_workbench
         yield Footer()
 
     def on_mount(self) -> None:
-        if not self.settings.reduced_motion:
-            self.query_one("#brand").styles.animate("opacity", value=1.0, duration=0.35)
-        else:
-            self.query_one("#brand").styles.opacity = 1.0
+        self._update_terminal_layout(self.size.width, self.size.height)
         if self.settings.trusted_tools:
             trusted_path = next(reversed(self.settings.trusted_tools))
             self.skill_workbench.query_one("#trusted-tools-state", Static).update(
@@ -68,6 +66,15 @@ class SkillApp(App[None]):
             )
         if not self.settings.tour_seen and sys.stdin.isatty():
             self.skill_workbench.show_tour()
+
+    def on_resize(self, event: Resize) -> None:
+        if self.is_mounted:
+            self._update_terminal_layout(event.size.width, event.size.height)
+
+    def _update_terminal_layout(self, width: int, height: int) -> None:
+        too_small = width < 80 or height < 24
+        self.query_one("#resize-warning", Static).styles.display = "block" if too_small else "none"
+        self.skill_workbench.styles.display = "none" if too_small else "block"
 
     def action_toggle_reduced_motion(self) -> None:
         self.settings.reduced_motion = not self.settings.reduced_motion
@@ -103,6 +110,10 @@ class SkillApp(App[None]):
 
     def action_find_node(self) -> None:
         self.skill_workbench.focus_search()
+
+    def action_command_palette(self) -> None:
+        self.action_command_palette = self.run_action("command_palette")
+        self.push_screen(self.screen)
 
     def action_help(self) -> None:
         self.skill_workbench.show_help()
@@ -140,13 +151,14 @@ class SkillApp(App[None]):
             self.exit()
 
 
-# Kept as an import-compatible name for callers that used the original TUI.
-HarnessApp = SkillApp
+# Backward-compatible aliases for callers that still import the older names.
+HarnessApp = JDSLApp
+SkillApp = JDSLApp
 
 
 def run() -> None:
-    """Run the JDSL skill authoring workbench."""
-    SkillApp().run()
+    """Run the JDSL authoring workbench."""
+    JDSLApp().run()
 
 
-__all__ = ["HarnessApp", "SkillApp", "run"]
+__all__ = ["HarnessApp", "JDSLApp", "SkillApp", "run"]

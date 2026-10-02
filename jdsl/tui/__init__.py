@@ -1,6 +1,6 @@
-"""Textual skill-authoring workbench."""
+"""Textual JDSL authoring workbench."""
 
-from jdsl.tui.app import HarnessApp, SkillApp, run
+from jdsl.tui.app import HarnessApp, JDSLApp, SkillApp, run
 from jdsl.tui.workbench import SkillWorkbench
 
-__all__ = ["HarnessApp", "SkillApp", "SkillWorkbench", "run"]
+__all__ = ["HarnessApp", "JDSLApp", "SkillApp", "SkillWorkbench", "run"]
