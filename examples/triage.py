@@ -44,7 +44,7 @@ skill = (
         "Triage",
         system="You classify inbound customer messages. Categories: billing, support, other.",
     )
-    .model("deepseek-chat")  # or "claude-opus-4-8" — provider is inferred from the id
+    .model("inkling")  # or "claude-opus-4-8" — provider is inferred from the id
     .do(
         seq(
             store(act(inbound_message), "message"),  # act result feeds the predict leaf
