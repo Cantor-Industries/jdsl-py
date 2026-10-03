@@ -154,6 +154,14 @@ class IRGuard(IRNode):
 
 
 @dataclass
+class IRCheck(IRNode):
+    key: str = ""
+    equals: Any = None
+
+    def __post_init__(self) -> None: self.type = "check"
+
+
+@dataclass
 class IRGuardCall(IRNode):
     predicate: str = ""
     arguments: dict[str, Any] = field(default_factory=dict)
@@ -171,6 +179,7 @@ class IRPredict(IRNode):
 @dataclass
 class IRReact(IRNode):
     signature: str = ""
+    max_steps: int = 6
 
     def __post_init__(self) -> None: self.type = "react"
 
@@ -220,11 +229,16 @@ def node_to_dict(node: IRNode) -> dict[str, Any]:
         if node.store: base["store"] = node.store
     elif isinstance(node, IRGuard):
         base["expression"] = node.expression
+    elif isinstance(node, IRCheck):
+        base["key"] = node.key
+        base["equals"] = node.equals
     elif isinstance(node, IRGuardCall):
         base["predicate"] = node.predicate
         if node.arguments: base["arguments"] = node.arguments
     elif isinstance(node, (IRPredict, IRReact)):
         base["signature"] = node.signature
+        if isinstance(node, IRReact):
+            base["max_steps"] = node.max_steps
     return base
 
 
@@ -251,19 +265,22 @@ def node_from_dict(data: dict[str, Any]) -> IRNode:
                         arguments=data.get("arguments", {}), store=data.get("store"))
     if t == "guard":
         return IRGuard(type=t, id=nid, expression=data.get("expression", {}))
+    if t == "check":
+        return IRCheck(type=t, id=nid, key=data.get("key", ""), equals=data.get("equals"))
     if t == "guard_call":
         return IRGuardCall(type=t, id=nid, predicate=data.get("predicate", ""),
                            arguments=data.get("arguments", {}))
     if t == "predict":
         return IRPredict(type=t, id=nid, signature=data.get("signature", ""))
     if t == "react":
-        return IRReact(type=t, id=nid, signature=data.get("signature", ""))
+        return IRReact(type=t, id=nid, signature=data.get("signature", ""),
+                       max_steps=data.get("max_steps", 6))
     raise ValueError(f"unknown IR node type {t!r}")
 
 
 VALID_NODE_TYPES = frozenset({
     "sequence", "selector", "optional", "invert", "repeat",
-    "action", "guard", "guard_call", "predict", "react",
+    "action", "guard", "check", "guard_call", "predict", "react",
 })
 
 
@@ -271,6 +288,6 @@ __all__ = [
     "BEHAVIOR_FORMAT", "SIGNATURE_FORMAT", "VALID_NODE_TYPES",
     "Signature", "SignatureInput", "SignatureOutput",
     "IRNode", "IRComposite", "IRSequence", "IRSelector", "IRDecorator",
-    "IROptional", "IRInvert", "IRRepeat", "IRAction", "IRGuard", "IRGuardCall",
+    "IROptional", "IRInvert", "IRRepeat", "IRAction", "IRGuard", "IRCheck", "IRGuardCall",
     "IRPredict", "IRReact", "BehaviorIR", "node_to_dict", "node_from_dict",
 ]

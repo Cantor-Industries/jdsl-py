@@ -26,6 +26,7 @@ The IR is a JSON form of the behavior tree. It has a fixed node vocabulary:
 - `repeat`
 - `action`
 - `guard`
+- `check`
 - `guard_call`
 - `predict`
 - `react`
@@ -91,6 +92,35 @@ trusted predicate supplied by the host at bind time.
 ## Loading
 
 `load_package(path)` accepts an unpacked package directory or `.jdsl` zip.
+
+## Exporting a Python-authored skill
+
+A Python-authored `Root` can be run directly as before, or converted to a package
+when it needs to be saved or shared. Supply a contract for each referenced tool;
+the package contains those contracts, never the Python implementations:
+
+```python
+from jdsl.package import ToolContract, ToolEffects, export_jdsl
+
+package = skill.to_package(
+  task_family="knowledge-lookup",
+  tool_contracts={
+    "search": ToolContract(
+      logical_id="knowledge.search",
+      description="Search approved knowledge sources.",
+      input_schema={"type": "object", "properties": {"query": {"type": "string"}}},
+      output_schema={"type": "array", "items": {"type": "string"}},
+      effects=ToolEffects(read_only=True),
+    ),
+  },
+)
+export_jdsl(package, "knowledge-lookup.jdsl")
+```
+
+The converter rejects runtime nodes or signatures that the package IR cannot
+represent. Direct `skill.run(...)` remains available and does not require a
+package. A loaded package uses the same runtime after its logical capabilities
+are bound to trusted host functions.
 
 It verifies:
 

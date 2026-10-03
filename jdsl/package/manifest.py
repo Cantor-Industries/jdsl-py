@@ -88,6 +88,7 @@ class Manifest:
     verification: dict[str, Any] = field(default_factory=lambda: {"status": "unverified"})
     files: dict[str, str] = field(default_factory=dict)
     format: str = PACKAGE_FORMAT
+    model_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -100,6 +101,7 @@ class Manifest:
             "source": self.source,
             "verification": self.verification,
             "files": self.files,
+            "model_id": self.model_id,
         }
 
     @classmethod
@@ -111,6 +113,7 @@ class Manifest:
             runtime=data.get("runtime", {"jdsl": ">=0.3"}),
             source=data.get("source", {}), verification=data.get("verification", {"status": "unverified"}),
             files=data.get("files", {}), format=data.get("format", PACKAGE_FORMAT),
+            model_id=data.get("model_id"),
         )
 
 

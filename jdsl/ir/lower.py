@@ -16,6 +16,7 @@ from jdsl.context import Ref
 from jdsl.ir.schema import (
     BehaviorIR,
     IRAction,
+    IRCheck,
     IRComposite,
     IRGuard,
     IRGuardCall,
@@ -31,6 +32,7 @@ from jdsl.ir.schema import (
 )
 from jdsl.tree import (
     Action,
+    Check,
     Guard,
     GuardCall,
     Invert,
@@ -104,13 +106,15 @@ def _lower_dispatch(node: IRNode, b: RuntimeBindings) -> Node:
         return act
     if isinstance(node, IRGuard):
         return Guard(expression=node.expression)
+    if isinstance(node, IRCheck):
+        return Check(key=node.key, equals=node.equals)
     if isinstance(node, IRGuardCall):
         return GuardCall(predicate=b.predicate(node.predicate), predicate_id=node.predicate,
                          arguments=_lower_args(node.arguments))
     if isinstance(node, IRPredict):
         return _lower_predict(b.signature(node.signature))
     if isinstance(node, IRReact):
-        return _lower_react(b.signature(node.signature), b)
+        return _lower_react(b.signature(node.signature), b, max_steps=node.max_steps)
     if isinstance(node, IRComposite):  # unknown composite -> sequence
         return Sequence(children=[lower_node(c, b) for c in node.children_])
     raise BindingError(f"cannot lower IR node of type {node.type!r}")
@@ -134,17 +138,22 @@ def _lower_predict(sig: Signature) -> Predict:
     sources = {alias: item.source for alias, item in sig.inputs.items()}
     outputs = (sig.output.name,) if sig.output else ()
     schemas = {sig.output.name: sig.output.schema} if sig.output else None
+    context_system = sig.context_policy.get("system")
     return Predict(inputs=inputs, outputs=outputs, instructions=sig.instruction or None,
+                   context_system=context_system if isinstance(context_system, str) else None,
                    output_schemas=schemas, signature_id=sig.id,
                    input_sources=sources, examples=sig.examples)
 
 
-def _lower_react(sig: Signature, b: RuntimeBindings) -> React:
+def _lower_react(sig: Signature, b: RuntimeBindings, *, max_steps: int = 6) -> React:
     inputs = tuple(sig.inputs)
     sources = {alias: item.source for alias, item in sig.inputs.items()}
     outputs = (sig.output.name,) if sig.output else ("answer",)
     tools = [b.tool(t) for t in sig.tools]
+    context_system = sig.context_policy.get("system")
     return React(inputs=inputs, outputs=outputs, tools=tools, instructions=sig.instruction or None,
+                 context_system=context_system if isinstance(context_system, str) else None,
+                 max_steps=max_steps,
                  input_sources=sources, examples=sig.examples)
 
 

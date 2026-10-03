@@ -20,6 +20,7 @@ uv run jdsl run examples/<name>.py -i key=value   # seed blackboard inputs
 | [shop.py](shop.py) | Tool-heavy `react`: search a catalog, compare products, pick the cheapest in stock, chain coupon/shipping/total arithmetic. | yes |
 | [db.py](db.py) | `react` that discovers an unknown DB schema, queries it, then aggregates with a `list[float]` tool (array arg). | yes |
 | [wiki.py](wiki.py) | `ref` wiring across steps: search → model picks a title → fetch. | yes |
+| [author_behavior.py](author_behavior.py) | A JDSL agent composes, validates, and offers to save a second JDSL package from a safe step palette. | yes |
 
 Deterministic examples (no `predict`) run without any key. LLM examples read a
 key from `.env` (`DEEPSEEK_API_KEY` or `ANTHROPIC_API_KEY`) — see

@@ -21,6 +21,7 @@ uv run jdsl run examples/<name>.py -i key=value
 | `shop.py` | Tool-heavy ordering flow with search, comparison, and arithmetic. | yes |
 | `db.py` | Schema discovery and array arguments in `react`. | yes |
 | `wiki.py` | Search, model selection, and later tool call wired by `ref`. | yes |
+| `author_behavior.py` | A JDSL agent composes and validates a second JDSL package from an allowlisted step palette. | yes |
 
 ## Choosing an Example
 
