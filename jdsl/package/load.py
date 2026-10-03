@@ -65,7 +65,8 @@ class LoadedPackage:
     def as_root(self, tools: dict[str, Any], predicates: dict[str, Any] | None = None,
                 *, model_id: str | None = None) -> Root:
         """Wrap the bound tree in a Root so it runs like any authored skill (§40)."""
-        root = Root(name=self.manifest.name, child=self.bind(tools, predicates), model_id=model_id)
+        root = Root(name=self.manifest.name, child=self.bind(tools, predicates),
+                model_id=model_id or self.manifest.model_id)
         return root
 
 

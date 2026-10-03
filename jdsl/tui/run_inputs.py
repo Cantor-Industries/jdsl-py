@@ -31,12 +31,16 @@ class RunInputsEditor(Vertical):
         for index in range(self.ROW_COUNT):
             self._row(index).styles.display = "none"
 
-    def load(self, required: list[str]) -> None:
+    def load(self, required: list[str], saved_values: dict[str, Any] | None = None) -> None:
         try:
             previous = self.value()
         except ValueError:
             previous = {}
-        values = {name: previous[name] for name in required if name in previous}
+        saved_values = saved_values or {}
+        values = {
+            name: previous[name] if name in previous else saved_values[name]
+            for name in required if name in previous or name in saved_values
+        }
         for index in range(self.ROW_COUNT):
             name = required[index] if index < len(required) else ""
             row = self._row(index)

@@ -6,12 +6,13 @@ import hashlib
 import importlib.util
 import json
 import re
-from threading import Event
 import time
 from collections.abc import Callable
 from copy import deepcopy
 from functools import partial, wraps
 from pathlib import Path
+from threading import Event
+from typing import Any
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -32,7 +33,7 @@ from jdsl.ir import (
     IRSequence,
     validate_ir,
 )
-from jdsl.ir.schema import IRComposite, Signature, SignatureInput, SignatureOutput
+from jdsl.ir.schema import IRComposite, IRDecorator, IRInvert, IROptional, Signature
 from jdsl.package import (
     BehaviorPackage,
     Manifest,
@@ -42,16 +43,17 @@ from jdsl.package import (
     load_package_object,
     package_digest,
 )
-from jdsl.trace.sink import ListTraceSink
 from jdsl.trace.redaction import Redactor
-from jdsl.tui.dialogs import ConfirmDiscardScreen, TrustToolsScreen
+from jdsl.trace.sink import ListTraceSink
 from jdsl.tui.definitions import DefinitionsScreen
+from jdsl.tui.dialogs import ConfirmDiscardScreen, TrustToolsScreen
 from jdsl.tui.editors import ActionArgumentsEditor, ArgumentsChanged, GuardChanged, GuardExpressionEditor
-from jdsl.tui.run_panel import RunPanel, RunTraceUpdate
 from jdsl.tui.run_inputs import RunInputsEditor
+from jdsl.tui.run_panel import RunPanel, RunTraceUpdate
 from jdsl.tui.screens import HelpScreen, NewTemplateScreen, OpenPackageScreen, SavePackageScreen, TourScreen
 from jdsl.tui.settings import recovery_path
 from jdsl.tui.signature_editor import SignatureChanged, SignatureEditor
+from jdsl.tui.templates import TEMPLATES_BY_ID, build_template
 from jdsl_harness.metrics import package_metrics
 
 
@@ -145,7 +147,8 @@ class SkillWorkbench(Vertical):
             yield Button("Discard draft", id="discard-draft")
         with Horizontal(id="skill-tree-panel"):
             with Vertical():
-                yield Static("SKILL TREE", classes="panel-title")
+                with Horizontal(classes="panel-header"):
+                    yield Static("SKILL TREE", classes="panel-title")
                 yield Input(placeholder="Find node ID or type (Ctrl+F)", id="tree-search")
                 yield Tree("root", id="skill-tree")
                 with Vertical(id="empty-state"):
@@ -159,7 +162,7 @@ class SkillWorkbench(Vertical):
                         for node_type in ("sequence", "selector", "action", "guard"):
                             yield Button(f"+ {node_type}", id=f"add-{node_type}")
                     with Horizontal(classes="action-row"):
-                        for node_type in ("predict", "react", "repeat"):
+                        for node_type in ("predict", "react", "repeat", "optional", "invert"):
                             yield Button(f"+ {node_type}", id=f"add-{node_type}")
                         yield Button("Remove", id="remove-node")
                     with Horizontal(id="editing-actions", classes="action-row"):
@@ -172,9 +175,10 @@ class SkillWorkbench(Vertical):
                         yield Button("Paste", id="paste-node")
                         yield Button("Definitions", id="definitions")
             with Vertical(id="skill-properties-panel"):
-                yield Static("NODE PROPERTIES", classes="panel-title")
-                yield Static("Not validated yet.", id="skill-problems")
+                with Horizontal(classes="panel-header"):
+                    yield Static("NODE PROPERTIES", classes="panel-title")
                 with VerticalScroll(id="skill-properties-scroll"):
+                    yield Static("Not validated yet.", id="skill-problems")
                     with Vertical(id="skill-properties"):
                         yield Label("Select a node")
                         yield Input(placeholder="Node id", id="node-id")
@@ -205,14 +209,16 @@ class SkillWorkbench(Vertical):
                             yield Static("Dry run", classes="field-label")
                             yield Switch(id="dry-run")
                         yield RunInputsEditor(id="run-input-editor")
-                with Horizontal(classes="actions"):
-                    yield Button("Apply", id="apply-properties", variant="primary")
-                    yield Button("Validate", id="validate-skill")
-                    yield Button("Save", id="save-skill", variant="success")
-                    yield Button("Open", id="open-skill")
-                    yield Button("New", id="new-skill")
-                    yield Button("Run", id="run-skill", variant="primary")
-                    yield Button("Stop", id="stop-run", disabled=True)
+                with Vertical(id="workbench-actions"):
+                    with Horizontal(classes="action-row"):
+                        yield Button("Apply", id="apply-properties", variant="primary")
+                        yield Button("Validate", id="validate-skill")
+                        yield Button("Save", id="save-skill", variant="success")
+                    with Horizontal(classes="action-row"):
+                        yield Button("Open", id="open-skill")
+                        yield Button("New", id="new-skill")
+                        yield Button("Run", id="run-skill", variant="primary")
+                        yield Button("Stop", id="stop-run", disabled=True)
                 yield RunPanel(id="run-panel")
 
     def on_mount(self) -> None:
@@ -408,6 +414,12 @@ class SkillWorkbench(Vertical):
             self.query_one(f"#{widget_id}").styles.display = "block" if visible else "none"
         self.query_one("#skill-properties Label", Label).update(f"{node.type.upper()}  ·  {self.node_label(node)}")
 
+    def _flush_pending_properties(self) -> None:
+        if self._apply_timer is not None:
+            self._apply_timer.stop()
+            self._apply_timer = None
+            self.apply_properties()
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         button_id = event.button.id or ""
         if button_id.startswith("add-"):
@@ -417,10 +429,13 @@ class SkillWorkbench(Vertical):
         elif button_id == "apply-properties":
             self.apply_properties()
         elif button_id == "validate-skill":
+            self._flush_pending_properties()
             self.validate_skill()
         elif button_id == "save-skill":
+            self._flush_pending_properties()
             self.request_save()
         elif button_id == "run-skill":
+            self._flush_pending_properties()
             self.run_skill()
         elif button_id == "open-skill":
             self.open_skill()
@@ -460,13 +475,15 @@ class SkillWorkbench(Vertical):
             self.open_definitions()
 
     def add_node(self, node_type: str) -> None:
-        parent = self.selected_node if isinstance(self.selected_node, (IRComposite, IRRepeat)) else self.skill_ir.root
-        if isinstance(parent, IRRepeat) and parent.child is not None:
+        parent = self.selected_node if isinstance(self.selected_node, (IRComposite, IRRepeat, IRDecorator)) else self.skill_ir.root
+        if isinstance(parent, (IRRepeat, IRDecorator)) and parent.child is not None:
             parent = self.skill_ir.root
         node_id = self._new_node_id(node_type)
         nodes: dict[str, IRNode] = {
             "sequence": IRSequence(type="sequence", id=node_id, children_=[]),
             "selector": IRSelector(type="selector", id=node_id, children_=[]),
+            "optional": IROptional(type="optional", id=node_id, child=None),
+            "invert": IRInvert(type="invert", id=node_id, child=None),
             "action": IRAction(type="action", id=node_id, tool=""),
             "guard": IRGuard(type="guard", id=node_id, expression={}),
             "predict": IRPredict(type="predict", id=node_id, signature=""),
@@ -476,6 +493,8 @@ class SkillWorkbench(Vertical):
         new_node = nodes[node_type]
         self._record_history()
         if isinstance(parent, IRRepeat) and parent.child is None:
+            parent.child = new_node
+        elif isinstance(parent, IRDecorator) and parent.child is None:
             parent.child = new_node
         else:
             parent.children_.append(new_node)
@@ -596,11 +615,11 @@ class SkillWorkbench(Vertical):
             self.write_status("There is no previous sibling to indent under.")
             return
         previous = siblings[current - 1]
-        if not isinstance(previous, (IRComposite, IRRepeat)):
-            self.write_status("Indent requires a previous sequence, selector, or empty repeat.")
+        if not isinstance(previous, (IRComposite, IRRepeat, IRDecorator)):
+            self.write_status("Indent requires a previous sequence, selector, repeat, or empty decorator.")
             return
-        if isinstance(previous, IRRepeat) and previous.child is not None:
-            self.write_status("That repeat already has a child.")
+        if isinstance(previous, (IRRepeat, IRDecorator)) and previous.child is not None:
+            self.write_status(f"That {previous.type} already has a child.")
             return
         self._record_history()
         siblings.pop(current)
@@ -651,7 +670,7 @@ class SkillWorkbench(Vertical):
             self._record_history()
             self._assign_fresh_ids(node)
             siblings.insert(index + 1, node)
-        elif isinstance(parent, IRRepeat) and parent.child is None:
+        elif isinstance(parent, (IRRepeat, IRDecorator)) and parent.child is None:
             self._record_history()
             self._assign_fresh_ids(node)
             parent.child = node
@@ -693,6 +712,9 @@ class SkillWorkbench(Vertical):
             parent.children_.append(child)
             return True
         if isinstance(parent, IRRepeat) and parent.child is None:
+            parent.child = child
+            return True
+        if isinstance(parent, IRDecorator) and parent.child is None:
             parent.child = child
             return True
         return False
@@ -752,6 +774,9 @@ class SkillWorkbench(Vertical):
             if parent.until is target:
                 parent.until = None
                 return True
+        if isinstance(parent, IRDecorator) and parent.child is target:
+            parent.child = None
+            return True
         return any(self._remove_from(child, target) for child in parent.children())
 
     def _new_node_id(self, node_type: str) -> str:
@@ -847,14 +872,58 @@ class SkillWorkbench(Vertical):
         self.valid = report.ok
         if self.is_mounted:
             content = Text()
-            if report.ok:
+            hints = self._quality_hints()
+            if report.ok and not hints:
                 content.append("No problems.", style="green")
-            else:
+            elif not report.ok:
                 content.append(f"{len(report.problems)} problem(s)\n", style="red bold")
                 for problem in report.problems:
                     content.append(f"! {problem}\n", style="red")
+            if hints:
+                content.append(f"Quality hints ({len(hints)})\n", style="yellow bold")
+                for severity, message in hints:
+                    style = "yellow" if severity == "warning" else "dim"
+                    content.append(f"{severity.upper()}: {message}\n", style=style)
             self.query_one("#skill-problems", Static).update(content)
         self._update_state()
+
+    def _quality_hints(self) -> list[tuple[str, str]]:
+        hints: list[tuple[str, str]] = []
+        used_signatures = {
+            node.signature for node in self.skill_ir.walk()
+            if isinstance(node, (IRPredict, IRReact)) and node.signature
+        }
+        for signature_id, signature in sorted(self.skill_ir.signatures.items()):
+            if signature_id not in used_signatures:
+                hints.append(("hint", f"Signature '{signature_id}' is unused."))
+            if not signature.inputs:
+                hints.append(("hint", f"Signature '{signature_id}' has no declared inputs."))
+
+        used_tools = self._capabilities()
+        for logical_id in sorted(self.tool_contracts.keys() - used_tools):
+            hints.append(("hint", f"Tool contract '{logical_id}' is unused."))
+
+        def visit(node: IRNode, guarded: bool = False) -> None:
+            if node.type == "sequence":
+                sequence_guarded = guarded
+                for child in node.children():
+                    if child.type in {"guard", "guard_call"}:
+                        sequence_guarded = True
+                    if isinstance(child, IRAction):
+                        contract = self.tool_contracts.get(child.tool)
+                        if contract and contract.effects.destructive and not sequence_guarded:
+                            label = child.id or child.tool
+                            hints.append((
+                                "warning",
+                                f"Destructive action '{label}' has no earlier guard in its sequence.",
+                            ))
+                    visit(child, sequence_guarded)
+                return
+            for child in node.children():
+                visit(child, guarded)
+
+        visit(self.skill_ir.root)
+        return hints
 
     def request_save(self) -> None:
         if not self.validate_skill():
@@ -971,6 +1040,8 @@ class SkillWorkbench(Vertical):
         except ValueError as error:
             self.write_status(f"Run input error: {error}")
             return
+        self.app.settings.run_inputs[self._run_input_key()] = inputs
+        self.app.settings.save()
         if not self.validate_skill():
             return
         self.query_one("#trusted-tools-state", Static).update(f"Trusted tools: {tools_path}")
@@ -1141,7 +1212,15 @@ class SkillWorkbench(Vertical):
                 signature = self.skill_ir.signatures.get(node.signature)
                 if signature and signature.output:
                     generated.add(signature.output.name)
-        self.query_one("#run-input-editor", RunInputsEditor).load(sorted(required))
+        self.query_one("#run-input-editor", RunInputsEditor).load(
+            sorted(required), self.app.settings.run_inputs.get(self._run_input_key())
+        )
+
+    def _run_input_key(self) -> str:
+        if self.file_path is not None:
+            return str(self.file_path.resolve())
+        output = self._input("skill-out") if self.query("#skill-out") else "new-skill.jdsl"
+        return str(Path(output or "new-skill.jdsl").expanduser().resolve())
 
     def load_package(self, path: str | Path) -> None:
         package = load_package(path)
@@ -1311,39 +1390,18 @@ class SkillWorkbench(Vertical):
         self.request_new_skill()
 
     def _reset_document(self, template: str = "blank") -> None:
-        root = IRSequence(type="sequence", id="root", children_=[])
-        signatures: dict[str, Signature] = {}
-        note = "Blank skill created."
-        if template == "lookup-act":
-            root.children_ = [
-                IRAction(type="action", id="lookup", tool="lookup_customer", store="customer"),
-                IRAction(
-                    type="action", id="act", tool="update_record",
-                    arguments={"customer_id": {"ref": "customer.id"}}, store="result",
-                ),
-            ]
-            note = "Lookup-then-act template created with an exact blackboard ref."
-        elif template == "predict":
-            signature = Signature(
-                id="decide", kind="predict",
-                inputs={"request": SignatureInput(source="request")},
-                output=SignatureOutput(name="decision"),
-                instruction="Choose the next deterministic branch.",
-            )
-            signatures[signature.id] = signature
-            root.children_.append(IRPredict(type="predict", id="decide", signature=signature.id))
-            note = "Residual-decision template created; review its signature inputs and output."
-        elif template == "guarded-write":
-            root.children_ = [
-                IRGuard(type="guard", id="confirmed", expression={"exists": "confirmation"}),
-                IRAction(
-                    type="action", id="write", tool="write_record",
-                    arguments={"record": {"ref": "record"}},
-                ),
-            ]
-            note = "Guarded-write template created; the write is sequenced after confirmation."
-        self.skill_ir = BehaviorIR(root=root, signatures=signatures)
-        self.tool_contracts.clear()
+        if template == "blank":
+            self.skill_ir = BehaviorIR(root=IRSequence(type="sequence", id="root", children_=[]))
+            self.tool_contracts.clear()
+            package_name = "new-skill"
+            note = "Blank skill created."
+        else:
+            behavior, contracts = build_template(template)
+            self.skill_ir = behavior
+            self.tool_contracts = {contract.logical_id: contract for contract in contracts}
+            definition = TEMPLATES_BY_ID[template]
+            package_name = template
+            note = f"{definition.title} template created from examples/{definition.source}."
         self.selected_node = self.skill_ir.root
         self.file_path = None
         self.dirty = False
@@ -1352,8 +1410,8 @@ class SkillWorkbench(Vertical):
         self._undo_stack.clear()
         self._redo_stack.clear()
         self._clear_recovery_file()
-        self.query_one("#skill-name", Input).value = "new-skill"
-        self.query_one("#skill-out", Input).value = "new-skill.jdsl"
+        self.query_one("#skill-name", Input).value = package_name
+        self.query_one("#skill-out", Input).value = f"{package_name}.jdsl"
         self.rebuild_tree()
         self._update_state()
         self.write_status(note)

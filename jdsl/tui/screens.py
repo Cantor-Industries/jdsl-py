@@ -8,6 +8,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Markdown, Select, Static
 from textual.widgets import DirectoryTree
 
+from jdsl.tui.templates import TEMPLATES
+
 
 class SavePackageScreen(ModalScreen[dict[str, str] | None]):
     def __init__(self, *, name: str, version: str, description: str, output: str, summary: str) -> None:
@@ -78,20 +80,32 @@ class OpenPackageScreen(ModalScreen[str | None]):
 
 
 class NewTemplateScreen(ModalScreen[str | None]):
-    TEMPLATES = [
-        ("Blank", "blank"),
-        ("Lookup then act", "lookup-act"),
-        ("Decide with a model", "predict"),
-        ("Guarded write", "guarded-write"),
+    TEMPLATE_CHOICES = [("Blank skill", "blank")] + [
+        (template.title, template.id) for template in TEMPLATES
     ]
 
     def compose(self) -> ComposeResult:
         with Vertical(id="template-dialog"):
             yield Static("New skill", classes="dialog-title")
-            yield Select(self.TEMPLATES, value="blank", id="skill-template")
+            yield Static(
+                "Example-based starters create editable behavior and capability contracts. "
+                "Tool implementations remain host-provided.",
+                id="template-description",
+            )
+            yield Select(self.TEMPLATE_CHOICES, value="blank", id="skill-template")
             with Horizontal(classes="actions"):
                 yield Button("Create", id="create-template", variant="primary")
                 yield Button("Cancel", id="cancel-template")
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id != "skill-template":
+            return
+        template = next((item for item in TEMPLATES if item.id == event.value), None)
+        description = (
+            "Start with an empty behavior tree."
+            if template is None else f"{template.description} Source: examples/{template.source}."
+        )
+        self.query_one("#template-description", Static).update(description)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id != "create-template":

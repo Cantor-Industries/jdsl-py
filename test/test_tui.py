@@ -433,11 +433,10 @@ def test_new_templates_and_recovery_draft(tmp_path):
     async def exercise() -> None:
         async with SkillApp().run_test() as first_pilot:
             workbench = first_pilot.app.skill_workbench
-            workbench._reset_document("lookup-act")
-            assert [node.id for node in workbench.skill_ir.root.children()] == ["lookup", "act"]
-            assert workbench.skill_ir.root.children()[1].arguments == {
-                "customer_id": {"ref": "customer.id"}
-            }
+            workbench._reset_document("wiki")
+            assert [node.id for node in workbench.skill_ir.root.children()] == ["search", "choose_title", "fetch"]
+            assert workbench.skill_ir.root.children()[0].arguments == {"query": {"ref": "query"}}
+            assert set(workbench.tool_contracts) == {"search_titles", "fetch_content"}
             workbench._mark_dirty()
 
         async with SkillApp().run_test() as second_pilot:
@@ -445,7 +444,7 @@ def test_new_templates_and_recovery_draft(tmp_path):
             assert second_pilot.app.query_one("#recovery-banner").styles.display == "block"
             workbench.recover_draft()
             assert workbench.dirty
-            assert [node.id for node in workbench.skill_ir.root.children()] == ["lookup", "act"]
+            assert [node.id for node in workbench.skill_ir.root.children()] == ["search", "choose_title", "fetch"]
             workbench._clear_recovery_file()
 
     asyncio.run(exercise())
@@ -463,6 +462,18 @@ def test_help_and_template_picker_are_reachable():
             workbench.request_new_skill()
             await pilot.pause()
             assert pilot.app.screen.__class__.__name__ == "NewTemplateScreen"
+            choices = pilot.app.screen.TEMPLATE_CHOICES
+            assert {value for _label, value in choices} >= {"blank", "greeter", "wiki", "shop"}
+            pilot.app.screen.query_one("#skill-template").value = "wiki"
+            await pilot.pause()
+            description = pilot.app.screen.query_one("#template-description").render()
+            assert "examples/wiki.py" in str(description)
+            await pilot.click("#create-template")
+            await pilot.pause()
+            if pilot.app.screen.__class__.__name__ == "ConfirmDiscardScreen":
+                await pilot.click("#discard-changes")
+                await pilot.pause()
+            assert [node.id for node in workbench.skill_ir.root.children()] == ["search", "choose_title", "fetch"]
 
     asyncio.run(exercise())
 

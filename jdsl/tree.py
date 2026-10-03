@@ -14,7 +14,10 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, get_args, get_origin, get_type_hints
+from typing import TYPE_CHECKING, Any, get_args, get_origin, get_type_hints
+
+if TYPE_CHECKING:
+    from jdsl.package import BehaviorPackage, ToolContract
 
 from jdsl.context import Ref, RunContext
 
@@ -701,6 +704,17 @@ class Root(Node):
 
     def model(self, model_id: str) -> Root: self.model_id = model_id; return self
     def do(self, child: Node) -> Root: self.child = child; return self
+
+    def to_package(self, *, tool_contracts: dict[str, ToolContract] | None = None,
+                   task_family: str = "", version: str = "0.1.0") -> BehaviorPackage:
+        """Build a portable package from this tree without changing direct run().
+
+        `tool_contracts` maps each callable's exposed name to its portable
+        ToolContract. Python implementations are never embedded in the package.
+        """
+        from jdsl.package.authoring import package_from_root
+        return package_from_root(self, tool_contracts=tool_contracts,
+                                 task_family=task_family, version=version)
 
     def _tick(self, ctx: RunContext) -> Status:
         if self.child is None: raise RuntimeError(f"Root {self.name!r} has no child; call .do(...) on it.")

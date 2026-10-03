@@ -6,6 +6,7 @@ import json
 import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any
 
 
 @dataclass
@@ -14,6 +15,7 @@ class TUISettings:
     ascii_glyphs: bool = True
     trusted_tools: dict[str, str] = field(default_factory=dict)
     recent_files: list[str] = field(default_factory=list)
+    run_inputs: dict[str, dict[str, Any]] = field(default_factory=dict)
     tour_seen: bool = False
 
     @classmethod
@@ -31,11 +33,18 @@ class TUISettings:
         recent_files = values.get("recent_files", [])
         if not isinstance(recent_files, list):
             recent_files = []
+        run_inputs = values.get("run_inputs", {})
+        if not isinstance(run_inputs, dict):
+            run_inputs = {}
         return cls(
             reduced_motion=bool(values.get("reduced_motion", False)),
             ascii_glyphs=bool(values.get("ascii_glyphs", True)),
             trusted_tools=dict(trusted_tools),
             recent_files=[str(path) for path in recent_files],
+            run_inputs={
+                str(skill): inputs for skill, inputs in run_inputs.items()
+                if isinstance(inputs, dict)
+            },
             tour_seen=bool(values.get("tour_seen", False)),
         )
 

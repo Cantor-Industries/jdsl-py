@@ -16,6 +16,7 @@ from jdsl.ir.schema import (
     VALID_NODE_TYPES,
     BehaviorIR,
     IRAction,
+    IRCheck,
     IRComposite,
     IRDecorator,
     IRGuard,
@@ -28,6 +29,7 @@ from jdsl.ir.schema import (
 )
 
 _MAX_REPEAT = 1000  # a compiled package must not ship an effectively unbounded loop
+_MAX_REACT_STEPS = 100
 
 
 @dataclass
@@ -100,6 +102,9 @@ def _validate_node(node: IRNode, signatures: dict[str, Signature], report: Valid
         for p in validate_expr(node.expression):
             report.error(f"guard {node.id!r}: {p}")
 
+    if isinstance(node, IRCheck) and not node.key:
+        report.error(f"check node {node.id!r} names no blackboard key")
+
     if isinstance(node, IRGuardCall) and not node.predicate:
         report.error(f"guard_call node {node.id!r} names no predicate")
 
@@ -110,6 +115,8 @@ def _validate_node(node: IRNode, signatures: dict[str, Signature], report: Valid
             report.error(f"{node.type} node {node.id!r} references unknown signature {node.signature!r}")
         elif isinstance(node, IRReact):
             caps.update(signatures[node.signature].tools)
+            if not isinstance(node.max_steps, int) or node.max_steps < 1 or node.max_steps > _MAX_REACT_STEPS:
+                report.error(f"react node {node.id!r} has an invalid max_steps={node.max_steps!r}")
 
 
 def _validate_signature(sig: Signature, report: ValidationReport) -> None:
