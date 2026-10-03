@@ -5,7 +5,7 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, DataTable, Input, Select, Static, TabPane, TabbedContent
+from textual.widgets import Button, DataTable, Input, Select, Static, TabbedContent, TabPane
 
 from jdsl.ir.schema import BehaviorIR
 from jdsl.package import ToolContract, ToolEffects
@@ -24,14 +24,16 @@ class DefinitionsScreen(ModalScreen[list[ToolContract] | None]):
             with TabbedContent(id="definitions-tabs"):
                 with TabPane("Tools", id="definitions-tools-pane"):
                     yield DataTable(id="definitions-tools-table", zebra_stripes=True)
-                    yield Input(placeholder="Logical capability ID", id="definition-id")
-                    yield Input(placeholder="Description", id="definition-description")
-                    yield Input(placeholder="Argument names, comma separated", id="definition-arguments")
-                    yield Select(
-                        [("Read-only", "read-only"), ("Write", "write"), ("Destructive", "destructive")],
-                        value="read-only",
-                        id="definition-effect",
-                    )
+                    with Horizontal(classes="definition-fields"):
+                        yield Input(placeholder="Logical capability ID", id="definition-id")
+                        yield Input(placeholder="Description", id="definition-description")
+                    with Horizontal(classes="definition-fields"):
+                        yield Input(placeholder="Argument names, comma separated", id="definition-arguments")
+                        yield Select(
+                            [("Read-only", "read-only"), ("Write", "write"), ("Destructive", "destructive")],
+                            value="read-only",
+                            id="definition-effect",
+                        )
                     with Horizontal(classes="actions"):
                         yield Button("Add / update", id="definition-save", variant="primary")
                         yield Button("Remove", id="definition-remove")

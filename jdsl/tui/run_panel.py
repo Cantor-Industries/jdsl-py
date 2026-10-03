@@ -28,7 +28,7 @@ class RunPanel(Vertical):
         self.intended_calls: list[str] = []
 
     def compose(self) -> ComposeResult:
-        yield Static("RUN TRACE", classes="panel-title")
+        yield Static("RUN TRACE", classes="panel-header panel-title")
         yield ProgressBar(total=1, show_eta=False, id="run-progress")
         yield RichLog(id="run-log", markup=False, wrap=True, max_lines=500)
 
