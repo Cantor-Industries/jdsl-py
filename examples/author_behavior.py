@@ -1,48 +1,26 @@
-"""A JDSL agent that drafts another JDSL behavior package.
-
-The authoring agent can compose only the step palette returned by
-``available_steps``. It structurally validates the resulting package and keeps
-it in memory until the user approves writing it to ``generated/``.
+"""A JDSL agent that authors and reviews another JDSL behavior package.
 
 Run it:  uv run jdsl run examples/author_behavior.py
 """
 
 from __future__ import annotations
 
-import re
+import json
+from typing import Any
 
-from jdsl import act, predict, react, ref, root, seq, store, tool
-from jdsl.package import BehaviorPackage, ToolContract, ToolEffects, export_jdsl
+from jdsl import check, predict, react, repeat, root, sel, seq, tool
+from jdsl.ir.schema import IRAction, IRNode, IRPredict, IRReact
+from jdsl.package import (
+    BehaviorPackage,
+    ToolContract,
+    ToolEffects,
+    behavior_ir_authoring_guide,
+    export_jdsl,
+)
+from jdsl.package import package_from_proposal as _package_from_proposal
 
 
-STEP_DESCRIPTIONS = {
-    "classify": "Classify the request into a short category.",
-    "search": "Search an approved knowledge source and store the returned sources.",
-    "draft": "Draft an answer, using search results when the search step is included.",
-    "review": "Review the drafted answer for accuracy and completeness.",
-    "escalate": "Hand the request to a human for follow-up.",
-}
 _drafts: dict[str, BehaviorPackage] = {}
-
-
-def _slug(name: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-")[:48].strip("-")
-    if not slug:
-        raise ValueError("name must contain at least one letter or number")
-    return slug
-
-
-@tool
-def search_knowledge(query: str) -> list[str]:
-    """Placeholder for the host's authorized knowledge-search capability."""
-    raise RuntimeError("search_knowledge must be bound to a trusted host implementation")
-
-
-@tool
-def escalate_to_human(request: str) -> str:
-    """Placeholder for the host's human-follow-up capability."""
-    raise RuntimeError("escalate_to_human must be bound to a trusted host implementation")
-
 
 TOOL_CONTRACTS = {
     "search_knowledge": ToolContract(
@@ -70,115 +48,154 @@ TOOL_CONTRACTS = {
 }
 
 
-def build_package(name: str, steps: list[str]) -> BehaviorPackage:
-    """Compose with the Python DSL, then convert the skill to a package."""
-    package_name = _slug(name)
-    if not steps:
-        raise ValueError("choose at least one workflow step")
-    if len(set(steps)) != len(steps):
-        raise ValueError("each workflow step may appear only once")
-    unknown = sorted(set(steps) - STEP_DESCRIPTIONS.keys())
-    if unknown:
-        raise ValueError(f"unsupported workflow step(s): {', '.join(unknown)}")
-    if "review" in steps and ("draft" not in steps or steps.index("review") < steps.index("draft")):
-        raise ValueError("review must appear after draft")
-    if "search" in steps and "draft" in steps and steps.index("search") > steps.index("draft"):
-        raise ValueError("search must appear before draft")
-    if not ({"draft", "escalate"} & set(steps)):
-        raise ValueError("include a draft or escalation step to produce an outcome")
+@tool
+def jdsl_node_reference() -> str:
+    """Describe the supported JDSL IR grammar and its node semantics."""
+    return behavior_ir_authoring_guide()
 
-    nodes = []
-    for step in steps:
-        if step == "classify":
-            nodes.append(predict(
-                "request -> category",
-                instructions="Classify the request with a concise category label.",
-                id=step,
-            ))
-        elif step == "search":
-            nodes.append(store(act(search_knowledge, ref("request"), id=step), "sources"))
-        elif step == "draft":
-            draft_inputs = "request, sources -> answer" if "search" in steps[:steps.index(step)] else "request -> answer"
-            nodes.append(predict(
-                draft_inputs,
-                instructions="Answer clearly. Ground factual claims in supplied sources and state uncertainty.",
-                id=step,
-            ))
-        elif step == "review":
-            nodes.append(predict(
-                "answer -> review",
-                instructions="Identify unsupported or incomplete claims. Return 'pass' or a concise correction request.",
-                id=step,
-            ))
-        elif step == "escalate":
-            nodes.append(act(escalate_to_human, ref("request"), id=step))
 
-    contracts = {
-        tool_name: contract
-        for tool_name, contract in TOOL_CONTRACTS.items()
-        if (tool_name == "search_knowledge" and "search" in steps)
-        or (tool_name == "escalate_to_human" and "escalate" in steps)
-    }
-    skill = root(
-        package_name,
-        system="Follow this workflow in order. Use only the declared inputs and capabilities.",
-    ).do(seq(*nodes, id="root"))
-    return skill.to_package(
+@tool
+def available_capabilities() -> str:
+    """Return the host capability contracts the generated tree may use."""
+    return json.dumps(
+        [contract.to_dict() for contract in TOOL_CONTRACTS.values()],
+        sort_keys=True,
+        indent=2,
+    )
+
+
+def package_from_proposal(name: str, proposal_json: str) -> BehaviorPackage:
+    """Apply this example's capability policy to a proposed Behavior IR tree."""
+    return _package_from_proposal(
+        name,
+        proposal_json,
+        tool_contracts=TOOL_CONTRACTS,
         task_family="authored-workflow",
-        tool_contracts=contracts,
+        model_id="deepseek-chat",
     )
 
 
-@tool
-def available_steps() -> list[str]:
-    """List the safe workflow steps that can be composed into a behavior."""
-    return [f"{step}: {description}" for step, description in STEP_DESCRIPTIONS.items()]
+def _render_tree(node: IRNode, depth: int = 0) -> list[str]:
+    detail = f" {node.id}" if node.id else ""
+    if isinstance(node, IRAction):
+        detail += f" [{node.tool}]"
+    elif isinstance(node, (IRPredict, IRReact)):
+        detail += f" [{node.signature}]"
+    lines = [f"{'  ' * depth}{node.type}{detail}"]
+    for child in node.children():
+        lines.extend(_render_tree(child, depth + 1))
+    return lines
 
 
 @tool
-def draft_behavior(name: str, steps: list[str]) -> str:
-    """Build and validate a JDSL package draft; do not write it to disk."""
-    package = build_package(name, steps)
+def draft_behavior(name: str, proposal_json: str) -> str:
+    """Validate a nested IR proposal and hold it for explicit user approval."""
+    package = package_from_proposal(name, proposal_json)
     _drafts[package.manifest.name] = package
-    rendered_steps = " -> ".join(node.id or node.type for node in package.ir.root.children())
     capabilities = ", ".join(package.manifest.required_capabilities) or "none"
-    return f"Validated draft '{package.manifest.name}': {rendered_steps}. Required capabilities: {capabilities}."
+    tree = "\n".join(_render_tree(package.ir.root))
+    return f"Validated draft '{package.manifest.name}'. Capabilities: {capabilities}.\nTree:\n{tree}"
 
 
-skill = (
-    root(
-        "Behavior Author",
-        system=(
-            "Help the user turn a workflow request into a JDSL behavior package. "
-            "First inspect available_steps. Compose only those step ids, in a sensible order. "
-            "Ask a brief clarification if the request cannot be represented. "
-            "Call draft_behavior to validate a draft, then explain its nodes and required "
-            "capabilities. Never claim the package was saved; the user approves saving separately."
+def _authoring_loop():
+    return repeat(
+        seq(
+            react(
+                "request, feedback -> answer",
+                tools=[jdsl_node_reference, available_capabilities, draft_behavior],
+                instructions=(
+                    "Author a nested JDSL tree from the supplied grammar and capability catalog. "
+                    "Call draft_behavior and repair validation errors. If feedback contains a "
+                    "review request, revise the tree. Return its package name, tree, and "
+                    "capabilities; do not claim the package was saved."
+                ),
+                max_steps=8,
+                id="author_tree",
+            ),
+            predict(
+                "request, answer -> feedback",
+                instructions=(
+                    "Review whether the proposed tree addresses the request and uses sensible "
+                    "control flow. Return exactly 'approved' only when it does; otherwise give "
+                    "one actionable revision request. A validated package is not yet saved."
+                ),
+                id="review_tree",
+            ),
+            id="author_and_review",
         ),
+        until=check("feedback", "approved", id="review_approved"),
+        max=2,
+        id="bounded_review_loop",
     )
-    .model("deepseek-chat")
-    .do(react(
-        "request -> answer",
-        tools=[available_steps, draft_behavior],
-        max_steps=6,
-    ))
+
+
+skill = root(
+    "Behavior Author",
+    system=(
+        "Help users author JDSL behavior trees. Classify each request as author or explain. "
+        "For author requests, use the documented IR grammar, validate the proposal, and review "
+        "it. For explain requests, answer using the node reference. Never save a package without "
+        "explicit user approval."
+    ),
+).model("deepseek-chat").do(
+    seq(
+        predict(
+            "request -> intent",
+            instructions="Return exactly 'author' for tree-creation requests, otherwise 'explain'.",
+            id="classify_request",
+        ),
+        sel(
+            seq(
+                check("intent", "author", id="is_author_request"),
+                _authoring_loop(),
+                id="author_route",
+            ),
+            seq(
+                check("intent", "explain", id="is_explanation_request"),
+                react(
+                    "request -> answer",
+                    tools=[jdsl_node_reference],
+                    instructions="Answer the JDSL question using the node reference; do not author a package.",
+                    max_steps=3,
+                    id="explain_jdsl",
+                ),
+                id="explain_route",
+            ),
+            predict(
+                "request -> answer",
+                instructions="Explain that this assistant handles JDSL tree authoring or JDSL questions; ask the user to reframe other requests.",
+                id="unsupported_request",
+            ),
+            id="route_request",
+        ),
+        id="authoring_workflow",
+    ),
 )
 
 
 def main() -> None:
     _drafts.clear()
-    request = input("Describe the workflow to create: ").strip()
+    request = input("Describe a behavior tree or ask about JDSL: ").strip()
     if not request:
-        print("No workflow request provided.")
+        print("No request provided.")
         return
 
-    ctx = skill.run(request=request)
-    print("\n", ctx.blackboard.get("answer", "No draft was produced."), sep="")
+    context = skill.run(
+        request=request,
+        feedback="No draft exists yet. Create one from the request.",
+    )
+    print("\n", context.blackboard.get("answer", "No answer produced."), sep="")
+    if context.blackboard.get("intent") != "author":
+        return
+    if context.blackboard.get("feedback") != "approved":
+        print("\nReview did not approve the draft; no package was written.")
+        return
     if not _drafts:
+        print("\nNo valid package draft was produced.")
         return
 
     package = next(reversed(_drafts.values()))
-    print(f"\nStructurally validated draft: {package.manifest.name}.jdsl")
+    print(f"\nValidated draft: {package.manifest.name}.jdsl")
     approval = input("Write this draft under generated/? [y/N] ").strip().lower()
     if approval == "y":
         path = export_jdsl(package, f"generated/{package.manifest.name}.jdsl")
