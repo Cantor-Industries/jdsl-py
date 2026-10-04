@@ -16,14 +16,14 @@ Usage: install.sh [options]
 
 Options:
     -h, --help              Display this help message
-    -v, --version <version> Install a specific version (e.g., 0.1.0)
+    -v, --version <version> Install a specific version (e.g., 0.6.0)
     -b, --binary <path>     Install from a local binary instead of downloading
         --uninstall         Remove the installed jdsl CLI and PATH entry
         --no-modify-path    Don't modify shell config files (.zshrc, .bashrc, etc.)
 
 Examples:
     curl -fsSL https://raw.githubusercontent.com/marsrover/jdsl-py/harness/install.sh | bash
-    curl -fsSL https://raw.githubusercontent.com/marsrover/jdsl-py/harness/install.sh | bash -s -- --version 0.1.0
+    curl -fsSL https://raw.githubusercontent.com/marsrover/jdsl-py/harness/install.sh | bash -s -- --version 0.6.0
     ./install --binary /path/to/jdsl
 EOF
 }
