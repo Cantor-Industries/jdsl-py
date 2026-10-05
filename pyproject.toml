@@ -12,6 +12,7 @@ dependencies = [
     "openai>=1.40",
     "python-dotenv>=1.0",
     "typer>=0.12",
+    "typesafe-sdk>=0.7.2",
 ]
 
 [project.scripts]
