@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
-      id-token: mandatory  # Required for OIDC trusted publishing
+      id-token: write  # Required for OIDC trusted publishing
     
     steps:
     - name: Checkout code
