@@ -16,9 +16,7 @@ on:
 
 permissions:
   contents: write
-  
-exclude_docs: |
-  draft/*
+
 concurrency:
   group: docs
   cancel-in-progress: false
