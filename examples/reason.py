@@ -11,7 +11,7 @@ from jdsl import predict, root, seq
 
 skill = (
     root("Reason", system="You are a careful, rigorous reasoner.")
-    .model("deepseek-chat")
+    .model("thinkingmachines/Inkling")
     .do(
         seq(
             predict("question -> reasoning", instructions="Think step by step. Show your work."),
