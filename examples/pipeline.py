@@ -19,7 +19,7 @@ def log_ticket(): print("→ logged (normal urgency)")
 
 skill = (
     root("Support", system="You are a customer-support triage assistant.")
-    .model("deepseek-chat")
+    .model("thinkingmachines/Inkling")
     .do(
         seq(
             predict(

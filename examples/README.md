@@ -12,8 +12,9 @@ uv run jdsl run examples/<name>.py -i key=value   # seed blackboard inputs
 | [greeter.py](greeter.py) | The smallest skill: `root → seq → act`. Deterministic. | no |
 | [gate.py](gate.py) | Decorators, deterministic: `optional` (fail-soft) and `invert` (negated guard). Try `jdsl show` on it. | no |
 | [triage.py](triage.py) | The LLM drives a `selector`: `predict` classifies, `check` branches. | yes |
-| [reason.py](reason.py) | Chain-of-thought: `predict` reasons, a second `predict` reads that reasoning to answer. | yes |
-| [pipeline.py](pipeline.py) | Multi-step: multi-field signature, `check` routing, a second `predict` chained on the first. | yes |
+| [reason.py](reason.py) | Inkling reasoning: `predict` reasons, a second `predict` reads that reasoning to answer. | yes (`TINKER_API_KEY`) |
+| [tinker.py](tinker.py) | Two small `predict` steps on Inkling; prints raw, unvalidated output. | yes (`TINKER_API_KEY`) |
+| [pipeline.py](pipeline.py) | Inkling multi-step: multi-field signature, `check` routing, and a chained `predict`. | yes (`TINKER_API_KEY`) |
 | [refine.py](refine.py) | Iterative refinement with `repeat`: draft → critique → revise until `check("ok","yes")` passes. | yes |
 | [react.py](react.py) | Agentic `react` leaf: the model chains `@tool` calls (capital → population → arithmetic) via function-calling. | yes |
 | [trip.py](trip.py) | Tool use, minimal: the model chains three tools (distance → drive time → fuel cost) to answer one question. | yes |
@@ -23,7 +24,7 @@ uv run jdsl run examples/<name>.py -i key=value   # seed blackboard inputs
 | [author_behavior.py](author_behavior.py) | Multi-node authoring agent: classify, route, author a nested IR tree, validate, review in a bounded loop, then offer export. | yes |
 
 Deterministic examples (no `predict`) run without any key. LLM examples read a
-key from `.env` (`DEEPSEEK_API_KEY` or `ANTHROPIC_API_KEY`) — see
+key from `.env` (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, or `TINKER_API_KEY`) — see
 [../docs/providers.md](../docs/providers.md).
 
 New examples: follow the checklist in [../CONTRIBUTING.md](../CONTRIBUTING.md)
