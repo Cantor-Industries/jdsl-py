@@ -1,13 +1,13 @@
 # Quickstart
 
-This page gets you from a fresh install to a running skill or harness capture.
-
 ## Install
 
-Quick install with curl:
+This page gets you from a fresh install to a running skill or harness capture.
+
+### pip (recommended)
 
 ```bash
-curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash
+pip install jdsl
 ```
 
 Requires Python ≥ 3.11. After install:
@@ -16,21 +16,33 @@ Requires Python ≥ 3.11. After install:
 jdsl run examples/greeter.py
 ```
 
-The curl install includes the harness dependency, so the capture and compiler
-commands are available from the same `jdsl` installation.
+For the TUI workbench:
+
+```bash
+pip install "jdsl[tui]"
+jdsl tui
+```
+
+### Quick install (curl)
+
+The curl installer bundles the harness dependency alongside the CLI:
+
+```bash
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash
+```
 
 To replace an older curl installation, either run `jdsl uninstall` first or use
 the installer directly when the old CLI does not have that command:
 
 ```bash
 curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --uninstall
-curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.0
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.2
 ```
 
 Uninstall removes the CLI and its PATH entry but preserves harness captures and
 provider credentials.
 
-Development setup with `uv`:
+### Development setup (uv)
 
 ```bash
 uv sync
