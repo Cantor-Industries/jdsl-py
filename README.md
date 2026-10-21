@@ -90,6 +90,25 @@ toggle reduced motion and `Ctrl+G` to switch between ASCII-safe and Unicode glyp
 
 ## Install & run
 
+### pip
+
+```bash
+pip install jdsl
+```
+
+Requires Python ≥ 3.11. After install:
+
+```bash
+jdsl about                 # banner + quickstart
+jdsl run examples/greeter.py
+```
+
+For the TUI:
+
+```bash
+pip install "jdsl[tui]"
+```
+
 ### Quick install (curl)
 
 ```bash
@@ -98,21 +117,16 @@ curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash
 
 Or with options:
 ```bash
-curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.0 --no-modify-path
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.2 --no-modify-path
 ```
 
-Requires Python ≥ 3.11. The curl installer includes the harness dependency as
-well as the runtime CLI. After install:
-```bash
-jdsl about                 # banner + quickstart
-jdsl run examples/greeter.py
-```
+The curl installer includes the harness dependency as well as the runtime CLI.
 
 Upgrade a previous curl installation with:
 
 ```bash
 curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --uninstall
-curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.0
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.2
 ```
 
 The installed CLI also supports `jdsl uninstall`; captures and provider
@@ -187,24 +201,11 @@ for the design-to-code map.
 
 ## Docs
 
-- [docs/index.md](https://cantor-industries.github.io/jdsl-py/) — MkDocs homepage
-- [docs/quickstart.md](docs/quickstart.md) — install and first runs
-- [docs/examples.md](docs/examples.md) — guide to the runnable examples
-- [docs/concepts.md](docs/concepts.md) — behavior trees, the blackboard, signatures, why no codegen
-- [docs/api.md](docs/api.md) — full combinator + node reference
-- [docs/providers.md](docs/providers.md) — models, keys, `.env`, routing
-- [docs/tui.md](docs/tui.md) — skill authoring TUI
-- [docs/harness_usage.md](docs/harness_usage.md) — hands-on: capture, compile, verify, run
-- [docs/harness.md](docs/harness.md) — capture harness and behavior compiler overview
-- [docs/packages.md](docs/packages.md) — `.jdsl` package format and binding
-- [CONTRIBUTING.md](CONTRIBUTING.md) — dev setup, tests, adding examples
+[cantor-industries.github.io/jdsl-py](https://cantor-industries.github.io/jdsl-py/) — full docs (quickstart, concepts, API reference, providers, TUI, harness).
 
 ## Status
 
-Work in progress. The interpreter, combinator API, signatures, and the
-Anthropic / OpenAI-compatible (DeepSeek, OpenAI) backends run today. Not yet
-built: Google provider, and the DSPy-defining **optimization** step (tuning
-prompts against a metric) — the natural next direction now the runtime exists.
+Active development. Core runtime, combinator API, signatures, and Anthropic / OpenAI-compatible backends are stable.
 
 ## License
 

@@ -76,25 +76,34 @@ directly.
 
 ## Install
 
-Quick install (curl):
+### pip (recommended)
 
 ```bash
-curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash
+pip install jdsl
 ```
 
-Or with options:
+Requires Python ≥ 3.11. For the TUI workbench:
 
 ```bash
-curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.0 --no-modify-path
+pip install "jdsl[tui]"
 ```
 
-Requires Python ≥ 3.11. After install:
+After install:
 
 ```bash
 jdsl run examples/greeter.py
 ```
 
-Development setup (uv):
+### Quick install (curl)
+
+```bash
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash
+```
+
+The curl installer bundles the harness dependency alongside the CLI. See
+[Quickstart](quickstart.md) for version pinning and uninstall options.
+
+### Development setup (uv)
 
 ```bash
 uv sync
