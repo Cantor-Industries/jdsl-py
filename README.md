@@ -1,7 +1,7 @@
 # jdsl
 
 <p align="center">
-  <img src="docs/ascii-logo.svg" alt="jdsl — declarative behavior-tree agents" width="516" />
+<img src="docs/ascii-logo.svg" alt="jdsl — declarative behavior-tree agents" width="516" />
 </p>
 
 > Declarative **behavior-tree agents** as clean Python combinators, run by a
@@ -75,7 +75,7 @@ uv run --extra tui jdsl tui
 ```
 
 <p align="center">
-  <img src="docs/tui.png" alt="JDSL skill authoring TUI" width="960" />
+  <img src="https://github.com/Cantor-Industries/jdsl-py/blob/e956f7d9140eda507a7914d74949cfb8a22cc1e7/docs/tui.png" alt="JDSL skill authoring TUI" width="960" />
 </p>
 
 Add sequence, selector, action, guard, predict, react, and repeat nodes; edit
