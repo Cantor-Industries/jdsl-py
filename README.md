@@ -1,7 +1,7 @@
 # jdsl
 
 <p align="center">
-  <img src="https://github.com/Cantor-Industries/jdsl-py/blob/e956f7d9140eda507a7914d74949cfb8a22cc1e7/docs/for_respected_human.png" alt="jdsl logo" width="240" />
+<img src="docs/ascii-logo.svg" alt="jdsl — declarative behavior-tree agents" width="516" />
 </p>
 
 > Declarative **behavior-tree agents** as clean Python combinators, run by a
@@ -117,7 +117,7 @@ curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash
 
 Or with options:
 ```bash
-curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.2 --no-modify-path
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.3 --no-modify-path
 ```
 
 The curl installer includes the harness dependency as well as the runtime CLI.
@@ -126,7 +126,7 @@ Upgrade a previous curl installation with:
 
 ```bash
 curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --uninstall
-curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.2
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.3
 ```
 
 The installed CLI also supports `jdsl uninstall`; captures and provider

@@ -36,7 +36,7 @@ the installer directly when the old CLI does not have that command:
 
 ```bash
 curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --uninstall
-curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.2
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.3
 ```
 
 Uninstall removes the CLI and its PATH entry but preserves harness captures and
