@@ -117,7 +117,7 @@ curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash
 
 Or with options:
 ```bash
-curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.2 --no-modify-path
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.3 --no-modify-path
 ```
 
 The curl installer includes the harness dependency as well as the runtime CLI.
@@ -126,7 +126,7 @@ Upgrade a previous curl installation with:
 
 ```bash
 curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --uninstall
-curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.2
+curl -fsSL https://cantorindustries.com/jdsl-py/install.sh | bash -s -- --version 0.6.3
 ```
 
 The installed CLI also supports `jdsl uninstall`; captures and provider
