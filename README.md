@@ -1,7 +1,7 @@
 # jdsl
 
 <p align="center">
-  <img src="docs/for_respected_human.png" alt="jdsl logo" width="240" />
+  <img src="docs/ascii-logo.svg" alt="jdsl — declarative behavior-tree agents" width="516" />
 </p>
 
 > Declarative **behavior-tree agents** as clean Python combinators, run by a

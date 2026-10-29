@@ -1,5 +1,7 @@
 # jdsl
 
+<pre id="ascii-art" class="ascii-logo gradient-mode" aria-hidden="true"></pre>
+
 jdsl is a small Python runtime for behavior-tree agents. You author control flow
 with normal function calls (`seq`, `sel`, `repeat`, `act`) and put the model only
 where the task needs judgment (`predict` or `react`).

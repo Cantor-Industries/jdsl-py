@@ -49,10 +49,16 @@ exclude_docs: |
   *_experiment.ipynb
   drafts/
 
+extra_css:
+  - stylesheets/ascii.css
+
+extra_javascript:
+  - javascripts/ascii-glitch.js
+
 theme:
   name: material
-  logo: for_respected_human.png
-  favicon: for_respected_human.png
+  logo: ascii-logo.svg
+  favicon: ascii-logo.svg
   features:
     - announce.dismiss
     - content.action.edit
