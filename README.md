@@ -4,6 +4,8 @@
 <img src="docs/ascii-logo.svg" alt="jdsl — declarative behavior-tree agents" width="516" />
 </p>
 
+[![Upload Python Package](https://github.com/Cantor-Industries/jdsl-py/actions/workflows/python-publish.yml/badge.svg)](https://github.com/Cantor-Industries/jdsl-py/actions/workflows/python-publish.yml)
+
 > Declarative **behavior-tree agents** as clean Python combinators, run by a
 > **tree-walking interpreter** over DeepSeek / Anthropic / OpenAI — with
 > **DSPy-style signatures** on the LLM leaves.
