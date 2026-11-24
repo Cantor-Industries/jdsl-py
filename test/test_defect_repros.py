@@ -9,6 +9,8 @@ No behavior changes here: tests and fixtures only.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from jdsl import act, ref, root, store
@@ -17,8 +19,10 @@ from jdsl.ir.schema import BehaviorIR, IRAction, IRSelector
 from jdsl.package import (
     BehaviorPackage,
     Manifest,
+    PackageError,
     ToolContract,
     ToolEffects,
+    export_dir,
     export_jdsl,
     load_package,
 )
@@ -115,3 +119,31 @@ def test_d6_authored_ref_missing_still_raises():
     raising so authors see mistakes immediately (P13 guard)."""
     with pytest.raises(KeyError, match="not on the blackboard"):
         act(lambda x: x, ref("missing")).tick(RunContext())
+
+
+# ---------------------------------------------------------------------------
+# P04: D9 — unlisted signature file loaded without rejection
+# ---------------------------------------------------------------------------
+
+@pytest.mark.xfail(strict=True, reason=(
+    "D9 [suspected]: _load_signatures ignores manifest.files and loads any "
+    "signatures/*.json; an unlisted file is not rejected."
+))
+def test_d9_unlisted_signature_file_rejected(tmp_path):
+    """A .jdsl with signatures/evil.json not listed in manifest.files must
+    raise PackageError on load (§22.2, D9)."""
+    from test.test_package import _pkg
+
+    pkg = _pkg()
+    pkg_path = export_dir(pkg, tmp_path / "valid_pkg")
+    bad_sig = {
+        "format": "jdsl.signature.v1",
+        "id": "evil_sig",
+        "kind": "predict",
+        "inputs": {},
+        "output": {"name": "bad", "schema": {"type": "string"}},
+        "instruction": "",
+    }
+    (pkg_path / "signatures" / "evil.json").write_text(json.dumps(bad_sig))
+    with pytest.raises(PackageError):
+        load_package(pkg_path)
