@@ -13,7 +13,15 @@ import pytest
 
 from jdsl import act, root, store
 from jdsl.context import RunContext
-from jdsl.package import export_jdsl, load_package
+from jdsl.ir.schema import BehaviorIR, IRAction, IRSelector
+from jdsl.package import (
+    BehaviorPackage,
+    Manifest,
+    ToolContract,
+    ToolEffects,
+    export_jdsl,
+    load_package,
+)
 from jdsl.trace import ListTraceSink, segment_episodes
 from jdsl.tree import Status
 from jdsl_harness.compiler import compile_behavior
@@ -56,3 +64,51 @@ def test_d8_positional_args_survive_compilation(tmp_path):
     status = bound.tick(ctx)
     assert status is Status.SUCCESS
     assert "value" in received, "positional argument was not passed to the tool"
+
+
+# ---------------------------------------------------------------------------
+# P03: D6 — out-of-range residual index escapes instead of falling back
+# ---------------------------------------------------------------------------
+
+@pytest.mark.xfail(strict=True, reason=(
+    "D6 [suspected]: a compiled ref with an out-of-range $selected_index raises "
+    "KeyError from Action._resolve; the selector's fallback branch never runs."
+))
+def test_d6_bad_residual_index_falls_back(tmp_path):
+    """A residual model leaf can emit index 99. The compiled selector must treat
+    the unresolvable ref as a failed branch and run its fallback, not crash."""
+
+    calls = []
+
+    def get_order(order_id):
+        calls.append(("get_order", order_id))
+        return {"id": order_id, "status": "pending"}
+
+    def first_order():
+        calls.append(("first_order",))
+        return {"id": "#W0", "status": "pending"}
+
+    ir = BehaviorIR(root=IRSelector(type="selector", id="recover_selection", children_=[
+        IRAction(type="action", id="get_selected_order", tool="retail.order.get",
+                 arguments={"order_id": {"ref": "orders[$selected_index].id"}}, store="order"),
+        IRAction(type="action", id="fallback_first_order", tool="retail.order.first",
+                 arguments={}, store="order"),
+    ]))
+    manifest = Manifest(name="bad-residual-index", required_capabilities=[
+        "retail.order.get", "retail.order.first"])
+    pkg = BehaviorPackage(manifest=manifest, ir=ir, tools=[
+        ToolContract("retail.order.get", effects=ToolEffects(read_only=True)),
+        ToolContract("retail.order.first", effects=ToolEffects(read_only=True)),
+    ])
+    loaded = load_package(export_jdsl(pkg, tmp_path / "bad_index"))
+    bound = loaded.as_root({"retail.order.get": get_order, "retail.order.first": first_order})
+
+    ctx = RunContext(blackboard={
+        "orders": [{"id": "#W0", "status": "pending"}, {"id": "#W1", "status": "shipped"}],
+        "selected_index": 99,
+    })
+    status = bound.tick(ctx)  # today: KeyError escapes here
+
+    assert status is Status.SUCCESS
+    assert calls == [("first_order",)]  # the bad branch made no tool call
+    assert ctx.blackboard["order"]["id"] == "#W0"
