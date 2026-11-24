@@ -102,7 +102,20 @@ def _lower_dispatch(node: IRNode, b: RuntimeBindings) -> Node:
         return Repeat(child=lower_node(node.child, b),
                       until=lower_node(node.until, b) if node.until else None, max=node.max)
     if isinstance(node, IRAction):
-        act = Action(fn=b.tool(node.tool), kwargs=_lower_args(node.arguments),
+        args_dict = _lower_args(node.arguments)
+        # Positional placeholders (§25.3 P12): extract ordered _argN as args tuple
+        positional = {}
+        keyword = {}
+        for k, v in args_dict.items():
+            if isinstance(k, str) and k.startswith("_arg"):
+                try:
+                    positional[int(k[len("_arg"):])] = v
+                except ValueError:
+                    keyword[k] = v
+            else:
+                keyword[k] = v
+        args_tuple = tuple(positional[i] for i in sorted(positional)) if positional else ()
+        act = Action(fn=b.tool(node.tool), args=args_tuple, kwargs=keyword,
                      store_as=node.store, raise_ref_error=False)
         return act
     if isinstance(node, IRGuard):
