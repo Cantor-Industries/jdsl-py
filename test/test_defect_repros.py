@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from jdsl import act, root, store
+from jdsl import act, ref, root, store
 from jdsl.context import RunContext
 from jdsl.ir.schema import BehaviorIR, IRAction, IRSelector
 from jdsl.package import (
@@ -70,10 +70,6 @@ def test_d8_positional_args_survive_compilation(tmp_path):
 # P03: D6 — out-of-range residual index escapes instead of falling back
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason=(
-    "D6 [suspected]: a compiled ref with an out-of-range $selected_index raises "
-    "KeyError from Action._resolve; the selector's fallback branch never runs."
-))
 def test_d6_bad_residual_index_falls_back(tmp_path):
     """A residual model leaf can emit index 99. The compiled selector must treat
     the unresolvable ref as a failed branch and run its fallback, not crash."""
@@ -112,3 +108,10 @@ def test_d6_bad_residual_index_falls_back(tmp_path):
     assert status is Status.SUCCESS
     assert calls == [("first_order",)]  # the bad branch made no tool call
     assert ctx.blackboard["order"]["id"] == "#W0"
+
+
+def test_d6_authored_ref_missing_still_raises():
+    """Compiled actions suppress missing-ref errors; authored act(...) must keep
+    raising so authors see mistakes immediately (P13 guard)."""
+    with pytest.raises(KeyError, match="not on the blackboard"):
+        act(lambda x: x, ref("missing")).tick(RunContext())
