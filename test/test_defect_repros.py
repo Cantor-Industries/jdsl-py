@@ -35,10 +35,6 @@ from test.conftest import FakeModel
 # P02: D8 — positional args dropped in compiled actions
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason=(
-    "D8 [suspected]: _build_action skips _argN keys, so positional arguments "
-    "are dropped from compiled actions."
-))
 def test_d8_positional_args_survive_compilation(tmp_path):
     """A tool called with a positional arg: compile and run; the tool must
     receive the argument."""

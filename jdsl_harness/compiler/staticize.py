@@ -194,9 +194,13 @@ def _build_action(step: NormStep, i: int, dataflow: dict[tuple[int, str, str], s
     caps.add(step.logical_tool)
     arguments: dict[str, Any] = {}
     for arg, value in step.arguments.items():
-        if arg.startswith("_arg"):
-            continue  # positional placeholder; keep kwargs only in compiled form
+        # Positional placeholders preserved for lowering (§25.3 P12)
         key = (i, step.logical_tool, arg)
+        legacy_key = (-1, step.logical_tool, arg)
+        if arg.startswith("_arg"):
+            # Keep positional specs exactly as emitted (const or resolved)
+            arguments[arg] = {"const": value}
+            continue
         legacy_key = (-1, step.logical_tool, arg)
         path = dataflow.get(key) or dataflow.get(legacy_key) or step.arg_lineage.get(arg)
         if path:
