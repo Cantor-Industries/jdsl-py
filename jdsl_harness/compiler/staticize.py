@@ -32,7 +32,7 @@ from jdsl_harness.compiler.model import CompilerModel, HeuristicCompilerModel
 from jdsl_harness.compiler.normalize import NormEpisode, NormStep, slug, synth_node_id, synth_store
 from jdsl_harness.compiler.residualize import residualize_decision
 
-_ACCEPTED_DATAFLOW = {E1, "E2", E3, E4}
+_ACCEPTED_DATAFLOW = {E2, E3, E4}  # P17: require support >= 3, zero counterexamples
 
 
 @dataclass
