@@ -115,3 +115,34 @@ def test_d6_authored_ref_missing_still_raises():
     raising so authors see mistakes immediately (P13 guard)."""
     with pytest.raises(KeyError, match="not on the blackboard"):
         act(lambda x: x, ref("missing")).tick(RunContext())
+
+
+# ---------------------------------------------------------------------------
+# P05: D4 — unlabeled failure becomes skeleton (S)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.xfail(strict=True, reason=(
+    "D4 [suspected]: _pick_skeleton falls back to all episodes when none are "
+    "labeled successful, so a failing trajectory becomes the compiled skeleton."
+))
+def test_d4_unlabeled_failure_not_silent_skeleton(tmp_path):
+    """Episodes with no outcome label and a failing trajectory must not be
+    compiled silently; compile should report exclusion or failure (P15)."""
+    from jdsl_harness.compiler import compile_behavior
+
+    def bad_tool():
+        raise ValueError("intentional failure")
+
+    sink = ListTraceSink()
+    for i in range(2):
+        try:
+            root("fail").do(act(bad_tool)).run(
+                trace_sink=sink, model=FakeModel("0"), episode_id=f"ep_{i}", capture_id="cap_p05")
+        except ValueError:
+            pass
+    episodes = segment_episodes(sink.events)
+    result = compile_behavior(episodes, name="unlabeled-fail")
+
+    # After fix: compile notes that there is no successful episode to compile
+    assert result.compiled.stats.get("note") is not None, (
+        "unlabeled failing episodes compiled silently (no exclusion/report)")
