@@ -102,7 +102,8 @@ def _lower_dispatch(node: IRNode, b: RuntimeBindings) -> Node:
         return Repeat(child=lower_node(node.child, b),
                       until=lower_node(node.until, b) if node.until else None, max=node.max)
     if isinstance(node, IRAction):
-        act = Action(fn=b.tool(node.tool), kwargs=_lower_args(node.arguments), store_as=node.store)
+        act = Action(fn=b.tool(node.tool), kwargs=_lower_args(node.arguments),
+                     store_as=node.store, raise_ref_error=False)
         return act
     if isinstance(node, IRGuard):
         return Guard(expression=node.expression)

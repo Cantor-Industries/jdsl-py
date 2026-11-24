@@ -87,11 +87,18 @@ class Action(Node):
     kwargs: dict[str, Any] = field(default_factory=dict)
     store_as: str | None = None
     context_system: str | None = None
+    raise_ref_error: bool = True
 
     def _tick(self, ctx: RunContext) -> Status:
         def body() -> Status:
-            args = tuple(self._resolve(a, ctx) for a in self.args)
-            kwargs = {k: self._resolve(v, ctx) for k, v in self.kwargs.items()}
+            try:
+                args = tuple(self._resolve(a, ctx) for a in self.args)
+                kwargs = {k: self._resolve(v, ctx) for k, v in self.kwargs.items()}
+            except KeyError as err:
+                if not self.raise_ref_error:
+                    self._emit_result(ctx, error=err)
+                    return Status.FAILURE
+                raise
             # Tier-A gateway capture (§8.1): record the *resolved* tool arguments so
             # the compiler can mine exact dataflow. Without this an Action calls fn
             # directly and its arguments never appear in the trace.
