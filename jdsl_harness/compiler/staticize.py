@@ -27,7 +27,7 @@ from jdsl.ir.schema import (
 )
 from jdsl.package.manifest import NodeProvenance
 from jdsl_harness.compiler.candidates import ACTION, DATAFLOW, GUARD, RECOVERY
-from jdsl_harness.compiler.consolidate import E1, E3, E4, Candidate
+from jdsl_harness.compiler.consolidate import E1, E2, E3, E4, Candidate
 from jdsl_harness.compiler.model import CompilerModel, HeuristicCompilerModel
 from jdsl_harness.compiler.normalize import NormEpisode, NormStep, slug, synth_node_id, synth_store
 from jdsl_harness.compiler.residualize import residualize_decision

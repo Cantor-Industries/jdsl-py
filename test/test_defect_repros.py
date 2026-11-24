@@ -26,7 +26,7 @@ from jdsl.package import (
     export_jdsl,
     load_package,
 )
-from jdsl.trace import ListTraceSink, segment_episodes
+from jdsl.trace import ListTraceSink, segment_episodes, TraceEvent, EventSource, EventKind
 from jdsl.tree import Status
 from jdsl_harness.compiler import compile_behavior
 from test.conftest import FakeModel
@@ -52,8 +52,14 @@ def test_d8_positional_args_survive_compilation(tmp_path):
         skill = root("pos").do(store(act(my_tool, val), "result"))
         skill.run(trace_sink=sink, model=FakeModel("0"), episode_id=f"ep_{i}",
                   capture_id="cap_pos")
+    # P15: episodes must have explicit success for skeleton selection
+    for i in range(3):
+        sink.events.append(TraceEvent.new(
+            kind="environment.verdict", actor="environment", capture_id="cap_pos",
+            episode_id=f"ep_{i}", payload={"verdict": "success"}))
     episodes = segment_episodes(sink.events)
-
+    for ep in episodes:
+        ep.success = True
     result = compile_behavior(episodes, name="pos-test")
     loaded = load_package(export_jdsl(result.package, tmp_path / "pos_test"))
 
