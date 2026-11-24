@@ -9,6 +9,8 @@ No behavior changes here: tests and fixtures only.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from jdsl import act, ref, root, store
@@ -17,8 +19,10 @@ from jdsl.ir.schema import BehaviorIR, IRAction, IRSelector
 from jdsl.package import (
     BehaviorPackage,
     Manifest,
+    PackageError,
     ToolContract,
     ToolEffects,
+    export_dir,
     export_jdsl,
     load_package,
 )
@@ -118,31 +122,28 @@ def test_d6_authored_ref_missing_still_raises():
 
 
 # ---------------------------------------------------------------------------
-# P05: D4 — unlabeled failure becomes skeleton (S)
+# P04: D9 — unlisted signature file loaded without rejection
 # ---------------------------------------------------------------------------
 
 @pytest.mark.xfail(strict=True, reason=(
-    "D4 [suspected]: _pick_skeleton falls back to all episodes when none are "
-    "labeled successful, so a failing trajectory becomes the compiled skeleton."
+    "D9 [suspected]: _load_signatures ignores manifest.files and loads any "
+    "signatures/*.json; an unlisted file is not rejected."
 ))
-def test_d4_unlabeled_failure_not_silent_skeleton(tmp_path):
-    """Episodes with no outcome label and a failing trajectory must not be
-    compiled silently; compile should report exclusion or failure (P15)."""
-    from jdsl_harness.compiler import compile_behavior
+def test_d9_unlisted_signature_file_rejected(tmp_path):
+    """A .jdsl with signatures/evil.json not listed in manifest.files must
+    raise PackageError on load (§22.2, D9)."""
+    from test.test_package import _pkg
 
-    def bad_tool():
-        raise ValueError("intentional failure")
-
-    sink = ListTraceSink()
-    for i in range(2):
-        try:
-            root("fail").do(act(bad_tool)).run(
-                trace_sink=sink, model=FakeModel("0"), episode_id=f"ep_{i}", capture_id="cap_p05")
-        except ValueError:
-            pass
-    episodes = segment_episodes(sink.events)
-    result = compile_behavior(episodes, name="unlabeled-fail")
-
-    # After fix: compile notes that there is no successful episode to compile
-    assert result.compiled.stats.get("note") is not None, (
-        "unlabeled failing episodes compiled silently (no exclusion/report)")
+    pkg = _pkg()
+    pkg_path = export_dir(pkg, tmp_path / "valid_pkg")
+    bad_sig = {
+        "format": "jdsl.signature.v1",
+        "id": "evil_sig",
+        "kind": "predict",
+        "inputs": {},
+        "output": {"name": "bad", "schema": {"type": "string"}},
+        "instruction": "",
+    }
+    (pkg_path / "signatures" / "evil.json").write_text(json.dumps(bad_sig))
+    with pytest.raises(PackageError):
+        load_package(pkg_path)
