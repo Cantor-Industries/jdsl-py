@@ -147,3 +147,127 @@ def test_d9_unlisted_signature_file_rejected(tmp_path):
     (pkg_path / "signatures" / "evil.json").write_text(json.dumps(bad_sig))
     with pytest.raises(PackageError):
         load_package(pkg_path)
+
+
+# ---------------------------------------------------------------------------
+# P06: D3/D5 — coincidence becomes verified ref (S)
+# ---------------------------------------------------------------------------
+
+def test_d3_coincidence_not_verified_ref():
+    # Note: with this synthetic fixture the constant stays const (suspicion not
+    # reproduced here). Kept as documentation of D3/D5 gap per P06.
+    from jdsl_harness.compiler.normalize import NormEpisode, NormStep
+    from jdsl_harness.compiler.staticize import staticize
+    from jdsl.ir.schema import IRAction
+    episodes = []
+    for i in range(3):
+        ep = NormEpisode(episode_id=f"ep_{i}", success=True)
+        ep.steps = [NormStep(index=0, logical_tool="constant_tool", host_tool="constant_tool",
+                              arguments={"val": "same"}, arg_lineage={"val": None},
+                              store="out", node_id="s0")]
+        episodes.append(ep)
+    compiled = staticize(episodes, [], name="coincidence")
+    actions = [n for n in compiled.ir.walk() if isinstance(n, IRAction)]
+    assert actions, "no compiled action found"
+    val = actions[0].arguments.get("val")
+    assert isinstance(val, dict) and "ref" not in val, "coincident constant promoted to dataflow ref (D3/D5)"
+
+
+# ---------------------------------------------------------------------------
+# P07: D16 — constant chosen index (S)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.xfail(strict=True, reason="D16 [suspected]: compiler test relies on fixed chosen index; randomizing should reveal weakness")
+def test_d16_constant_chosen_index_repro(tmp_path):
+    from jdsl import act, predict, ref, root, seq, store
+    from jdsl.package import export_jdsl, load_package
+    from jdsl.context import RunContext
+    from jdsl.tree import Status
+    from jdsl.trace import ListTraceSink, segment_episodes
+    from jdsl_harness.compiler import compile_behavior
+    from test.conftest import FakeModel
+
+    class Retail:
+        def __init__(self, cid, orders): self.customer_id = cid; self.orders = orders
+        def lookup(self, email): return {"id": self.customer_id, "email": email}
+        def list_orders(self, cid): return self.orders
+        def get_order(self, oid): return next(o for o in self.orders if o["id"] == oid)
+
+    sink = ListTraceSink()
+    for i in range(3):
+        idx = i % 2
+        orders = [{"id": f"#W{i}0", "status": "pending"}, {"id": f"#W{i}1", "status": "shipped"}]
+        env = Retail(f"U{i}", orders)
+        root("r").do(seq(
+            store(act(env.lookup, email=ref("email")), "customer"),
+            store(act(env.list_orders, customer_id=ref("customer.id")), "orders"),
+            predict("request, orders -> selected_index", id="resolve"),
+            store(act(env.get_order, order_id=ref(f"orders[{idx}].id")), "order"),
+        )).run(trace_sink=sink, model=FakeModel(str(idx)), episode_id=f"ep_{i}", capture_id="cap_d16",
+                email=f"c{i}@x.com", customer_id=f"U{i}", request="cancel")
+    episodes = segment_episodes(sink.events)
+    result = compile_behavior(episodes, name="d16-random")
+    loaded = load_package(export_jdsl(result.package, tmp_path / "d16"))
+    env = Retail("U99", [{"id": "#W990", "status": "pending"}, {"id": "#W991", "status": "shipped"}])
+    bound = loaded.as_root({"lookup": env.lookup, "list_orders": env.list_orders, "get_order": env.get_order})
+    ctx = RunContext(blackboard={"email": "u99@x.com", "request": "cancel"}, model=FakeModel("1"))
+    assert bound.tick(ctx) is Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# P08: D1 — varying choice from imported traces (S)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.xfail(strict=True, reason="D1 [suspected]: compiled IR uses literal selected_index instead of residual predict + dynamic $selected_index ref")
+def test_d1_varying_choice_has_dynamic_ref():
+    from jdsl.ir.schema import IRAction, IRPredict
+    from jdsl_harness.compiler import compile_behavior
+    from jdsl.trace import ListTraceSink, segment_episodes
+    from test.conftest import FakeModel
+    from jdsl import act, predict, ref, root, seq, store
+    sink = ListTraceSink()
+    for i, idx in enumerate([0, 1]):
+        skill = root("r").do(seq(
+            store(act(lambda: [{"id":"a"},{"id":"b"}], customer_id=ref("c")), "orders"),
+            predict("orders -> selected_index", id="sel"),
+            store(act(lambda oid: {"id": oid}, order_id=ref("orders[$selected_index].id")), "order"),
+        ))
+        skill.run(trace_sink=sink, model=FakeModel(str(idx)), episode_id=f"ep_{i}", capture_id="cap_d1",
+                  orders=[{"id":"a"},{"id":"b"}], selected_index=idx, c="c")
+    episodes = segment_episodes(sink.events)
+    result = compile_behavior(episodes, name="d1-vary")
+    predicts = [n for n in result.compiled.ir.walk() if isinstance(n, IRPredict)]
+    actions = [n for n in result.compiled.ir.walk() if isinstance(n, IRAction)]
+    assert any(p.signature for p in predicts), "missing residual predict (D1)"
+    for a in actions:
+        for spec in a.arguments.values():
+            if isinstance(spec, dict) and "ref" in spec:
+                assert "$selected_index" in spec["ref"], "compiled index is literal not dynamic ref (D1)"
+
+
+# ---------------------------------------------------------------------------
+# P09: D2 — no learned guards (S)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.xfail(strict=True, reason="D2 [suspected]: episodes with conditional action compile without guard expression")
+def test_d2_no_learned_guards():
+    from jdsl_harness.compiler import compile_behavior
+    from jdsl.trace import ListTraceSink, segment_episodes
+    from jdsl import act, root, seq, store, ref
+    def do_if_pending(status):
+        return {"done": status == "pending"}
+    sink = ListTraceSink()
+    for i in range(3):
+        status = "pending" if i < 2 else "done"
+        root("g").do(seq(store(act(do_if_pending, status=ref("status")), "result"))).run(
+            trace_sink=sink, model=FakeModel("0"), episode_id=f"ep_{i}", capture_id="cap_d2", status=status)
+    episodes = segment_episodes(sink.events)
+    result = compile_behavior(episodes, name="d2-guard")
+    from jdsl.ir.schema import IRGuard
+    guards = [n for n in result.compiled.ir.walk() if isinstance(n, IRGuard)]
+    assert len(guards) > 0, "no guard compiled for conditional tool (D2)"
+
+
+# ---------------------------------------------------------------------------
+# P10: Status table in docs (XS) — added locally to docs/harness.md (draft/ignored)
+# ---------------------------------------------------------------------------
