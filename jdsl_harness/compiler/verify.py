@@ -112,11 +112,9 @@ def _replay(compiled: CompiledBehavior, episodes: list[NormEpisode],
 
 def promote_replay_verified(compiled: CompiledBehavior, report: VerificationReport) -> None:
     """When replay is fully clean, lift each compiled node's provenance to E4
-    (replay-verified, §15). Safety-sensitive guards still needed E3 to be compiled."""
-    if report.ok and report.replay_checks > 0:
-        for prov in compiled.provenance:
-            if prov.evidence_grade in ("E1", "E2"):
-                prov.evidence_grade = E4
+    (replay-verified, §15). Disabled by P16 — replay must not upgrade grades."""
+    # P16: no automatic promotion to E4 on replay
+    return
 
 
 def _synth_id(step) -> str:
