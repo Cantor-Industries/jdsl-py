@@ -151,3 +151,20 @@ plugins/          Claude Code, Gemini CLI, OpenCode shims
 
 See [Using the Harness and Compiler](harness_usage.md) for commands and
 [Behavior Packages](packages.md) for the archive format.
+
+---
+
+## Known Limitations (P02–P09 confirmed)
+
+| PR | Defect | Test | Status |
+|---|---|---|---|
+| P02 | D8 positional args dropped | `test_d8_positional_args_survive_compilation` | xfail (confirmed) |
+| P03 | D6 bad residual index | `test_d6_bad_residual_index_falls_back` | xfail / fix P13 landed |
+| P04 | D9 unlisted signature file | `test_d9_unlisted_signature_file_rejected` | xfail |
+| P05 | D4 unlabeled failure skeleton | `test_d4_unlabeled_failure_not_silent_skeleton` | xfail |
+| P06 | D3/D5 coincidence → verified ref | `test_d3_coincidence_not_verified_ref` | documented |
+| P07 | D16 constant chosen index | `test_d16_constant_chosen_index_repro` | xfail |
+| P08 | D1 varying choice literal index | `test_d1_varying_choice_has_dynamic_ref` | xfail |
+| P09 | D2 no learned guards | `test_d2_no_learned_guards` | xfail |
+
+Updated: Track A batch (P06–P10) merged via PR sequence.
