@@ -139,8 +139,9 @@ def staticize(episodes: list[NormEpisode], candidates: list[Candidate], *,
 
 def _pick_skeleton(episodes: list[NormEpisode]) -> NormEpisode | None:
     """The representative trajectory: the modal successful tool sequence (§25.1).
-    Falls back to any episode if none is marked successful."""
-    successful = [e for e in episodes if e.success] or episodes
+    Only considers explicitly successful episodes; unlabeled or failed episodes
+    are not used as skeleton (P15 / D4)."""
+    successful = [e for e in episodes if e.success is True]
     if not successful:
         return None
     seqs = Counter(tuple(e.tool_sequence()) for e in successful)

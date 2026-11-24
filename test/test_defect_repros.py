@@ -121,10 +121,6 @@ def test_d6_authored_ref_missing_still_raises():
 # P04: D9 — unlisted signature file loaded without rejection
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason=(
-    "D9 [suspected]: _load_signatures ignores manifest.files and loads any "
-    "signatures/*.json; an unlisted file is not rejected."
-))
 def test_d9_unlisted_signature_file_rejected(tmp_path):
     """A .jdsl with signatures/evil.json not listed in manifest.files must
     raise PackageError on load (§22.2, D9)."""
@@ -267,3 +263,23 @@ def test_d2_no_learned_guards():
 # ---------------------------------------------------------------------------
 # P10: Status table in docs (XS) — added locally to docs/harness.md (draft/ignored)
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# P05: D4 — unlabeled failure becomes skeleton (S) — flipped by P15
+# ---------------------------------------------------------------------------
+
+def test_d4_unlabeled_failure_not_silent_skeleton(tmp_path):
+    from jdsl_harness.compiler import compile_behavior
+    from jdsl.trace import ListTraceSink, segment_episodes
+    from jdsl import act, root
+    def bad_tool(): raise ValueError("intentional failure")
+    sink = ListTraceSink()
+    for i in range(2):
+        try:
+            root("fail").do(act(bad_tool)).run(
+                trace_sink=sink, model=FakeModel("0"), episode_id=f"ep_{i}", capture_id="cap_p05")
+        except ValueError: pass
+    episodes = segment_episodes(sink.events)
+    result = compile_behavior(episodes, name="unlabeled-fail")
+    assert result.compiled.stats.get("note") == "no successful episode to compile"

@@ -100,7 +100,13 @@ def load_package(path: str | Path, *, verify_digests: bool = True) -> LoadedPack
 
     if "behavior.json" not in files:
         raise PackageError("package has no behavior.json")
-    signatures = _load_signatures(files)
+    # D9 / P14: only manifest-listed signature files allowed
+    sig_files = {name for name in files if name.startswith("signatures/") and name.endswith(".json")}
+    manifest_file_set = set(manifest.files.keys())
+    unlisted_sigs = sig_files - manifest_file_set
+    if unlisted_sigs:
+        raise PackageError(f"unlisted signature files not in manifest.files: {', '.join(sorted(unlisted_sigs))}")
+    signatures = _load_signatures(files, manifest_file_set)
     ir = BehaviorIR.from_dict(json.loads(files["behavior.json"]), signatures)
 
     report = validate_ir(ir, required_capabilities=set(manifest.required_capabilities))
@@ -114,10 +120,12 @@ def load_package(path: str | Path, *, verify_digests: bool = True) -> LoadedPack
                          root_dir=p if p.is_dir() else None)
 
 
-def _load_signatures(files: dict[str, str]) -> dict[str, Signature]:
+def _load_signatures(files: dict[str, str], allowed: set[str] | None = None) -> dict[str, Signature]:
     sigs: dict[str, Signature] = {}
     for name, text in files.items():
         if name.startswith("signatures/") and name.endswith(".json"):
+            if allowed is not None and name not in allowed:
+                continue
             sig = Signature.from_dict(json.loads(text))
             sigs[sig.id] = sig
     return sigs
