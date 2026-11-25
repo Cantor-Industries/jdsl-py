@@ -8,3 +8,9 @@ Baseline from `run_benchmark(seeds=[1,2,3], n_episodes=3)` on W0 (current master
 - `caps_match`: True
 
 Expected poor on W1 (residual decision) and W2 (guard) today because compiler does not yet compile residual model leaves or verified guards at full coverage. Numbers should improve after P08/P09 fixes land.
+
+---
+Updated after P27-P29 (world options):
+- W0 (baseline): compile OK, ref_precision ~0.67 (planted), recall 1.0, caps_match True
+- W1 (residual): compile OK; metric shows residual prediction present; baseline captured
+- W2 (guard): compile OK; metric shows guard expression present; baseline captured
