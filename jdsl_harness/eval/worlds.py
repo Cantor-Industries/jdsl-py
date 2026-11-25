@@ -70,6 +70,12 @@ def generate_episodes(world: WorldW0, n: int = 3, capture_id: str = "w0") -> lis
             request="cancel my order",
         )
     from jdsl.trace import segment_episodes
+    # P15: episodes need explicit success for skeleton selection
+    from jdsl.trace import TraceEvent, EventKind
+    for i in range(n):
+        sink.events.append(TraceEvent.new(
+            kind=EventKind.ENVIRONMENT_VERDICT, actor="environment", capture_id=capture_id,
+            episode_id=f"ep_{i}", payload={"verdict": "success"}))
     return segment_episodes(sink.events)
 
 
