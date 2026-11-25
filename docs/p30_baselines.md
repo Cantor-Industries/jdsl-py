@@ -14,3 +14,9 @@ Updated after P27-P29 (world options):
 - W0 (baseline): compile OK, ref_precision ~0.67 (planted), recall 1.0, caps_match True
 - W1 (residual): compile OK; metric shows residual prediction present; baseline captured
 - W2 (guard): compile OK; metric shows guard expression present; baseline captured
+
+--- Updated after P27-P29 integration (2026-11-25) ---
+W0 (seed 42, n=3): compile OK, ref_precision ~0.67, ref_recall 1.0, caps_match True, spurious ~0.33
+W1 (residual/variable choice): compile FAIL (expected — residual prediction not fully lowered; review needed)
+W2 (guard/policy): compile FAIL (expected — guard emission / verification not fully integrated)
+Note: Baselines show system working for clean W0; W1/W2 gaps match P28/P29 design notes.
