@@ -4,7 +4,7 @@ from typing import Any
 from jdsl_harness.eval.worlds import WorldW0, ground_truth
 from jdsl.trace import ListTraceSink, segment_episodes, EventKind, EventSource
 from jdsl.context import RunContext
-from jdsl.tree import root, seq, store, act, Status
+from jdsl import root, seq, store, act, Status
 
 class OracleTeacherW0:
     """Scripted teacher following planted policy; emits canonical traces."""
