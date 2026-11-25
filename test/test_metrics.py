@@ -1,9 +1,8 @@
-"""P22: Metrics module (Track C)."""
+"""P22: Metrics module (Track C) — unit tests with hand-computed values."""
 from __future__ import annotations
 
 from jdsl_harness.eval.metrics import (
-    pass_at_1, pass_pow_k, precision_recall,
-    rule_of_three_upper_bound, breakeven_n,
+    breakeven_n, pass_at_1, pass_pow_k, precision_recall, rule_of_three_upper_bound,
 )
 
 
@@ -30,6 +29,7 @@ def test_precision_recall_zero_division():
 
 
 def test_rule_of_three_upper_bound_three():
+    # With 3 successes observed, upper bound should not exceed 1
     assert rule_of_three_upper_bound(3, 10) == 1.0
 
 
