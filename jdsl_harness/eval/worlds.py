@@ -137,3 +137,17 @@ def generate_with_guard(world: WorldW0, n: int = 3, capture_id: str = "w0_guard"
         )).run(trace_sink=sink, model=FakeModel("0"), episode_id=f"ep_{i}", capture_id=capture_id,
                 email="t@x.com", customer_id=env.customer_id, status=status, request="cancel")
     return segment_episodes(sink.events)
+
+
+class WorldW1(WorldW0):
+    """P28: Residual decision world (variable choice)."""
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.residual_decision = True
+
+
+class WorldW2(WorldW0):
+    """P29: Policy guard world (only when status pending)."""
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.policy_guard = True
