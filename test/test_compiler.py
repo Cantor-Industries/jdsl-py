@@ -10,7 +10,7 @@ from __future__ import annotations
 from jdsl import act, predict, ref, root, seq, store
 from jdsl.context import RunContext
 from jdsl.package import export_jdsl, load_package
-from jdsl.trace import ListTraceSink, segment_episodes
+from jdsl.trace import EventKind, ListTraceSink, TraceEvent, segment_episodes
 from jdsl.tree import Status
 from jdsl_harness.compiler import (
     compile_behavior,
@@ -67,6 +67,11 @@ def _capture(n: int) -> list:
             trace_sink=sink, model=model, episode_id=f"ep_{i}", capture_id="cap_test",
             email=f"c{i}@x.com", customer_id=cid, target_order_id=f"#W{i}1", request="cancel my order",
         )
+        # P15: the skeleton requires an explicit success verdict; a trace with no
+        # verdict is unlabelled and must not be used as the modal trajectory.
+        sink.events.append(TraceEvent.new(
+            kind=EventKind.ENVIRONMENT_VERDICT, actor="environment",
+            capture_id="cap_test", episode_id=f"ep_{i}", payload={"verdict": "success"}))
     return segment_episodes(sink.events)
 
 
@@ -113,6 +118,9 @@ def test_invariant_unlinked_arg_stays_constant():
         root("c").do(seq(store(act(env.lookup, email=ref("email")), "customer"))).run(
             trace_sink=sink, model=FakeModel("0"), episode_id=f"ep_{i}",
             capture_id="cap", email="same@x.com")
+        sink.events.append(TraceEvent.new(
+            kind=EventKind.ENVIRONMENT_VERDICT, actor="environment",
+            capture_id="cap", episode_id=f"ep_{i}", payload={"verdict": "success"}))
     compiled = staticize(_norm(segment_episodes(sink.events)), [], name="r")
     actions = {n.tool: n for n in compiled.ir.walk() if isinstance(n, IRAction)}
     assert actions["lookup"].arguments["email"] == {"const": "same@x.com"}
@@ -132,6 +140,7 @@ def test_repeated_same_tool_args_stay_position_constants():
         'git add -A && git commit -m "update sessionID and properties lookup"',
     ]
     ep = NormEpisode(episode_id="opencode")
+    ep.success = True  # P15: staticize only builds from a successful episode
     ep.steps = [
         NormStep(index=i, logical_tool="bash", host_tool="bash",
                  arguments={"command": command}, arg_lineage={"command": None})
@@ -154,6 +163,7 @@ def test_repeated_same_tool_variable_slots_get_distinct_inputs():
     episodes = []
     for i in range(2):
         ep = NormEpisode(episode_id=f"ep_{i}")
+        ep.success = True  # P15
         ep.steps = [
             NormStep(index=0, logical_tool="bash", host_tool="bash",
                      arguments={"command": f"git status {i}"}, arg_lineage={"command": None}),
@@ -178,6 +188,7 @@ def test_shell_capability_defaults_to_write_effects():
     from jdsl_harness.compiler.verify import VerificationReport
 
     ep = NormEpisode(episode_id="opencode")
+    ep.success = True  # P15
     ep.steps = [
         NormStep(index=0, logical_tool="bash", host_tool="bash",
                  arguments={"command": "git status"}, arg_lineage={"command": None})

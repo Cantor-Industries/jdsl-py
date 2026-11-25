@@ -26,7 +26,7 @@ from jdsl.package import (
     export_jdsl,
     load_package,
 )
-from jdsl.trace import ListTraceSink, segment_episodes, TraceEvent, EventSource, EventKind
+from jdsl.trace import ListTraceSink, TraceEvent, segment_episodes
 from jdsl.tree import Status
 from jdsl_harness.compiler import compile_behavior
 from test.conftest import FakeModel
@@ -154,9 +154,9 @@ def test_d9_unlisted_signature_file_rejected(tmp_path):
 def test_d3_coincidence_not_verified_ref():
     # Note: with this synthetic fixture the constant stays const (suspicion not
     # reproduced here). Kept as documentation of D3/D5 gap per P06.
+    from jdsl.ir.schema import IRAction
     from jdsl_harness.compiler.normalize import NormEpisode, NormStep
     from jdsl_harness.compiler.staticize import staticize
-    from jdsl.ir.schema import IRAction
     episodes = []
     for i in range(3):
         ep = NormEpisode(episode_id=f"ep_{i}", success=True)
@@ -175,13 +175,16 @@ def test_d3_coincidence_not_verified_ref():
 # P07: D16 — constant chosen index (S)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason="D16 [suspected]: compiler test relies on fixed chosen index; randomizing should reveal weakness")
+@pytest.mark.xfail(
+    strict=True,
+    reason="D16 [suspected]: compiler test relies on fixed chosen index; "
+           "randomizing should reveal weakness")
 def test_d16_constant_chosen_index_repro(tmp_path):
     from jdsl import act, predict, ref, root, seq, store
-    from jdsl.package import export_jdsl, load_package
     from jdsl.context import RunContext
-    from jdsl.tree import Status
+    from jdsl.package import export_jdsl, load_package
     from jdsl.trace import ListTraceSink, segment_episodes
+    from jdsl.tree import Status
     from jdsl_harness.compiler import compile_behavior
     from test.conftest import FakeModel
 
@@ -216,13 +219,16 @@ def test_d16_constant_chosen_index_repro(tmp_path):
 # P08: D1 — varying choice from imported traces (S)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason="D1 [suspected]: compiled IR uses literal selected_index instead of residual predict + dynamic $selected_index ref")
+@pytest.mark.xfail(
+    strict=True,
+    reason="D1 [suspected]: compiled IR uses literal selected_index instead of "
+           "residual predict + dynamic $selected_index ref")
 def test_d1_varying_choice_has_dynamic_ref():
-    from jdsl.ir.schema import IRAction, IRPredict
-    from jdsl_harness.compiler import compile_behavior
-    from jdsl.trace import ListTraceSink, segment_episodes
-    from test.conftest import FakeModel
     from jdsl import act, predict, ref, root, seq, store
+    from jdsl.ir.schema import IRAction, IRPredict
+    from jdsl.trace import ListTraceSink, segment_episodes
+    from jdsl_harness.compiler import compile_behavior
+    from test.conftest import FakeModel
     sink = ListTraceSink()
     for i, idx in enumerate([0, 1]):
         skill = root("r").do(seq(
@@ -247,11 +253,14 @@ def test_d1_varying_choice_has_dynamic_ref():
 # P09: D2 — no learned guards (S)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason="D2 [suspected]: episodes with conditional action compile without guard expression")
+@pytest.mark.xfail(
+    strict=True,
+    reason="D2 [suspected]: episodes with conditional action compile without "
+           "guard expression")
 def test_d2_no_learned_guards():
-    from jdsl_harness.compiler import compile_behavior
+    from jdsl import act, ref, root, seq, store
     from jdsl.trace import ListTraceSink, segment_episodes
-    from jdsl import act, root, seq, store, ref
+    from jdsl_harness.compiler import compile_behavior
     def do_if_pending(status):
         return {"done": status == "pending"}
     sink = ListTraceSink()
@@ -276,9 +285,9 @@ def test_d2_no_learned_guards():
 # ---------------------------------------------------------------------------
 
 def test_d4_unlabeled_failure_not_silent_skeleton(tmp_path):
-    from jdsl_harness.compiler import compile_behavior
-    from jdsl.trace import ListTraceSink, segment_episodes
     from jdsl import act, root
+    from jdsl.trace import ListTraceSink, segment_episodes
+    from jdsl_harness.compiler import compile_behavior
     def bad_tool(): raise ValueError("intentional failure")
     sink = ListTraceSink()
     for i in range(2):
@@ -289,3 +298,43 @@ def test_d4_unlabeled_failure_not_silent_skeleton(tmp_path):
     episodes = segment_episodes(sink.events)
     result = compile_behavior(episodes, name="unlabeled-fail")
     assert result.compiled.stats.get("note") == "no successful episode to compile"
+
+# ---------------------------------------------------------------------------
+# P31: Mutation test for verifier (S)
+# ---------------------------------------------------------------------------
+def test_p31_mutation_verifier_fails():
+    """Corrupting a compiled ref or guard must make `verify` report failure.
+
+    Both mutations are applied to a *real* compiled W0 behavior (so the clean
+    baseline is known-good), then re-verified against the same episodes.
+    """
+    import copy
+
+    from jdsl.ir.schema import IRAction, IRGuard
+    from jdsl_harness.compiler import compile_behavior, verify
+    from jdsl_harness.eval.worlds import WorldW0, generate_episodes
+
+    world = WorldW0(seed=42)
+    episodes = generate_episodes(world, n=3, capture_id="p31")
+    result = compile_behavior(episodes, name="p31")
+    assert result.verification.ok, "clean baseline must verify"
+
+    # 1) Corrupt a compiled dataflow ref to point outside the recorded list.
+    broken = copy.deepcopy(result.compiled)
+    action = next(n for n in broken.ir.walk()
+                  if isinstance(n, IRAction) and n.tool == "get_order")
+    arg = next(iter(action.arguments))
+    action.arguments[arg] = {"ref": "orders[99].id"}
+    report = verify(broken, result.normalized)
+    assert not report.ok
+    assert any("orders[99].id" in p for p in report.problems)
+
+    # 2) Corrupt the compiled guard: a guard that is false in a successful
+    #    episode must be rejected by replay.
+    broken_guard = copy.deepcopy(result.compiled)
+    broken_guard.ir.root.children_.append(IRGuard(
+        type="guard", id="bogus_guard",
+        expression={"eq": [{"ref": "customer.id"}, {"const": "__never__"}]}))
+    report_guard = verify(broken_guard, result.normalized)
+    assert not report_guard.ok
+    assert any("bogus_guard" in p for p in report_guard.problems)

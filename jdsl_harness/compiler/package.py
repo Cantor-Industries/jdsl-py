@@ -87,8 +87,13 @@ def build_package(compiled: CompiledBehavior, report: VerificationReport,
         "deterministic_coverage": compiled.stats.get("deterministic_coverage"),
     }
     tests = {
-        "replay": [{"episode": e.episode_id, "success": e.success,
-                    "source_digest": e.source_digest} for e in norm],
+        # Sorted by episode id: the package digest is a pure function of the
+        # evidence set, not the order the episodes happened to arrive in (P32).
+        "replay": sorted(
+            ({"episode": e.episode_id, "success": e.success,
+              "source_digest": e.source_digest} for e in norm),
+            key=lambda row: (row["episode"] or "", row["source_digest"] or ""),
+        ),
         "guards": [c.to_dict() for c in candidates if c.type == "GUARD"],
         "signatures": [{"id": sid, **sig.to_dict()} for sid, sig in compiled.ir.signatures.items()],
     }

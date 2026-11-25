@@ -6,7 +6,7 @@ hard-coded rather than floating-point exception.
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 
 def pass_at_1(solutions: Sequence[bool]) -> float:
@@ -38,9 +38,9 @@ def pass_pow_k(solutions: Sequence[bool], k: int = 1) -> float:
 
 def precision_recall(predictions: Sequence[bool], targets: Sequence[bool]) -> tuple[float, float]:
     """Precision = TP / (TP + FP); Recall = TP / (TP + FN)."""
-    tp = sum(1 for p, t in zip(predictions, targets) if p and t)
-    fp = sum(1 for p, t in zip(predictions, targets) if p and not t)
-    fn = sum(1 for p, t in zip(predictions, targets) if not p and t)
+    tp = sum(1 for p, t in zip(predictions, targets, strict=False) if p and t)
+    fp = sum(1 for p, t in zip(predictions, targets, strict=False) if p and not t)
+    fn = sum(1 for p, t in zip(predictions, targets, strict=False) if not p and t)
     denom_p = tp + fp
     denom_r = tp + fn
     return (tp / denom_p if denom_p else 0.0, tp / denom_r if denom_r else 0.0)
