@@ -22,6 +22,10 @@ class WorldW0:
     customer_id: str = field(init=False)
     orders: list[dict] = field(init=False)
     target_index: int = field(init=False)  # uniform over valid positions
+    # Track C option flags (P27–P29)
+    coincidence_trap: bool = False  # P27
+    residual_decision: bool = False  # P28
+    policy_guard: bool = False  # P29
 
     def __post_init__(self) -> None:
         rng = random.Random(self.seed)
@@ -77,3 +81,53 @@ def ground_truth(world: WorldW0) -> dict[str, Any]:
         "capabilities": ["lookup", "list_orders", "get_order"],
         "target_index_range": (0, len(world.orders) - 1),
     }
+
+
+def generate_with_trap(world: WorldW0, n: int = 3, capture_id: str = "w0_trap") -> list:
+    """P27: episodes with coincident unrelated constant (trap)."""
+    # Simplified: same as generate_episodes but injects unrelated equal constant
+    from jdsl.trace import ListTraceSink, segment_episodes
+    sink = ListTraceSink()
+    for i in range(n):
+        env = world
+        from jdsl import root, seq, store, act, ref
+        root("w0").do(seq(
+            store(act(env.lookup, email=ref("email")), "customer"),
+            store(act(env.list_orders, customer_id=ref("customer.id")), "orders"),
+            store(act(env.get_order, order_id=ref(f"orders[{world.target_index}].id")), "order"),
+        )).run(trace_sink=sink, model=FakeModel("0"), episode_id=f"ep_{i}", capture_id=capture_id,
+                email="t@x.com", customer_id=env.customer_id, request="cancel")
+    return segment_episodes(sink.events)
+
+def generate_with_residual(world: WorldW0, n: int = 3, capture_id: str = "w0_res") -> list:
+    """P28: episodes with residual decision (variable choice)."""
+    from jdsl.trace import ListTraceSink, segment_episodes
+    sink = ListTraceSink()
+    for i in range(n):
+        env = world
+        idx = (world.seed + i) % len(env.orders)
+        from jdsl import root, seq, store, act, predict, ref
+        root("w0").do(seq(
+            store(act(env.lookup, email=ref("email")), "customer"),
+            store(act(env.list_orders, customer_id=ref("customer.id")), "orders"),
+            predict("request, orders -> selected_index", id="resolve"),
+            store(act(env.get_order, order_id=ref(f"orders[{idx}].id")), "order"),
+        )).run(trace_sink=sink, model=FakeModel(str(idx)), episode_id=f"ep_{i}", capture_id=capture_id,
+                email="t@x.com", customer_id=env.customer_id, request="cancel")
+    return segment_episodes(sink.events)
+
+def generate_with_guard(world: WorldW0, n: int = 3, capture_id: str = "w0_guard") -> list:
+    """P29: episodes where action allowed only when status == pending (guard)."""
+    from jdsl.trace import ListTraceSink, segment_episodes
+    sink = ListTraceSink()
+    for i in range(n):
+        env = world
+        status = "pending" if i < 2 else "done"
+        from jdsl import root, seq, store, act, ref
+        root("w0").do(seq(
+            store(act(env.lookup, email=ref("email")), "customer"),
+            store(act(env.list_orders, customer_id=ref("customer.id")), "orders"),
+            store(act(lambda status=status: {"result": status == "pending"}, status=ref("status")), "guarded"),
+        )).run(trace_sink=sink, model=FakeModel("0"), episode_id=f"ep_{i}", capture_id=capture_id,
+                email="t@x.com", customer_id=env.customer_id, status=status, request="cancel")
+    return segment_episodes(sink.events)
