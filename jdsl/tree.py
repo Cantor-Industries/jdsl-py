@@ -502,8 +502,15 @@ def render_signature_prompt(
     *,
     values: dict[str, Any] | None = None,
     react: bool = False,
+    max_value_chars: int | None = None,
 ) -> str:
-    """Render the signature prompt consistently for runtime and editor preview."""
+    """Render the signature prompt consistently for runtime and editor preview.
+
+    P20: each rendered input is capped so a huge observation cannot blow the
+    prompt budget. Truncation is visible (`…[truncated N items]`) so the model
+    knows it is not seeing the whole value.
+    """
+    limit = _MAX_RENDERED_VALUE_CHARS if max_value_chars is None else max_value_chars
     lines: list[str] = []
     if instruction:
         lines.append(instruction)
@@ -515,7 +522,7 @@ def render_signature_prompt(
     if inputs:
         lines.append("Given these inputs:")
         values = values or {}
-        lines.extend(f"- {name}: {values.get(name)!r}" for name in inputs)
+        lines.extend(f"- {name}: {_render_input_value(values.get(name), limit)}" for name in inputs)
     if react:
         lines.append("Use the available tools as needed, then give your final answer as plain text.")
     elif len(outputs) == 1:
@@ -526,6 +533,48 @@ def render_signature_prompt(
             f"{', '.join(outputs)}. No prose, no code fences."
         )
     return "\n".join(lines)
+
+
+_MAX_RENDERED_VALUE_CHARS = 2000
+
+
+def _render_input_value(value: Any, limit: int) -> str:
+    """repr(value), bounded to roughly `limit` chars with a visible marker."""
+    text = repr(value)
+    if len(text) <= limit:
+        return text
+    if isinstance(value, (list, tuple)):
+        return _truncate_items(list(value), limit)
+    if isinstance(value, dict):
+        return _truncate_mapping(value, limit)
+    omitted = len(text) - limit
+    return f"{text[:limit]}…[truncated {omitted} chars]"
+
+
+def _truncate_items(items: list[Any], limit: int) -> str:
+    shown: list[Any] = []
+    for item in items:
+        if len(repr([*shown, item])) > limit:
+            break
+        shown.append(item)
+    omitted = len(items) - len(shown)
+    marker = f"…[truncated {omitted} items]"
+    if not shown:
+        return marker
+    return f"{repr(shown)[:-1]}, {marker}]"
+
+
+def _truncate_mapping(value: dict[Any, Any], limit: int) -> str:
+    shown: dict[Any, Any] = {}
+    for key, item in value.items():
+        if len(repr({**shown, key: item})) > limit:
+            break
+        shown[key] = item
+    omitted = len(value) - len(shown)
+    marker = f"…[truncated {omitted} items]"
+    if not shown:
+        return marker
+    return f"{repr(shown)[:-1]}, {marker}}}"
 
 
 def assign_runtime_ids(root: Node) -> None:
