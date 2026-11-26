@@ -37,3 +37,24 @@ def test_leaf_renders_as_single_line():
     @tool
     def greet(name: str) -> None: ...
     assert render(act(greet, "x")) == "act(greet)"
+
+
+def test_render_signature_prompt_truncates_large_values():
+    from jdsl.tree import render_signature_prompt
+
+    value = list(range(5000))
+    prompt = render_signature_prompt(
+        None, ("items",), ("choice",), [], values={"items": value})
+    line = next(line for line in prompt.splitlines() if line.startswith("- items:"))
+    assert len(line) <= 2100
+    assert "…[truncated" in line
+    assert "items]" in line
+
+    small = render_signature_prompt(
+        None, ("items",), ("choice",), [], values={"items": [1, 2, 3]})
+    assert "- items: [1, 2, 3]" in small
+
+    tighter = render_signature_prompt(
+        None, ("items",), ("choice",), [], values={"items": value}, max_value_chars=50)
+    tight_line = next(line for line in tighter.splitlines() if line.startswith("- items:"))
+    assert len(tight_line) <= 110

@@ -96,9 +96,9 @@ def staticize(episodes: list[NormEpisode], candidates: list[Candidate], *,
         rcand = recovery.get(step.logical_tool)
         if rcand is not None:
             rec_tool = rcand.claim["recover_with"]
-            caps.add(rec_tool)
-            recover = IRAction(type="action", id=f"recover_{i}", tool=rec_tool,
-                               store=action.store)
+            recover = _build_recovery_action(
+                skeleton, i, rec_tool, dataflow, inputs, caps,
+                fallback_store=action.store)
             node: IRNode = IRSelector(type="selector", id=f"try_{action.id}",
                                       children_=[action, recover])
             provenance.append(_prov(node.id, rcand, compiler_model_id))
@@ -172,6 +172,25 @@ def _index_recovery(candidates: list[Candidate]) -> dict[str, Candidate]:
         if c.type == RECOVERY and c.grade in {E1, "E2", E3, E4} and c.status == "accepted":
             out.setdefault(c.claim["on_error_of"], c)
     return out
+
+
+def _build_recovery_action(skeleton: NormEpisode, index: int, rec_tool: str,
+                           dataflow: dict[tuple[int, str, str], str],
+                           inputs: dict[tuple[int, str, str], str],
+                           caps: set[str], *, fallback_store: str | None) -> IRAction:
+    """P19: build the recovery branch from the recovery step itself, so its
+    argument specs (refs/constants/positional placeholders) survive compilation."""
+    caps.add(rec_tool)
+    rec_step = next(
+        (s for s in skeleton.steps if s.index > index and s.logical_tool == rec_tool),
+        None,
+    )
+    if rec_step is None:
+        return IRAction(type="action", id=f"recover_{index}", tool=rec_tool,
+                        store=fallback_store)
+    recover = _build_action(rec_step, rec_step.index, dataflow, inputs, caps)
+    recover.id = f"recover_{index}"
+    return recover
 
 
 def _index_guards(candidates: list[Candidate]) -> dict[str, list[Candidate]]:

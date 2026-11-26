@@ -5,6 +5,7 @@ failures. Tinker base models use its OpenAI-compatible text-completions API."""
 from __future__ import annotations
 
 import json
+import time
 
 from jdsl import config
 from jdsl.context import ModelTurn, ToolCall
@@ -12,10 +13,16 @@ from jdsl.router import RoundRobinRouter
 
 DEFAULT_MODEL = "claude-opus-4-8"
 _MAX_ATTEMPTS = 5
+_TRANSIENT_ATTEMPTS = 3
+_BACKOFF_BASE_SECONDS = 0.5
 
 
 class _RetryableAuthError(Exception):
     """Marker: an auth/balance/rate-limit failure worth rotating keys for."""
+
+
+class _RetryableTransientError(Exception):
+    """Marker: a timeout, connection failure, or 5xx worth retrying with backoff."""
 
 
 class LanguageModel:
@@ -42,14 +49,23 @@ class LanguageModel:
         else:
             backend = _openai_compatible_generate
         last_error: Exception | None = None
-        for _ in range(_MAX_ATTEMPTS):
+        transient_attempts = 0
+        attempts = 0
+        while attempts < _MAX_ATTEMPTS:
+            attempts += 1
             try:
                 return backend(api_key=router.current(), provider=provider, model=model,
                                system=system, messages=messages)
             except _RetryableAuthError as err:
                 last_error = err.__cause__ or err
                 router.rotate()
-        raise RuntimeError(f"LanguageModel.generate failed after {_MAX_ATTEMPTS} attempts "
+            except _RetryableTransientError as err:
+                last_error = err.__cause__ or err
+                transient_attempts += 1
+                if transient_attempts >= _TRANSIENT_ATTEMPTS:
+                    break
+                time.sleep(_BACKOFF_BASE_SECONDS * (2 ** (transient_attempts - 1)))
+        raise RuntimeError(f"LanguageModel.generate failed after {attempts} attempts "
                            f"for provider {provider!r}.") from last_error
 
     def converse(self, *, system: str, messages: list[dict], tools: list[dict],
@@ -64,14 +80,23 @@ class LanguageModel:
         router = self._router(provider)
         backend = _anthropic_converse if provider == "anthropic" else _openai_converse
         last_error: Exception | None = None
-        for _ in range(_MAX_ATTEMPTS):
+        transient_attempts = 0
+        attempts = 0
+        while attempts < _MAX_ATTEMPTS:
+            attempts += 1
             try:
                 return backend(api_key=router.current(), provider=provider, model=model,
                                system=system, messages=messages, tools=tools)
             except _RetryableAuthError as err:
                 last_error = err.__cause__ or err
                 router.rotate()
-        raise RuntimeError(f"LanguageModel.converse failed after {_MAX_ATTEMPTS} attempts "
+            except _RetryableTransientError as err:
+                last_error = err.__cause__ or err
+                transient_attempts += 1
+                if transient_attempts >= _TRANSIENT_ATTEMPTS:
+                    break
+                time.sleep(_BACKOFF_BASE_SECONDS * (2 ** (transient_attempts - 1)))
+        raise RuntimeError(f"LanguageModel.converse failed after {attempts} attempts "
                            f"for provider {provider!r}.") from last_error
 
 
@@ -84,6 +109,8 @@ def _anthropic_generate(*, api_key, provider, model, system, messages) -> str:
                                            messages=messages)  # type: ignore[arg-type]
     except (anthropic.AuthenticationError, anthropic.PermissionDeniedError, anthropic.RateLimitError) as err:
         raise _RetryableAuthError from err
+    except (anthropic.APITimeoutError, anthropic.APIConnectionError, anthropic.InternalServerError) as err:
+        raise _RetryableTransientError from err
     return "".join(b.text for b in response.content if getattr(b, "type", None) == "text")
 
 
@@ -97,6 +124,8 @@ def _openai_compatible_generate(*, api_key, provider, model, system, messages) -
                                                   messages=chat)  # type: ignore[arg-type]
     except (openai.AuthenticationError, openai.PermissionDeniedError, openai.RateLimitError) as err:
         raise _RetryableAuthError from err
+    except (openai.APITimeoutError, openai.APIConnectionError, openai.InternalServerError) as err:
+        raise _RetryableTransientError from err
     return response.choices[0].message.content or ""
 
 
@@ -118,6 +147,8 @@ def _tinker_generate(*, api_key, provider, model, system, messages) -> str:
         )
     except (openai.AuthenticationError, openai.PermissionDeniedError, openai.RateLimitError) as err:
         raise _RetryableAuthError from err
+    except (openai.APITimeoutError, openai.APIConnectionError, openai.InternalServerError) as err:
+        raise _RetryableTransientError from err
     return response.choices[0].text or ""
 
 
@@ -132,6 +163,8 @@ def _anthropic_converse(*, api_key, provider, model, system, messages, tools) ->
                                            messages=_to_anthropic(messages))  # type: ignore[arg-type]
     except (anthropic.AuthenticationError, anthropic.PermissionDeniedError, anthropic.RateLimitError) as err:
         raise _RetryableAuthError from err
+    except (anthropic.APITimeoutError, anthropic.APIConnectionError, anthropic.InternalServerError) as err:
+        raise _RetryableTransientError from err
     text = "".join(b.text for b in response.content if getattr(b, "type", None) == "text")
     calls = [ToolCall(id=b.id, name=b.name, arguments=dict(b.input))  # type: ignore[arg-type]
              for b in response.content if getattr(b, "type", None) == "tool_use"]
@@ -149,6 +182,8 @@ def _openai_converse(*, api_key, provider, model, system, messages, tools) -> Mo
                                                   messages=chat)  # type: ignore[arg-type]
     except (openai.AuthenticationError, openai.PermissionDeniedError, openai.RateLimitError) as err:
         raise _RetryableAuthError from err
+    except (openai.APITimeoutError, openai.APIConnectionError, openai.InternalServerError) as err:
+        raise _RetryableTransientError from err
     msg = response.choices[0].message
     calls = [ToolCall(id=c.id, name=c.function.name, arguments=json.loads(c.function.arguments or "{}"))
              for c in (msg.tool_calls or [])]

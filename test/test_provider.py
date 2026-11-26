@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from jdsl import ToolCall, config, provider
+from jdsl.context import ModelTurn
 from jdsl.router import NoKeysError
 
 
@@ -61,6 +62,66 @@ def test_generate_raises_after_max_attempts(isolated_config, monkeypatch):
     monkeypatch.setattr(provider, "_openai_compatible_generate", always)
     with pytest.raises(RuntimeError, match="failed after"):
         provider.LanguageModel().generate(system="", messages=[], model_id="deepseek-chat")
+
+
+def test_generate_retries_transient_errors_with_backoff(isolated_config, monkeypatch):
+    """P21: timeouts/5xx retry with exponential backoff and do not rotate keys."""
+    config.add_keys("deepseek", ["k1", "k2"])
+    seen: list[str] = []
+    sleeps: list[float] = []
+
+    def flaky(**kw):
+        seen.append(kw["api_key"])
+        if len(seen) < 3:
+            raise provider._RetryableTransientError
+        return "ok"
+
+    monkeypatch.setattr(provider, "_openai_compatible_generate", flaky)
+    monkeypatch.setattr(provider.time, "sleep", sleeps.append)
+    assert provider.LanguageModel().generate(
+        system="", messages=[], model_id="deepseek-chat") == "ok"
+    assert seen == ["k1", "k1", "k1"]  # transient retries are separate from key rotation
+    assert sleeps == [provider._BACKOFF_BASE_SECONDS,
+                      provider._BACKOFF_BASE_SECONDS * 2]
+
+
+def test_generate_raises_after_transient_attempts(isolated_config, monkeypatch):
+    """P21: a permanent transient failure stops at the small transient bound."""
+    config.add_keys("deepseek", ["k1", "k2"])
+    calls: list[str] = []
+    sleeps: list[float] = []
+
+    def always(**kw):
+        calls.append(kw["api_key"])
+        raise provider._RetryableTransientError
+
+    monkeypatch.setattr(provider, "_openai_compatible_generate", always)
+    monkeypatch.setattr(provider.time, "sleep", sleeps.append)
+    with pytest.raises(RuntimeError, match="failed after"):
+        provider.LanguageModel().generate(system="", messages=[], model_id="deepseek-chat")
+    assert len(calls) == provider._TRANSIENT_ATTEMPTS
+    assert calls == ["k1"] * provider._TRANSIENT_ATTEMPTS
+    assert len(sleeps) == provider._TRANSIENT_ATTEMPTS - 1
+
+
+def test_converse_retries_transient_errors(isolated_config, monkeypatch):
+    config.add_keys("deepseek", ["k"])
+    calls: list[int] = []
+    sleeps: list[float] = []
+
+    def flaky(**kw):
+        calls.append(1)
+        if len(calls) == 1:
+            raise provider._RetryableTransientError
+        return ModelTurn(text="done")
+
+    monkeypatch.setattr(provider, "_openai_converse", flaky)
+    monkeypatch.setattr(provider.time, "sleep", sleeps.append)
+    turn = provider.LanguageModel().converse(
+        system="", messages=[], tools=[], model_id="deepseek-chat")
+    assert turn.text == "done"
+    assert len(calls) == 2
+    assert sleeps == [provider._BACKOFF_BASE_SECONDS]
 
 
 def test_generate_without_keys_raises(isolated_config):
