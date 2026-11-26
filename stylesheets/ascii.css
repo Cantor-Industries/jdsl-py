@@ -1,0 +1,41 @@
+/* jdsl animated ASCII logo.
+   Mirrors the jdsl landing page (.ascii-logo / .gradient-mode) so the docs and
+   the marketing page share one look. Scoped under .md-typeset to outrank
+   Material's default <pre> chrome. */
+
+.md-typeset .ascii-logo {
+  --structure: #AE81FF; /* violet  */
+  --accent: #FD971F;    /* orange  */
+  --ok: #A6E22E;        /* lime    */
+
+  font-family: "Berkeley Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular,
+    Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  color: var(--structure);
+  font-size: 0.85rem;
+  line-height: 1.2;
+  margin: 0 0 1.5rem 0;
+  white-space: pre;
+  background: transparent;
+  padding: 0;
+  border: none;
+  display: inline-block;
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
+  transition: color 0.3s ease;
+}
+
+/* Fluid gradient mode: violet -> orange -> lime */
+.md-typeset .ascii-logo.gradient-mode {
+  background: linear-gradient(135deg, var(--structure) 0%, var(--accent) 50%, var(--ok) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@media (max-width: 700px) {
+  .md-typeset .ascii-logo {
+    font-size: 0.26rem;
+  }
+}
