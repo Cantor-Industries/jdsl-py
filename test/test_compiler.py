@@ -57,15 +57,24 @@ def _capture(n: int) -> list:
     sink = ListTraceSink()
     for i in range(n):
         cid = f"U{i}"
-        orders = [{"id": f"#W{i}0", "status": "shipped"}, {"id": f"#W{i}1", "status": "pending"}]
+        # P18: vary the chosen position *and* the list order per episode so the
+        # fixtures cannot pass by relying on a constant index.
+        chosen = i % 2
+        order_ids = [0, 1] if i % 2 == 0 else [1, 0]
+        orders = [
+            {"id": f"#W{i}{suffix}", "status": "pending" if pos == chosen else "shipped"}
+            for pos, suffix in enumerate(order_ids)
+        ]
         env = Retail(cid, orders)
-        # the teacher picks the pending order (index 1); its exact id is seeded as
-        # the get_order arg so lineage links orders[1].id -> get_order.order_id
+        # the teacher picks the pending order; its exact id is seeded as the
+        # get_order arg so lineage links orders[$selected_index].id ->
+        # get_order.order_id
         from test.conftest import FakeModel
-        model = FakeModel("1")
+        model = FakeModel(str(chosen))
         _teacher_skill(env).run(
             trace_sink=sink, model=model, episode_id=f"ep_{i}", capture_id="cap_test",
-            email=f"c{i}@x.com", customer_id=cid, target_order_id=f"#W{i}1", request="cancel my order",
+            email=f"c{i}@x.com", customer_id=cid,
+            target_order_id=f"#W{i}{order_ids[chosen]}", request="cancel my order",
         )
         # P15: the skeleton requires an explicit success verdict; a trace with no
         # verdict is unlabelled and must not be used as the modal trajectory.
@@ -200,6 +209,58 @@ def test_shell_capability_defaults_to_write_effects():
     assert effects.read_only is False
     assert effects.destructive is True
     assert effects.idempotent is False
+
+
+def test_compiled_recovery_action_carries_arguments():
+    """P19 / D7: the recovery branch reuses the recovery step's argument specs,
+    and the lowered package passes them to the recovery tool when the first
+    action fails."""
+    from jdsl.ir.lower import RuntimeBindings, lower
+    from jdsl.ir.schema import IRAction, IRSelector
+    from jdsl_harness.compiler.normalize import NormEpisode, NormStep
+    from jdsl_harness.compiler.staticize import staticize
+
+    episodes = []
+    for i in range(2):
+        ep = NormEpisode(episode_id=f"ep_{i}")
+        ep.success = True
+        ep.steps = [
+            NormStep(index=0, logical_tool="get_order", host_tool="get_order",
+                     arguments={"order_id": "missing"}, arg_lineage={"order_id": None},
+                     ok=False, error="not found"),
+            NormStep(index=1, logical_tool="list_orders", host_tool="list_orders",
+                     arguments={"customer_id": f"U{i}", "limit": 2},
+                     arg_lineage={"customer_id": "customer.id", "limit": None},
+                     result=[], store="orders"),
+        ]
+        episodes.append(ep)
+
+    compiled = staticize(episodes, consolidate(episodes), name="retail")
+    selectors = [n for n in compiled.ir.walk() if isinstance(n, IRSelector)]
+    assert selectors, "expected the failed action to be wrapped in a recovery selector"
+    recover = selectors[0].children_[1]
+    assert isinstance(recover, IRAction)
+    assert recover.tool == "list_orders"
+    # before P19 this was {}: the recovery tool was called with no arguments.
+    assert recover.arguments == {
+        "customer_id": {"ref": "customer.id"},
+        "limit": {"const": 2},
+    }
+
+    calls: list[tuple[str, int]] = []
+
+    def get_order(order_id):  # the compiled first branch fails
+        return Status.FAILURE
+
+    def list_orders(customer_id, limit):
+        calls.append((customer_id, limit))
+        return []
+
+    tree = lower(compiled.ir, RuntimeBindings(
+        tools={"get_order": get_order, "list_orders": list_orders}))
+    ctx = RunContext(blackboard={"customer": {"id": "U9"}})
+    assert tree.tick(ctx) is Status.SUCCESS
+    assert calls and calls[0] == ("U9", 2)
 
 
 # -- consolidation grades -----------------------------------------------------
